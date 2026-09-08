@@ -17,4 +17,6 @@ void AMonsterAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 	if (!InPawn) return;
+
+
 }
