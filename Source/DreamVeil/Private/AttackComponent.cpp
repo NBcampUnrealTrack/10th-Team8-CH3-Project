@@ -1,6 +1,6 @@
-#include "AttackComponent.h"
+ï»¿#include "AttackComponent.h"
 
-//»ı¼ºÀÚ
+//ìƒì„±ì
 UAttackComponent::UAttackComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
@@ -8,7 +8,7 @@ UAttackComponent::UAttackComponent()
     AttackPower = 0.0f;
 }
 
-//ÀÏ¹İ ÇÔ¼ö
+//ì¼ë°˜ í•¨ìˆ˜
 
 void UAttackComponent::AddAttackPower(float Amount)
 {
@@ -20,14 +20,14 @@ void UAttackComponent::MultiplyAttackPower(float Multiplier)
     AttackPower = FMath::Max(AttackPower * Multiplier, 1.0f);
 }
 
-//UFUNCTION ÇÔ¼ö
+//UFUNCTION í•¨ìˆ˜
 
 float UAttackComponent::GetAttackPower()
 {
     return AttackPower;
 }
 
-//°¡»ó ÇÔ¼ö(ÀÌº¥Æ®)
+//ê°€ìƒ í•¨ìˆ˜(ì´ë²¤íŠ¸)
 
 void UAttackComponent::BeginPlay()
 {

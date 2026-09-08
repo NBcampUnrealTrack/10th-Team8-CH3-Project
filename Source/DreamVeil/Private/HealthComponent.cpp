@@ -1,6 +1,6 @@
-#include "HealthComponent.h"
+ï»¿#include "HealthComponent.h"
 
-//»ı¼ºÀÚ
+//ìƒì„±ì
 
 UHealthComponent::UHealthComponent()
 {
@@ -10,7 +10,7 @@ UHealthComponent::UHealthComponent()
     bIsDead = false;
 }
 
-//ÀÏ¹İÇÔ¼ö
+//ì¼ë°˜í•¨ìˆ˜
 
 void UHealthComponent::HealHealth(float HealAmount)
 {
@@ -27,7 +27,7 @@ void UHealthComponent::SetMaxHealth(float NewMaxHealth)
     MaxHealth = NewMaxHealth;
 }
 
-//UFUNCTION ÇÔ¼öµé
+//UFUNCTION í•¨ìˆ˜ë“¤
 
 float UHealthComponent::GetMaxHealth()
 {
@@ -48,7 +48,7 @@ float UHealthComponent::GetHealthPercentage()
     return CurrentHealth / MaxHealth;
 }
 
-//°¡»óÇÔ¼ö(ÀÌº¥Æ®)
+//ê°€ìƒí•¨ìˆ˜(ì´ë²¤íŠ¸)
 
 void UHealthComponent::BeginPlay()
 {

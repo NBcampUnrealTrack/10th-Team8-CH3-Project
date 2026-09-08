@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+ï»¿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -14,28 +14,28 @@ class DREAMVEIL_API UDefenceComponent : public UActorComponent
 
 private:
 
-    // ¹æ¾î·Â ¼öÄ¡
+    // ë°©ì–´ë ¥ ìˆ˜ì¹˜
     float DefencePower;
 
-    // °ÔÀÓ ½ÃÀÛ ÀÌº¥Æ®(¹æ¾î·Â Base·Î ÃÊ±âÈ­)
+    // ê²Œì„ ì‹œì‘ ì´ë²¤íŠ¸(ë°©ì–´ë ¥ Baseë¡œ ì´ˆê¸°í™”)
     virtual void BeginPlay() override;
 
 public:
 
-    // ¹æ¾î·Â º¯¼ö
+    // ë°©ì–´ë ¥ ë³€ìˆ˜
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defence")
     float BaseDefencePower;
 
-    // »ı¼ºÀÚ
+    // ìƒì„±ì
     UDefenceComponent();
 
-    // ¹æ¾î·Â Áõ°¡
+    // ë°©ì–´ë ¥ ì¦ê°€
     void AddDefencePower(float Amount);
 
-    // ¹æ¾î·Â ¹èÀ² Àû¿ë
+    // ë°©ì–´ë ¥ ë°°ìœ¨ ì ìš©
     void MultiplyDefencePower(float Multiplier);
 
-    // ¹æ¾î·Â Getter
+    // ë°©ì–´ë ¥ Getter
     UFUNCTION(BlueprintCallable, Category = "Defence")
     float GetDefencePower();
 };
