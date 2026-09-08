@@ -13,6 +13,15 @@ void UHealthComponent::HealHealth(float HealAmount)
     CurrentHealth += HealAmount;
     CurrentHealth = FMath::Min(CurrentHealth, MaxHealth);
 }
+void UHealthComponent::SetCurrentHealth(float NewHealth)
+{
+    CurrentHealth = NewHealth;
+}
+
+void UHealthComponent::SetMaxHealth(float NewMaxHealth)
+{
+    MaxHealth = NewMaxHealth;
+}
 
 //UFUNCTION 함수들
 
@@ -34,6 +43,8 @@ float UHealthComponent::GetHealthPercentage()
     }
     return CurrentHealth / MaxHealth;
 }
+
+//가상함수
 
 void UHealthComponent::BeginPlay()
 {

@@ -15,6 +15,7 @@ class DREAMVEIL_API UHealthComponent : public UActorComponent
 private:
     //현재 체력 변수
     float CurrentHealth;
+
     //게임 시작(블프 체력에 맞춰서 시작)
     virtual void BeginPlay() override;
 public:
@@ -28,6 +29,10 @@ public:
     UHealthComponent();
     //힐
     void HealHealth(float HealAmount);
+    //현재 체력 설정
+    void SetCurrentHealth(float CurrentHealth);
+    //최대 체력 설정
+    void SetMaxHealth(float MaxHealth);
     //현재 체력 Getter
     UFUNCTION(BlueprintCallable, Category = "Health")
     float GetCurrentHealth();
