@@ -13,18 +13,30 @@ class DREAMVEIL_API UHealthComponent : public UActorComponent
 	GENERATED_BODY()
 
 private:
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-    int32 CurrentHealth;
-
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
-    int32 MaxHealth;
-
+    //현재 체력 변수
+    float CurrentHealth;
+    //게임 시작(블프 체력에 맞춰서 시작)
+    virtual void BeginPlay() override;
 public:
-
+    //죽음 상태 변수
+  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
+    bool bIsDead;
+    //최대 체력 변수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
+    float MaxHealth;
+    //생성자
     UHealthComponent();
-
-    // 대상에게 데미지를 적용한다.
-    virtual void ApplyDamage(int32 DamageAmount);
+    //힐
+    void HealHealth(float HealAmount);
+    //현재 체력 Getter
+    UFUNCTION(BlueprintCallable, Category = "Health")
+    float GetCurrentHealth();
+    //최대 체력 Getter
+    UFUNCTION(BlueprintCallable, Category = "Health")
+    float GetMaxHealth();
+    //체력 퍼센티지 Getter
+    UFUNCTION(BlueprintCallable, Category = "Health")
+    float GetHealthPercentage();
+   
 };
 
