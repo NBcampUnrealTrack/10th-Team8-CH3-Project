@@ -1,0 +1,13 @@
+1.인터페이스를 정의 UInterface(언리얼에서 주는 거)
+-함수원형들만 정의만 해줌(가상함수 형태)
+2.아이템 클래스들이 이 인터페이스를 구현
+-OnItemOverlapp()을 써서 충돌시 상호작용 되게
+
+그래도 부모 클래스는 필요하네
+
+
+
+WWERQWERWEQRWERWERWRWERWERWERWEwqwrqwr
+qwerweqrwqerwe
+qwerwqerwqerweq
+qwerwqerwerwqqwwwwwwwwwwwwrwrwerwerwaskdfjsdafiouwoiewrrtuweioruweoirweuiorweuirweioruweoirweiorueeweweweweweAsed a\]]]\\\\\\\
