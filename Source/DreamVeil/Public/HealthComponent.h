@@ -16,7 +16,7 @@ private:
     //현재 체력 변수
     float CurrentHealth;
 
-    //게임 시작(블프 체력에 맞춰서 시작)
+    //게임 시작 이벤트(블프 체력에 맞춰서 시작)
     virtual void BeginPlay() override;
 public:
     //죽음 상태 변수

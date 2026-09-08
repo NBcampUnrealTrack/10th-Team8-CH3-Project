@@ -1,5 +1,7 @@
 #include "HealthComponent.h"
 
+//생성자
+
 UHealthComponent::UHealthComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
@@ -7,6 +9,8 @@ UHealthComponent::UHealthComponent()
     CurrentHealth=0.0f;
     bIsDead = false;
 }
+
+//일반함수
 
 void UHealthComponent::HealHealth(float HealAmount)
 {
@@ -44,7 +48,7 @@ float UHealthComponent::GetHealthPercentage()
     return CurrentHealth / MaxHealth;
 }
 
-//가상함수
+//가상함수(이벤트)
 
 void UHealthComponent::BeginPlay()
 {
