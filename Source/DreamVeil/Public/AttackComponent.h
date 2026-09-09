@@ -31,12 +31,12 @@ private:
 
 public:
 
+    //생성자
+    UAttackComponent();
+   
     //기본 공격력
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
     float BaseAttackPower;
-
-    //생성자
-    UAttackComponent();
 
     //공격력을 추가
     void AddAttackPower(float Amount);

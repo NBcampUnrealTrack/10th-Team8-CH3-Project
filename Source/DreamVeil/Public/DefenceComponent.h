@@ -25,18 +25,17 @@ private:
     
     //최종 방어력을 계산
     void SetDefencePower();
-    //생명주기 함수
 
+    //생명주기 함수
     virtual void BeginPlay() override;
 
 public:
+    //생성자
+    UDefenceComponent();
 
     //기본 방어력
     UPROPERTY(EditAnywhere, BlueprintReadWrite,Category="Defence")
     float BaseDefencePower;
-
-    //생성자
-    UDefenceComponent();
 
     //방어력을 추가
     void AddDefencePower(float Amount);
