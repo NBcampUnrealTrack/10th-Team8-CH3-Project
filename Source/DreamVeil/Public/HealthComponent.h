@@ -6,6 +6,11 @@
 #include "Components/ActorComponent.h"
 #include "HealthComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOnMaxHealthChanged,
+    float, OldValue,
+    float, NewValue
+);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class DREAMVEIL_API UHealthComponent : public UActorComponent
@@ -19,11 +24,20 @@ private:
     // ìƒëª…ì£¼ê¸° í•¨ìˆ˜
     virtual void BeginPlay() override;
 public:
+<<<<<<< HEAD
     //ìƒì„±ì
     UHealthComponent();
 
     //ì£½ìŒ ìƒíƒœ ë³€ìˆ˜
   UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
+=======
+    
+    UPROPERTY(BlueprintAssignable, Category="HealthEvent")
+    FOnMaxHealthChanged OnMaxHealthChanged;
+
+    //Á×À½ »óÅÂ º¯¼ö
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
+>>>>>>> feat/MonsterNavigationSystem
     bool bIsDead;
 
     //ìµœëŒ€ ì²´ë ¥ ë³€ìˆ˜
