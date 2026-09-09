@@ -4,6 +4,7 @@
 #include "MonsterBase.h"
 #include "MonsterAIController.h"
 #include "Components/SphereComponent.h"
+#include "HealthComponent.h"
 
 // Sets default values
 AMonsterBase::AMonsterBase()
@@ -11,8 +12,9 @@ AMonsterBase::AMonsterBase()
 	PrimaryActorTick.bCanEverTick = true;
 	AIControllerClass = AMonsterAIController::StaticClass();
 	AutoPossessAI = EAutoPossessAI::PlacedInWorld;
-
-
+	MonsterHealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("MonsterHealthComponent"));
+	MonsterCollisionComponent = nullptr;
+	MonsterMeshComponent = nullptr;
 	//MonsterCollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("Collision")); 자식에서 이렇게 생성
 }
 

@@ -7,6 +7,7 @@
 #include "MonsterBase.generated.h"
 
 class UShapeComponent;
+class UHealthComponent;
 
 UCLASS()
 class DREAMVEIL_API AMonsterBase : public ACharacter
@@ -18,7 +19,7 @@ protected:
 	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Collision")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
 	TObjectPtr<UShapeComponent> MonsterCollisionComponent;
 public:	
 	AMonsterBase();
@@ -28,4 +29,8 @@ public:
 	// Called to bind functionality to input
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	TObjectPtr<UHealthComponent> MonsterHealthComponent;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh")
+	TObjectPtr<UMeshComponent> MonsterMeshComponent;
 };

@@ -19,7 +19,11 @@ private:
 
 protected:
 	virtual void OnPossess(APawn* InPawn) override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="AI|BehaviorTree")
+	TObjectPtr<UBehaviorTree> BehaviorTreeAsset;
 public:
 	AMonsterAIController();
+	void StartBehaviorTree();
 	virtual void BeginPlay() override;
 };
