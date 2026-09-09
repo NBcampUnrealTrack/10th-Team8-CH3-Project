@@ -48,7 +48,7 @@ float UHealthComponent::GetHealthPercentage()
     return CurrentHealth / MaxHealth;
 }
 
-//생명주기 함수
+//가상함수(이벤트)
 
 void UHealthComponent::BeginPlay()
 {

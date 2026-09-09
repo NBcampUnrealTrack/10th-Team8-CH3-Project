@@ -1,4 +1,4 @@
-ï»¿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -13,41 +13,33 @@ class DREAMVEIL_API UHealthComponent : public UActorComponent
 	GENERATED_BODY()
 
 private:
-    //í˜„ì¬ ì²´ë ¥ ë³€ìˆ˜
+    //ÇöÀç Ã¼·Â º¯¼ö
     float CurrentHealth;
 
-    // ìƒëª…ì£¼ê¸° í•¨ìˆ˜
+    //°ÔÀÓ ½ÃÀÛ ÀÌº¥Æ®(ºíÇÁ Ã¼·Â¿¡ ¸ÂÃç¼­ ½ÃÀÛ)
     virtual void BeginPlay() override;
 public:
-    //ìƒì„±ì
-    UHealthComponent();
-
-    //ì£½ìŒ ìƒíƒœ ë³€ìˆ˜
+    //Á×À½ »óÅÂ º¯¼ö
   UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
     bool bIsDead;
-
-    //ìµœëŒ€ ì²´ë ¥ ë³€ìˆ˜
+    //ÃÖ´ë Ã¼·Â º¯¼ö
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
     float MaxHealth;
-
-    //í
+    //»ı¼ºÀÚ
+    UHealthComponent();
+    //Èú
     void HealHealth(float HealAmount);
-
-    //í˜„ì¬ ì²´ë ¥ ì„¤ì •
+    //ÇöÀç Ã¼·Â ¼³Á¤
     void SetCurrentHealth(float CurrentHealth);
-
-    //ìµœëŒ€ ì²´ë ¥ ì„¤ì •
+    //ÃÖ´ë Ã¼·Â ¼³Á¤
     void SetMaxHealth(float MaxHealth);
-
-    //í˜„ì¬ ì²´ë ¥ Getter
+    //ÇöÀç Ã¼·Â Getter
     UFUNCTION(BlueprintCallable, Category = "Health")
     float GetCurrentHealth();
-
-    //ìµœëŒ€ ì²´ë ¥ Getter
+    //ÃÖ´ë Ã¼·Â Getter
     UFUNCTION(BlueprintCallable, Category = "Health")
     float GetMaxHealth();
-
-    //ì²´ë ¥ í¼ì„¼í‹°ì§€ Getter
+    //Ã¼·Â ÆÛ¼¾Æ¼Áö Getter
     UFUNCTION(BlueprintCallable, Category = "Health")
     float GetHealthPercentage();
    

@@ -1,14 +1,10 @@
 ﻿#include "AttackComponent.h"
 
 //생성자
-
 UAttackComponent::UAttackComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
-
     BaseAttackPower = 0.0f;
-    AdditionalAttackPower = 0.0f;
-    AttackMultiplier = 1.0f;
     AttackPower = 0.0f;
 }
 
@@ -16,24 +12,12 @@ UAttackComponent::UAttackComponent()
 
 void UAttackComponent::AddAttackPower(float Amount)
 {
-    AdditionalAttackPower += Amount;
-
-    SetAttackPower();
+    AttackPower = FMath::Max(AttackPower + Amount, 1.0f);
 }
 
 void UAttackComponent::MultiplyAttackPower(float Multiplier)
 {
-    AttackMultiplier *= Multiplier;
-
-    SetAttackPower();
-}
-
-void UAttackComponent::SetAttackPower()
-{
-    AttackPower = FMath::Max(
-        (BaseAttackPower + AdditionalAttackPower) * AttackMultiplier,
-        1.0f
-    );
+    AttackPower = FMath::Max(AttackPower * Multiplier, 1.0f);
 }
 
 //UFUNCTION 함수
@@ -43,11 +27,11 @@ float UAttackComponent::GetAttackPower()
     return AttackPower;
 }
 
-//생명주기 함수
+//가상 함수(이벤트)
 
 void UAttackComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    SetAttackPower();
+    AttackPower = BaseAttackPower;
 }

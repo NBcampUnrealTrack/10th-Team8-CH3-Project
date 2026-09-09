@@ -13,36 +13,29 @@ class DREAMVEIL_API UDefenceComponent : public UActorComponent
 	GENERATED_BODY()
 
 private:
-    
-    //추가 방어력
-    float AdditionalDefencePower;
 
-    //방어력 배율
-    float DefenceMultiplier;
-
-    //최종 방어력 
+    // 방어력 수치
     float DefencePower;
-    
-    //최종 방어력을 계산
-    void SetDefencePower();
 
-    //생명주기 함수
+    // 게임 시작 이벤트(방어력 Base로 초기화)
     virtual void BeginPlay() override;
 
 public:
-    //생성자
-    UDefenceComponent();
 
-    //기본 방어력
-    UPROPERTY(EditAnywhere, BlueprintReadWrite,Category="Defence")
+    // 방어력 변수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Defence")
     float BaseDefencePower;
 
-    //방어력을 추가
+    // 생성자
+    UDefenceComponent();
+
+    // 방어력 증가
     void AddDefencePower(float Amount);
 
-    //방어력 배율 적용
-    void MultiplyDefencePower(float Multiplier); 
+    // 방어력 배율 적용
+    void MultiplyDefencePower(float Multiplier);
 
-    UFUNCTION(BlueprintCallable, Category="Defence")
+    // 방어력 Getter
+    UFUNCTION(BlueprintCallable, Category = "Defence")
     float GetDefencePower();
 };
