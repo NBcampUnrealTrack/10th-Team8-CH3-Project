@@ -24,7 +24,9 @@ void UHealthComponent::SetCurrentHealth(float NewHealth)
 
 void UHealthComponent::SetMaxHealth(float NewMaxHealth)
 {
+    const float OldMaxHealth = MaxHealth;
     MaxHealth = NewMaxHealth;
+    OnMaxHealthChanged.Broadcast(OldMaxHealth, MaxHealth);
 }
 
 //UFUNCTION 함수들

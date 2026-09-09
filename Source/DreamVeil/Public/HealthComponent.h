@@ -6,6 +6,11 @@
 #include "Components/ActorComponent.h"
 #include "HealthComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOnMaxHealthChanged,
+    float, OldValue,
+    float, NewValue
+);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class DREAMVEIL_API UHealthComponent : public UActorComponent
@@ -19,8 +24,12 @@ private:
     //게임 시작 이벤트(블프 체력에 맞춰서 시작)
     virtual void BeginPlay() override;
 public:
+    
+    UPROPERTY(BlueprintAssignable, Category="HealthEvent")
+    FOnMaxHealthChanged OnMaxHealthChanged;
+
     //죽음 상태 변수
-  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
     bool bIsDead;
     //최대 체력 변수
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
