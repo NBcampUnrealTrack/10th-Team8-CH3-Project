@@ -20,19 +20,13 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 	CameraComp->SetupAttachment(SpringArmComp, USpringArmComponent::SocketName);
 	CameraComp->bUsePawnControlRotation = false;
 
-	float NoramalSpeed = 630.0f;
-	float SprintSpeedMultiplier = 1.7f;
-	float SprintSpeed = NoramalSpeed * SprintSpeedMultiplier;
+	NoramalSpeed = 630.0f;
+	SprintSpeedMultiplier = 1.7f;
+	SprintSpeed = NoramalSpeed * SprintSpeedMultiplier;
 
 	GetCharacterMovement()->MaxWalkSpeed = NoramalSpeed;
 }
 
-
-void AMainPlayerCharacter::BeginPlay()
-{
-	Super::BeginPlay();
-	
-}
 
 void AMainPlayerCharacter::Tick(float DeltaTime)
 {
@@ -70,7 +64,6 @@ void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 			}
 		}
 	}
-
 }
 
 void AMainPlayerCharacter::MovePlayer(const FInputActionValue& value)
