@@ -39,7 +39,7 @@ public:
     FOnCurrentHealthChanged OnCurrentHealthChanged;
 
     //사망 이벤트
-    UPROPERTY(BlueprintAssignable, Category = "HealthEvent")
+    UPROPERTY(BlueprintAssignable, Category = "HealthEvent")//미르님 쓰세요!하고 나랑 상의해요!
     FOnDead OnDead;
 
     //죽음 상태 변수
@@ -63,15 +63,15 @@ public:
     void SetMaxHealth(float NewMaxHealth);
 
     //현재 체력 Getter
-    UFUNCTION(BlueprintCallable, Category = "Health")
+    UFUNCTION(BlueprintCallable, Category = "Health")//미르님 쓰세요!
     float GetCurrentHealth();
 
     //최대 체력 Getter
-    UFUNCTION(BlueprintCallable, Category = "Health")
+    UFUNCTION(BlueprintCallable, Category = "Health")//미르님 쓰세요!
     float GetMaxHealth();
 
     //체력 퍼센티지 Getter
-    UFUNCTION(BlueprintCallable, Category = "Health")
+    UFUNCTION(BlueprintCallable, Category = "Health")//미르님 쓰세요!
     float GetHealthPercentage();
 
 private:

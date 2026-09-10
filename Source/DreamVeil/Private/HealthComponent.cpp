@@ -53,7 +53,7 @@ void UHealthComponent::SetCurrentHealth(float NewCurrentHealth)
 
     bIsDead = true;
 
-    OnDead.Broadcast();//시체 남기기 아이템 플러스 UI 등등 활용 
+    OnDead.Broadcast();//몬스터 플레이어 등등 뒤졌을 때 시체에서 아이템 남기기 플러스 UI 등등 활용 
 }
 
 void UHealthComponent::SetMaxHealth(float NewMaxHealth)
