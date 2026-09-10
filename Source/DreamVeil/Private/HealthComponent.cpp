@@ -1,4 +1,4 @@
-﻿#include "HealthComponent.h"
+#include "HealthComponent.h"
 
 //생성자
 
@@ -26,7 +26,10 @@ void UHealthComponent::SetMaxHealth(float NewMaxHealth)
 {
     const float OldMaxHealth = MaxHealth;
     MaxHealth = NewMaxHealth;
-    OnMaxHealthChanged.Broadcast(OldMaxHealth, MaxHealth);
+    if (OldMaxHealth != MaxHealth)
+    {
+        OnMaxHealthChanged.Broadcast(OldMaxHealth, MaxHealth);
+    }
 }
 
 //UFUNCTION 함수들

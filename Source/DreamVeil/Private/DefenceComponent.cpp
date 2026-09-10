@@ -1,4 +1,4 @@
-﻿#include "DefenceComponent.h"
+#include "DefenceComponent.h"
 
 //생성자
 
@@ -31,11 +31,19 @@ void UDefenceComponent::MultiplyDefencePower(float Multiplier)
 
 void UDefenceComponent::SetDefencePower()
 {
+    const float OldDefencePower = DefencePower;
+
     DefencePower = FMath::Max(
         (BaseDefencePower + AdditionalDefencePower) * DefenceMultiplier,
         1.0f
     );
+
+    if (OldDefencePower != DefencePower)
+    {
+        OnDefencePowerChanged.Broadcast(OldDefencePower, DefencePower);
+    }
 }
+
 
 //UFUNCTION 함수
 

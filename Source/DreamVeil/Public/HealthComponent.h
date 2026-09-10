@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -17,27 +17,17 @@ class DREAMVEIL_API UHealthComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-private:
-    //현재 체력 변수
-    float CurrentHealth;
-
-    // 생명주기 함수
-    virtual void BeginPlay() override;
 public:
-<<<<<<< HEAD
+
     //생성자
     UHealthComponent();
 
-    //죽음 상태 변수
-  UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
-=======
-    
+    //체력 변화 이벤트
     UPROPERTY(BlueprintAssignable, Category="HealthEvent")
     FOnMaxHealthChanged OnMaxHealthChanged;
 
-    //���� ���� ����
+    //죽음 상태 변수
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
->>>>>>> feat/MonsterNavigationSystem
     bool bIsDead;
 
     //최대 체력 변수
@@ -64,6 +54,11 @@ public:
     //체력 퍼센티지 Getter
     UFUNCTION(BlueprintCallable, Category = "Health")
     float GetHealthPercentage();
-   
+private:
+    //현재 체력 변수
+    float CurrentHealth;
+
+    // 생명주기 함수
+    virtual void BeginPlay() override;
 };
 

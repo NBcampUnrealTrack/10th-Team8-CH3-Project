@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -6,12 +6,38 @@
 #include "Components/ActorComponent.h"
 #include "AttackComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOnAttackPowerChanged,
+    float, OldValue,
+    float, NewValue
+);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class DREAMVEIL_API UAttackComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
+public:
+
+    //생성자
+    UAttackComponent();
+
+    //공격력 변화 이벤트
+    UPROPERTY(BlueprintAssignable, Category = "AttackEvent")
+    FOnAttackPowerChanged OnAttackPowerChanged;
+
+    //기본 공격력
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
+    float BaseAttackPower;
+
+    //공격력을 추가
+    void AddAttackPower(float Amount);
+
+    //공격력 배율 적용
+    void MultiplyAttackPower(float Multiplier);
+
+    UFUNCTION(BlueprintCallable, Category = "Attack")
+    float GetAttackPower();
 private:
 
     //추가 공격력
@@ -29,21 +55,5 @@ private:
     //생명주기 함수
     virtual void BeginPlay() override;
 
-public:
 
-    //생성자
-    UAttackComponent();
-   
-    //기본 공격력
-    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
-    float BaseAttackPower;
-
-    //공격력을 추가
-    void AddAttackPower(float Amount);
-
-    //공격력 배율 적용
-    void MultiplyAttackPower(float Multiplier);
-
-    UFUNCTION(BlueprintCallable, Category = "Attack")
-    float GetAttackPower();
 };

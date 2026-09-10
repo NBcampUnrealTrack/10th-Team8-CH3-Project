@@ -1,4 +1,4 @@
-﻿#include "AttackComponent.h"
+#include "AttackComponent.h"
 
 //생성자
 
@@ -30,10 +30,17 @@ void UAttackComponent::MultiplyAttackPower(float Multiplier)
 
 void UAttackComponent::SetAttackPower()
 {
+    const float OldAttackPower = AttackPower;
+
     AttackPower = FMath::Max(
         (BaseAttackPower + AdditionalAttackPower) * AttackMultiplier,
         1.0f
     );
+
+    if (OldAttackPower != AttackPower)
+    {
+        OnAttackPowerChanged.Broadcast(OldAttackPower, AttackPower);
+    }
 }
 
 //UFUNCTION 함수
