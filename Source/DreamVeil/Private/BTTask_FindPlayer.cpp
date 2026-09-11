@@ -2,17 +2,14 @@
 
 
 #include "BTTask_FindPlayer.h"
-#include "BehaviorTree/BehaviorTreeComponent.h"
+#include <Kismet/GameplayStatics.h>
+#include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
-#include "AIController.h"
-#include "NavigationSystem.h"
-#include "Kismet/GameplayStatics.h"
 
 UBTTask_FindPlayer::UBTTask_FindPlayer()
 {
-	NodeName = TEXT("Find Player Location");
+	NodeName = TEXT("Find Player Location Task");
 }
-
 EBTNodeResult::Type UBTTask_FindPlayer::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
 	UBlackboardComponent* BlackboardComp = OwnerComp.GetBlackboardComponent();

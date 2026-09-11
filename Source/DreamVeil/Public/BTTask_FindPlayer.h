@@ -10,7 +10,7 @@ class DREAMVEIL_API UBTTask_FindPlayer : public UBTTask_BlackboardBase
 {
 	GENERATED_BODY()
 protected:
-	virtual EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory);
+	EBTNodeResult::Type ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory);
 public:
 	UBTTask_FindPlayer();
 };
