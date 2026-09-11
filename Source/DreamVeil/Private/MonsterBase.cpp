@@ -17,12 +17,16 @@ AMonsterBase::AMonsterBase()
 	MonsterMeshComponent = GetMesh();
 
 	MonsterWalkSpeed = 500.0f;
+	MonsterAttackRange = 100.0f;
 
 	bUseControllerRotationYaw = false;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->bUseControllerDesiredRotation = false;
 
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 360.0f, 0.0f);
+	GetCharacterMovement()->bUseRVOAvoidance = true;
+	GetCharacterMovement()->AvoidanceConsiderationRadius = 500.0f;
+
 	//MonsterCollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("Collision")); 자식에서 이렇게 생성
 }
 
@@ -46,5 +50,10 @@ void AMonsterBase::SetupPlayerInputComponent(UInputComponent* PlayerInputCompone
 {
 	Super::SetupPlayerInputComponent(PlayerInputComponent);
 
+}
+
+float AMonsterBase::GetMonsterAttackRange() const
+{
+	return MonsterAttackRange;
 }
 
