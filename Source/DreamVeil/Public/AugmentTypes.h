@@ -50,9 +50,9 @@ struct FAugmentData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
 	float Weight = 1.0f;
 
-	//중첩 가능 여부 false면 한 번 뽑힌 뒤 풀에서 제거
+	//반복 획득 가능 여부 false면 한 번 뽑힌 뒤 풀에서 제거
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
-	bool bStackable = false;
+	bool bRepeatable = false;
 
 	//보상 UI에 띄울 이름
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
@@ -62,11 +62,11 @@ struct FAugmentData
 	FAugmentData() {}
 
 	//값을 채워 만드는 생성자
-	FAugmentData(EAugmentID InAugmentID, EAugmentCategory InCategory, float InWeight, bool bInStackable)
+	FAugmentData(EAugmentID InAugmentID, EAugmentCategory InCategory, float InWeight, bool bInRepeatable)
 		: AugmentID(InAugmentID)
 		, Category(InCategory)
 		, Weight(InWeight)
-		, bStackable(bInStackable)
+		, bRepeatable(bInRepeatable)
 	{
 	}
 };

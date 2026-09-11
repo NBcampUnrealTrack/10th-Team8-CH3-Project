@@ -1,8 +1,12 @@
 #include "PassiveSkillsComponent.h"
 
 #include "AttackComponent.h"
+#include "AugmentDamageLibrary.h"
 #include "DefenceComponent.h"
 #include "HealthComponent.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "TimerManager.h"
 
 // 생성자
 UPassiveSkillsComponent::UPassiveSkillsComponent()
@@ -19,32 +23,7 @@ UPassiveSkillsComponent::UPassiveSkillsComponent()
     bBerserkerActivated = false;
 }
 
-//증강 효과 함수들을 테이블에 등록
-void UPassiveSkillsComponent::RegisterPassiveAugmentFunctions()
-{
-    PassiveAugmentMap.Add(EAugmentID::AttackUp, [this]() { ExecuteAttackPowerUp(); });
-    PassiveAugmentMap.Add(EAugmentID::DefenceUp, [this]() { ExecuteDefencePowerUp(); });
-    PassiveAugmentMap.Add(EAugmentID::HealthUp, [this]() { ExecuteHealthUp(); });
-    PassiveAugmentMap.Add(EAugmentID::Berserker, [this]() { ExecuteBerserker(); });
-    PassiveAugmentMap.Add(EAugmentID::ThornArmor, [this]() { ExecuteThornArmor(); });
-    PassiveAugmentMap.Add(EAugmentID::Vampire, [this]() { ExecuteVampire(); });
-    PassiveAugmentMap.Add(EAugmentID::Regeneration, [this]() { ExecuteRegeneration(); });
-}
-
-//번호로 패시브 증강 효과를 실행
-void UPassiveSkillsComponent::ExecutePassiveAugment(EAugmentID AugmentID)
-{
-    TFunction<void()>* FoundFunction = PassiveAugmentMap.Find(AugmentID);
-
-    if (!FoundFunction)
-    {
-        return;
-    }
-
-    (*FoundFunction)();
-}
-
-//이번 공격으로 줄 데미지를 계산
+//이번 공격으로 줄 데미지를 계산 평타 데미지를 만들 때 씀
 float UPassiveSkillsComponent::CalculateOutgoingDamage()
 {
     if (!AttackComponent)
@@ -55,32 +34,70 @@ float UPassiveSkillsComponent::CalculateOutgoingDamage()
     return AttackComponent->GetAttackPower();
 }
 
-//받은 데미지를 방어력으로 줄여 체력에 적용하고 반사 데미지를 반환
-float UPassiveSkillsComponent::ApplyIncomingDamage(float IncomingDamage)
+//언리얼 데미지 시스템이 올려주는 데미지를 받아 방어력 체력 가시갑옷 흡혈을 처리
+//UGameplayStatics::ApplyDamage -> AActor::TakeDamage -> OnTakeAnyDamage 순서로 여기까지 옴
+void UPassiveSkillsComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
 {
     if (!DefenceComponent || !HealthComponent)
     {
-        return 0.0f;
+        return;
     }
 
     if (HealthComponent->bIsDead)
     {
-        return 0.0f;
+        return;
     }
 
-    const float FinalDamage = FMath::Max(IncomingDamage - DefenceComponent->GetDefencePower(), MIN_DAMAGE);
+    if (Damage <= 0.0f)
+    {
+        return;
+    }
+
+    //방어력으로 깎되 최소 보장치는 남김
+    const float FinalDamage = FMath::Max(Damage - DefenceComponent->GetDefencePower(), MIN_DAMAGE);
 
     HealthComponent->ApplyDamage(FinalDamage);
 
-    if (!bThornArmor)
+    //반사로 들어온 데미지는 다시 반사하지 않고 상대를 회복시키지도 않음
+    //서로 가시 갑옷을 들고 있을 때 무한히 주고받는 것을 막음
+    if (UAugmentDamageLibrary::IsThornReflectDamage(DamageType))
     {
-        return 0.0f;
+        return;
     }
 
-    return FinalDamage * THORN_ARMOR_REFLECT_RATIO;
+    if (!DamageCauser)
+    {
+        return;
+    }
+
+    //자기가 자기를 때린 경우는 흡혈도 반사도 없음
+    if (DamageCauser == DamagedActor)
+    {
+        return;
+    }
+
+    //때린 쪽은 실제로 얼마가 깎였는지 모르기 때문에 여기서 흡혈을 대신 걸어줌
+    UPassiveSkillsComponent* CauserPassive = DamageCauser->FindComponentByClass<UPassiveSkillsComponent>();
+
+    if (CauserPassive)
+    {
+        CauserPassive->ProcessOnDamageDealt(FinalDamage);
+    }
+
+    if (!bThornArmor)
+    {
+        return;
+    }
+
+    //가시 갑옷 반사 반사 표식을 달아서 되돌려 보냄
+    UAugmentDamageLibrary::ApplyThornReflectDamage(
+        GetOwner(),
+        DamageCauser,
+        FinalDamage * THORN_ARMOR_REFLECT_RATIO
+    );
 }
 
-//데미지를 입힌 뒤 보유 중인 패시브 효과를 처리
+//데미지를 입힌 뒤 보유 중인 패시브 효과를 처리 흡혈
 void UPassiveSkillsComponent::ProcessOnDamageDealt(float DamageAmount)
 {
     if (!bVampire)
@@ -93,7 +110,30 @@ void UPassiveSkillsComponent::ProcessOnDamageDealt(float DamageAmount)
         return;
     }
 
+    if (HealthComponent->bIsDead)
+    {
+        return;
+    }
+
     HealthComponent->HealHealth(DamageAmount * VAMPIRE_HEAL_RATIO);
+}
+
+//공격 컴포넌트 Getter
+UAttackComponent* UPassiveSkillsComponent::GetAttackComponent()
+{
+    return AttackComponent;
+}
+
+//수비 컴포넌트 Getter
+UDefenceComponent* UPassiveSkillsComponent::GetDefenceComponent()
+{
+    return DefenceComponent;
+}
+
+//체력 컴포넌트 Getter
+UHealthComponent* UPassiveSkillsComponent::GetHealthComponent()
+{
+    return HealthComponent;
 }
 
 //공격력 증가 증강을 적용
@@ -247,12 +287,21 @@ void UPassiveSkillsComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    RegisterPassiveAugmentFunctions();
+    if (HealthComponent)
+    {
+        HealthComponent->OnCurrentHealthChanged.AddDynamic(this, &UPassiveSkillsComponent::HandleCurrentHealthChanged);
+    }
 
-    if (!HealthComponent)
+    AActor* OwnerActor = GetOwner();
+
+    if (!OwnerActor)
     {
         return;
     }
 
-    HealthComponent->OnCurrentHealthChanged.AddDynamic(this, &UPassiveSkillsComponent::HandleCurrentHealthChanged);
+    //이게 꺼져 있으면 데미지가 통째로 무시됨
+    OwnerActor->SetCanBeDamaged(true);
+
+    //여기 물려두면 5계층이 TakeDamage를 건드리지 않아도 방어력과 가시 갑옷이 자동으로 걸림
+    OwnerActor->OnTakeAnyDamage.AddDynamic(this, &UPassiveSkillsComponent::HandleTakeAnyDamage);
 }
