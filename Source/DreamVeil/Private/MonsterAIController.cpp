@@ -21,15 +21,7 @@ void AMonsterAIController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
-
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	
-	if (BlackboardComp)
-	{
-		BlackboardComp->SetValueAsVector(TEXT("PlayerVec"),PlayerPawn->GetActorLocation());
-	}
-	
 
 	StartBehaviorTree();
 
