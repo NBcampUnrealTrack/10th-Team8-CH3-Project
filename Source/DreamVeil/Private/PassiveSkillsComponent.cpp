@@ -41,8 +41,8 @@ void UPassiveSkillsComponent::ExecutePassiveAugment(EAugmentID AugmentID)
         return;
     }
 
-        (*FoundFunction)();
-    }
+    (*FoundFunction)();
+}
 
 //이번 공격으로 줄 데미지를 계산
 float UPassiveSkillsComponent::CalculateOutgoingDamage()
