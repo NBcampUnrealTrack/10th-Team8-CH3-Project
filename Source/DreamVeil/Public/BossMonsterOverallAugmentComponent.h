@@ -3,17 +3,13 @@
 #pragma once
 
 #include "CoreMinimal.h"
-#include "Components/ActorComponent.h"
-#include "AugmentTypes.h"
+#include "OverallAugmentComponent.h"
 #include "BossMonsterOverallAugmentComponent.generated.h"
 
-class UDispatchTableForPlayerAndBossComponent;
-
 //4계층 보스용
-//증강 풀을 들고 가중치로 뽑아서 3계층 디스패치 테이블로 넘김
-//엔드리스 단계에 따른 강화는 5계층 보스가 RandomApplyAugment를 부르는 횟수와 풀의 가중치로 조절
+//엔드리스 단계에 따라 강화되는 것은 가중치와 레벨로 처리
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
-class DREAMVEIL_API UBossMonsterOverallAugmentComponent : public UActorComponent
+class DREAMVEIL_API UBossMonsterOverallAugmentComponent : public UOverallAugmentComponent
 {
 	GENERATED_BODY()
 
@@ -21,34 +17,31 @@ public:
 	//생성자
 	UBossMonsterOverallAugmentComponent();
 
-	//뽑을 수 있는 증강 목록
+	//엔드리스 웨이브 레벨 높을수록 공방체 증가 쪽이 잘 뽑힘
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
-	TArray<FAugmentData> AugmentPool;
+	int32 WaveLevel;
 
-	//가중치 누적합으로 증강 하나를 뽑음 성공하면 true
+	//웨이브 레벨당 공방체 증가 가중치에 더해지는 값
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
+	float StatWeightPerWaveLevel;
+
+	//웨이브 레벨을 설정
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	void SetWaveLevel(int32 NewWaveLevel);
+
+	//보스 가중치로 증강 하나를 뽑음
 	UFUNCTION(BlueprintCallable, Category = "Augment")
 	bool BossWeightedAugmentID(EAugmentID& OutAugmentID);
-
-	//증강을 적용하고 반복 획득 가능 여부가 false면 한 번 뽑힌 뒤 풀에서 제거
-	UFUNCTION(BlueprintCallable, Category = "Augment")
-	void ApplyAugment(EAugmentID AugmentID);
-
-	//Category를 보고 디스패치 테이블로 실행을 위임
-	UFUNCTION(BlueprintCallable, Category = "Augment")
-	void ExecuteAugment(EAugmentID AugmentID);
 
 	//뽑아서 바로 적용 외부 진입점
 	UFUNCTION(BlueprintCallable, Category = "Augment")
 	bool RandomApplyAugment();
 
-private:
-	//Has-A 3계층 디스패치 테이블
-	UPROPERTY(VisibleAnywhere, Category = "Augment")
-	TObjectPtr<UDispatchTableForPlayerAndBossComponent> DispatchTableForPlayerAndBoss;
+	//웨이브가 넘어갈 때 레벨을 올리고 그만큼 증강을 뽑아 적용
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	void AdvanceWave(int32 NewWaveLevel, int32 AugmentCount);
 
-	//기본 증강 풀을 채움 에디터에서 따로 채워두면 건너뜀
-	void BuildDefaultAugmentPool();
-
-	//번호로 증강 정보를 찾음 없으면 nullptr
-	FAugmentData* FindAugmentData(EAugmentID AugmentID);
+protected:
+	//뽑기에 쓸 실제 가중치 웨이브 레벨이 오를수록 공방체 증가 쪽을 밀어줌
+	virtual float GetDrawWeight(const FAugmentData& AugmentData) override;
 };
