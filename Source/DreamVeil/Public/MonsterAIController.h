@@ -6,6 +6,10 @@
 #include "AIController.h"
 #include "MonsterAIController.generated.h"
 
+class UAIPerceptionComonent;
+class UAISenseConfig_Sight;
+class UBehaviorTree;
+
 UCLASS()
 class DREAMVEIL_API AMonsterAIController : public AAIController
 {

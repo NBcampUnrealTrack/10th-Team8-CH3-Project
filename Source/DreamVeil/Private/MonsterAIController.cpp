@@ -22,8 +22,14 @@ void AMonsterAIController::BeginPlay()
 	Super::BeginPlay();
 
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	
+
 	StartBehaviorTree();
+
+	UBlackboardComponent* BlackboardComp = GetBlackboardComponent();
+	if (BlackboardComp)
+	{
+		BlackboardComp->SetValueAsObject(TEXT("PlayerActor"), PlayerPawn);
+	}
 }
 
 void AMonsterAIController::OnPossess(APawn* InPawn)
