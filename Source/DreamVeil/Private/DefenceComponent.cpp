@@ -34,9 +34,10 @@ void UDefenceComponent::SetDefencePower()
 {
     const float OldDefencePower = DefencePower;
 
+    //방어력은 0까지 허용, 음수만 막음
     DefencePower = FMath::Max(
         (BaseDefencePower + AdditionalDefencePower) * DefenceMultiplier,
-        1.0f
+        0.0f
     );
 
     if (OldDefencePower != DefencePower)

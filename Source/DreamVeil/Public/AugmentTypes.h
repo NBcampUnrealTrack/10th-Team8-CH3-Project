@@ -86,6 +86,9 @@ inline EAugmentCategory GetAugmentCategory(EAugmentID AugmentID)
 	}
 }
 
+//보상 UI에 띄울 증강 선택지 개수
+const int32 AUGMENT_CHOICE_COUNT = 3;
+
 //공격력 증가량
 const float ATTACK_POWER_UP_AMOUNT = 5.0f;
 

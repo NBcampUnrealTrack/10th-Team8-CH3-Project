@@ -54,6 +54,17 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Passive")
 	UHealthComponent* GetHealthComponent();
 
+	//1계층 공방체
+	//공격
+	UPROPERTY(VisibleAnywhere, Category = "Passive")
+	TObjectPtr<UAttackComponent> AttackComponent;
+	//수비
+	UPROPERTY(VisibleAnywhere, Category = "Passive")
+	TObjectPtr<UDefenceComponent> DefenceComponent;
+	//체력
+	UPROPERTY(VisibleAnywhere, Category = "Passive")
+	TObjectPtr<UHealthComponent> HealthComponent;
+
 	// 증강 효과 함수들
 	// 3계층 디스패치 테이블이 직접 부르기 때문에 public
 
@@ -90,16 +101,6 @@ public:
 	void ExecuteRegeneration();
 
 private:
-	//1계층 공방체
-	//공격
-	UPROPERTY(VisibleAnywhere, Category = "Passive")
-	TObjectPtr<UAttackComponent> AttackComponent;
-	//수비
-	UPROPERTY(VisibleAnywhere, Category = "Passive")
-	TObjectPtr<UDefenceComponent> DefenceComponent;
-	//체력
-	UPROPERTY(VisibleAnywhere, Category = "Passive")
-	TObjectPtr<UHealthComponent> HealthComponent;
 
 	// 패시브 증강 보유 여부 중복 적용을 막기 위한 플래그
 	//광전사

@@ -103,6 +103,65 @@ bool UPlayerOverallAugmentComponent::PlayerDrawWeightedAugmentID(EAugmentID& Out
     return true;
 }
 
+//보상 UI 선택지용으로 겹치지 않게 여러 개를 뽑음 풀은 건드리지 않음
+bool UPlayerOverallAugmentComponent::PlayerDrawAugmentChoices(TArray<EAugmentID>& OutAugmentIDs)
+{
+    OutAugmentIDs.Empty();
+
+    //이번 선택지에서 아직 안 뽑힌 후보만 따로 모아둠
+    TArray<const FAugmentData*> Candidates;
+
+    for (const FAugmentData& AugmentData : AugmentPool)
+    {
+        if (AugmentData.Weight <= 0.0f)
+        {
+            continue;
+        }
+
+        Candidates.Add(&AugmentData);
+    }
+
+    while (OutAugmentIDs.Num() < AUGMENT_CHOICE_COUNT && Candidates.Num() > 0)
+    {
+        float TotalWeight = 0.0f;
+
+        for (const FAugmentData* Candidate : Candidates)
+        {
+            TotalWeight += Candidate->Weight;
+        }
+
+        const float DrawPoint = FMath::FRandRange(0.0f, TotalWeight);
+
+        //부동소수점 오차로 끝까지 못 찾았을 때는 마지막 후보
+        int32 DrawnIndex = Candidates.Num() - 1;
+        float AccumulatedWeight = 0.0f;
+
+        for (int32 Index = 0; Index < Candidates.Num(); ++Index)
+        {
+            AccumulatedWeight += Candidates[Index]->Weight;
+
+            if (DrawPoint <= AccumulatedWeight)
+            {
+                DrawnIndex = Index;
+                break;
+            }
+        }
+
+        const EAugmentID DrawnAugmentID = Candidates[DrawnIndex]->AugmentID;
+
+        OutAugmentIDs.Add(DrawnAugmentID);
+
+        //같은 증강이 선택지에 다시 나오지 않도록 후보에서 뺌
+        //풀에 같은 번호가 여러 줄 있어도 전부 뺌
+        Candidates.RemoveAll([DrawnAugmentID](const FAugmentData* Candidate)
+            {
+                return Candidate->AugmentID == DrawnAugmentID;
+            });
+    }
+
+    return OutAugmentIDs.Num() > 0;
+}
+
 //증강을 적용하고 반복 획득 가능 여부가 false면 한 번 뽑힌 뒤 풀에서 제거
 void UPlayerOverallAugmentComponent::ApplyAugment(EAugmentID AugmentID)
 {
