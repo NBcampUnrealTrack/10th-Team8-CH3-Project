@@ -3,7 +3,7 @@
 
 #include "AugmentDamageLibrary.h"
 
-#include "PassiveSkillsComponent.h"
+#include "DispatchTableComponent.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
@@ -61,15 +61,15 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         return 0.0f;
     }
 
-    UPassiveSkillsComponent* DamagedPassive = DamagedActor->FindComponentByClass<UPassiveSkillsComponent>();
+    UDispatchTableComponent* DamagedTable = DamagedActor->FindComponentByClass<UDispatchTableComponent>();
 
-    if (!DamagedPassive)
+    if (!DamagedTable)
     {
         return 0.0f;
     }
 
     //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴
-    const float FinalDamage = DamagedPassive->ApplyIncomingDamage(Damage);
+    const float FinalDamage = DamagedTable->ApplyIncomingDamage(Damage);
 
     if (FinalDamage <= 0.0f)
     {
@@ -97,18 +97,18 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
     }
 
     //때린 쪽은 실제로 얼마가 깎였는지 모르기 때문에 여기서 흡혈을 대신 걸어줌
-    UPassiveSkillsComponent* AttackerPassive = Attacker->FindComponentByClass<UPassiveSkillsComponent>();
+    UDispatchTableComponent* AttackerTable = Attacker->FindComponentByClass<UDispatchTableComponent>();
 
-    if (AttackerPassive)
+    if (AttackerTable)
     {
-        AttackerPassive->ProcessOnDamageDealt(FinalDamage);
+        AttackerTable->ProcessOnDamageDealt(FinalDamage);
     }
 
     //가시 갑옷 반사 가시 갑옷이 없으면 0이라 ApplyThornReflectDamage 안에서 걸러짐
     ApplyThornReflectDamage(
         DamagedActor,
         Attacker,
-        DamagedPassive->CalculateThornReflectDamage(FinalDamage)
+        DamagedTable->CalculateThornReflectDamage(FinalDamage)
     );
 
     return FinalDamage;
@@ -190,14 +190,14 @@ float UAugmentDamageLibrary::GetOutgoingDamage(AActor* DamageCauser)
         return 0.0f;
     }
 
-    UPassiveSkillsComponent* CauserPassive = DamageCauser->FindComponentByClass<UPassiveSkillsComponent>();
+    UDispatchTableComponent* CauserTable = DamageCauser->FindComponentByClass<UDispatchTableComponent>();
 
-    if (!CauserPassive)
+    if (!CauserTable)
     {
         return 0.0f;
     }
 
-    return CauserPassive->CalculateOutgoingDamage();
+    return CauserTable->CalculateOutgoingDamage();
 }
 
 //지정한 범위 안의 대상을 찾음 자기 자신은 제외

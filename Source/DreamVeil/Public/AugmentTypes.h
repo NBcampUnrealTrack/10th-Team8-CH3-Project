@@ -21,7 +21,7 @@ enum class EAugmentID : uint8
 	ContinuousAttack
 };
 
-//증강 분류 4계층이 이걸 보고 어느 컴포넌트로 넘길지 결정
+//증강 분류 보상 UI 표시나 나중에 무기 증강을 나눌 때 씀
 UENUM(BlueprintType)
 enum class EAugmentCategory : uint8
 {
@@ -29,62 +29,9 @@ enum class EAugmentCategory : uint8
 	Passive,
 	//액티브 발동 계열
 	Active,
-	//무기 계열 아직 담당 컴포넌트가 없고 5계층에서 연결할 자리만 잡아둠
+	//무기 계열 아직 담당 스킬이 없고 WeaponComponent가 생기면 연결
 	Weapon
 };
-
-//증강 하나의 정보 4계층 풀에 담기는 단위
-USTRUCT(BlueprintType)
-struct FAugmentData
-{
-	GENERATED_BODY()
-
-	//증강 번호
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
-	EAugmentID AugmentID = EAugmentID::AttackUp;
-
-	//증강 분류
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
-	EAugmentCategory Category = EAugmentCategory::Passive;
-
-	//뽑기 가중치 클수록 잘 나옴
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
-	float Weight = 1.0f;
-
-	//반복 획득 가능 여부 false면 한 번 뽑힌 뒤 풀에서 제거
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
-	bool bRepeatable = false;
-
-	//보상 UI에 띄울 이름
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
-	FText DisplayName;
-
-	//기본 생성자
-	FAugmentData() {}
-
-	//값을 채워 만드는 생성자
-	FAugmentData(EAugmentID InAugmentID, EAugmentCategory InCategory, float InWeight, bool bInRepeatable)
-		: AugmentID(InAugmentID)
-		, Category(InCategory)
-		, Weight(InWeight)
-		, bRepeatable(bInRepeatable)
-	{
-	}
-};
-
-//번호만 보고 분류를 알아냄 풀에 없는 증강을 직접 실행할 때 씀
-inline EAugmentCategory GetAugmentCategory(EAugmentID AugmentID)
-{
-	switch (AugmentID)
-	{
-	case EAugmentID::SlowEnemy:
-	case EAugmentID::AreaAttack:
-	case EAugmentID::ContinuousAttack:
-		return EAugmentCategory::Active;
-	default:
-		return EAugmentCategory::Passive;
-	}
-}
 
 //보상 UI에 띄울 증강 선택지 개수
 const int32 AUGMENT_CHOICE_COUNT = 3;

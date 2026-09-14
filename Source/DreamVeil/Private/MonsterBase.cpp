@@ -4,7 +4,9 @@
 #include "MonsterBase.h"
 #include "MonsterAIController.h"
 #include "Components/SphereComponent.h"
-#include "HealthComponent.h"
+#include "DispatchTableComponent.h"
+#include "AugmentDamageLibrary.h"
+#include "Engine/DamageEvents.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
@@ -13,7 +15,7 @@ AMonsterBase::AMonsterBase()
 	PrimaryActorTick.bCanEverTick = false;
 	// 월드에 스폰됐을 경우 AIController Possess 시키기
 	AutoPossessAI = EAutoPossessAI::PlacedInWorld;
-	MonsterHealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("MonsterHealthComponent"));
+	MonsterDispatchTable = CreateDefaultSubobject<UDispatchTableComponent>(TEXT("MonsterDispatchTable"));
 	MonsterCollisionComponent = nullptr;
 	MonsterMeshComponent = GetMesh();
 
@@ -47,3 +49,15 @@ float AMonsterBase::GetMonsterAttackRange() const
 	return MonsterAttackRange;
 }
 
+//받은 데미지를 증강 라이브러리로 넘김 방어력 체력 흡혈 가시 갑옷 처리
+float AMonsterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
+{
+	const float Damage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);
+
+	if (Damage <= 0.0f)
+	{
+		return 0.0f;
+	}
+
+	return UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
+}

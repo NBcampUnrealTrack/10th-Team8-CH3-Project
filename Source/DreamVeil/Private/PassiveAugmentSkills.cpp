@@ -1,0 +1,191 @@
+#include "PassiveAugmentSkills.h"
+
+#include "AugmentTypes.h"
+#include "DispatchTableComponent.h"
+#include "Engine/World.h"
+#include "TimerManager.h"
+
+//공격력 증가
+void UAttackUpSkill::Apply()
+{
+    UDispatchTableComponent* OwnerComponent = GetOwnerComponent();
+
+    if (!OwnerComponent)
+    {
+        return;
+    }
+
+    OwnerComponent->AddAttackPower(ATTACK_POWER_UP_AMOUNT);
+}
+
+//방어력 증가
+void UDefenceUpSkill::Apply()
+{
+    UDispatchTableComponent* OwnerComponent = GetOwnerComponent();
+
+    if (!OwnerComponent)
+    {
+        return;
+    }
+
+    OwnerComponent->AddDefencePower(DEFENCE_POWER_UP_AMOUNT);
+}
+
+//체력 증가
+void UHealthUpSkill::Apply()
+{
+    UDispatchTableComponent* OwnerComponent = GetOwnerComponent();
+
+    if (!OwnerComponent)
+    {
+        return;
+    }
+
+    OwnerComponent->SetMaxHealth(OwnerComponent->GetMaxHealth() + HEALTH_UP_AMOUNT);
+    OwnerComponent->Heal(HEALTH_UP_AMOUNT);
+}
+
+//광전사 얻은 즉시 현재 체력으로 판단
+void UBerserkerSkill::Apply()
+{
+    UpdateState();
+}
+
+//광전사 체력이 바뀔 때마다 다시 판단
+void UBerserkerSkill::OnHealthChanged(float OldValue, float NewValue)
+{
+    UpdateState();
+}
+
+//광전사 체력 비율을 보고 공격력 배율을 켜거나 끔
+void UBerserkerSkill::UpdateState()
+{
+    UDispatchTableComponent* OwnerComponent = GetOwnerComponent();
+
+    if (!OwnerComponent)
+    {
+        return;
+    }
+
+    const bool bShouldActivate = OwnerComponent->GetHealthPercentage() <= BERSERKER_THRESHOLD;
+
+    if (bShouldActivate && !bActivated)
+    {
+        OwnerComponent->MultiplyAttackPower(BERSERKER_MULTIPLIER);
+        bActivated = true;
+        return;
+    }
+
+    if (!bShouldActivate && bActivated)
+    {
+        OwnerComponent->MultiplyAttackPower(1.0f / BERSERKER_MULTIPLIER);
+        bActivated = false;
+    }
+}
+
+//최후의 요새 얻은 즉시 현재 체력으로 판단
+void ULastFortressSkill::Apply()
+{
+    UpdateState();
+}
+
+//최후의 요새 체력이 바뀔 때마다 다시 판단
+void ULastFortressSkill::OnHealthChanged(float OldValue, float NewValue)
+{
+    UpdateState();
+}
+
+//최후의 요새 체력 비율을 보고 방어력 배율을 켜거나 끔
+void ULastFortressSkill::UpdateState()
+{
+    UDispatchTableComponent* OwnerComponent = GetOwnerComponent();
+
+    if (!OwnerComponent)
+    {
+        return;
+    }
+
+    const bool bShouldActivate = OwnerComponent->GetHealthPercentage() <= LAST_FORTRESS_THRESHOLD;
+
+    if (bShouldActivate && !bActivated)
+    {
+        OwnerComponent->MultiplyDefencePower(LAST_FORTRESS_MULTIPLIER);
+        bActivated = true;
+        return;
+    }
+
+    if (!bShouldActivate && bActivated)
+    {
+        OwnerComponent->MultiplyDefencePower(1.0f / LAST_FORTRESS_MULTIPLIER);
+        bActivated = false;
+    }
+}
+
+//가시 갑옷 받은 데미지의 일정 비율을 반사
+float UThornArmorSkill::CalculateReflectDamage(float FinalDamage)
+{
+    return FinalDamage * THORN_ARMOR_REFLECT_RATIO;
+}
+
+//흡혈 입힌 데미지의 일정 비율만큼 회복 죽은 상태면 Heal 안에서 무시됨
+void UVampireSkill::OnDamageDealt(float FinalDamage)
+{
+    UDispatchTableComponent* OwnerComponent = GetOwnerComponent();
+
+    if (!OwnerComponent)
+    {
+        return;
+    }
+
+    OwnerComponent->Heal(FinalDamage * VAMPIRE_HEAL_RATIO);
+}
+
+//재생력 회복 타이머 시작 이미 돌고 있으면 무시
+void URegenerationSkill::Apply()
+{
+    UWorld* World = GetWorld();
+
+    if (!World)
+    {
+        return;
+    }
+
+    if (World->GetTimerManager().IsTimerActive(RegenerationTimerHandle))
+    {
+        return;
+    }
+
+    World->GetTimerManager().SetTimer(
+        RegenerationTimerHandle,
+        this,
+        &URegenerationSkill::ProcessRegenerationTick,
+        REGENERATION_INTERVAL,
+        true
+    );
+}
+
+//재생력 타이머 정리
+void URegenerationSkill::Deactivate()
+{
+    UWorld* World = GetWorld();
+
+    if (!World)
+    {
+        return;
+    }
+
+    World->GetTimerManager().ClearTimer(RegenerationTimerHandle);
+}
+
+//재생력 일정 간격마다 체력 회복 죽은 상태면 Heal 안에서 무시됨
+void URegenerationSkill::ProcessRegenerationTick()
+{
+    UDispatchTableComponent* OwnerComponent = GetOwnerComponent();
+
+    if (!OwnerComponent)
+    {
+        return;
+    }
+
+    OwnerComponent->Heal(REGENERATION_HEAL_AMOUNT);
+}

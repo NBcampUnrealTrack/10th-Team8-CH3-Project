@@ -7,7 +7,7 @@
 #include "MonsterBase.generated.h"
 
 class UShapeComponent;
-class UHealthComponent;
+class UDispatchTableComponent;
 
 UCLASS()
 class DREAMVEIL_API AMonsterBase : public ACharacter
@@ -28,7 +28,12 @@ public:
 	
 	float GetMonsterAttackRange() const;
 
-	TObjectPtr<UHealthComponent> MonsterHealthComponent;
+	//받은 데미지를 증강 라이브러리로 넘김 이게 없으면 체력이 안 깎임
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	//증강 컴포넌트 체력 공격력 방어력과 패시브 증강이 전부 여기 있음
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Augment")
+	TObjectPtr<UDispatchTableComponent> MonsterDispatchTable;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh")
 	TObjectPtr<UMeshComponent> MonsterMeshComponent;

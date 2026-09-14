@@ -2,7 +2,7 @@
 
 
 #include "HordeMonster.h"
-#include "HealthComponent.h"
+#include "DispatchTableComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "MonsterAIController.h"
 
@@ -20,11 +20,11 @@ AHordeMonster::AHordeMonster()
 	MonsterMeshComponent->SetupAttachment(RootComponent);
 	
 	this->MaxHealth = FMath::RandRange(100.0f, 150.0f);
-	MonsterHealthComponent->OnMaxHealthChanged.AddDynamic(
+	MonsterDispatchTable->OnMaxHealthChanged.AddDynamic(
 		this,
 		&AHordeMonster::MaxHealthChanged
 	);
-	MonsterHealthComponent->SetMaxHealth(MaxHealth);
+	MonsterDispatchTable->SetMaxHealth(MaxHealth);
 
 	MonsterWalkSpeed = 500.0f;
 }
@@ -42,5 +42,5 @@ void AHordeMonster::MaxHealthChanged(float OldValue, float NewValue)
 void AHordeMonster::MonsterInit()
 {
 	//몬스터 생성 시 초기화, 오브젝트 풀링에 사용할 수도 있어서 따로 빼놓음
-	MonsterHealthComponent->SetCurrentHealth(MaxHealth);
+	MonsterDispatchTable->SetCurrentHealth(MaxHealth);
 }
