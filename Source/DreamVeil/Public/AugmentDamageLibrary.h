@@ -20,14 +20,20 @@ class DREAMVEIL_API UThornReflectDamageType : public UDamageType
 };
 
 //계층 밖 클래스
-//언리얼 데미지 시스템으로 데미지를 보내는 쪽을 모아둠
-//받는 쪽 계산은 PassiveSkillsComponent가 OnTakeAnyDamage에서 처리함
+//언리얼 데미지 시스템으로 데미지를 주고받는 처리를 모아둠
+//보내는 쪽은 ApplyAugmentDamageToTarget
+//받는 쪽은 5계층 TakeDamage에서 Super::TakeDamage 뒤에 ProcessIncomingDamage를 부름
 UCLASS()
 class DREAMVEIL_API UAugmentDamageLibrary : public UBlueprintFunctionLibrary
 {
 	GENERATED_BODY()
 
 public:
+	//받은 데미지를 순서대로 처리 방어력 차감 -> 체력 적용 -> 흡혈 -> 가시 갑옷 반사
+	//5계층 TakeDamage가 부르고 반환값을 그대로 TakeDamage의 반환값으로 쓸 것
+	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
+	static float ProcessIncomingDamage(AActor* DamagedActor, float Damage, TSubclassOf<UDamageType> DamageTypeClass, AController* EventInstigator, AActor* DamageCauser);
+
 	//한 대상에게 데미지를 보냄 내부에서 UGameplayStatics::ApplyDamage를 부름
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
 	static float ApplyAugmentDamageToTarget(AActor* DamageCauser, AActor* Target, float Damage);
@@ -42,7 +48,7 @@ public:
 
 	//반사로 들어온 데미지인지 확인
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
-	static bool IsThornReflectDamage(const UDamageType* DamageType);
+	static bool IsThornReflectDamage(TSubclassOf<UDamageType> DamageTypeClass);
 
 	//공격자의 현재 공격력을 가져옴 평타 데미지를 만들 때 씀
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
@@ -55,4 +61,7 @@ public:
 private:
 	//데미지를 일으킨 컨트롤러를 찾음 킬 판정이나 어그로에 쓰라고 같이 넘김
 	static AController* FindEventInstigator(AActor* DamageCauser);
+
+	//흡혈과 반사를 받을 실제 공격자를 찾음 투사체가 때렸으면 쏜 폰을 돌려줌
+	static AActor* FindAttacker(AController* EventInstigator, AActor* DamageCauser);
 };

@@ -5,17 +5,14 @@
 #include "AugmentTypes.h"
 #include "PassiveSkillsComponent.generated.h"
 
-class AActor;
-class AController;
-class UDamageType;
 class UAttackComponent;
 class UDefenceComponent;
 class UHealthComponent;
 
 //2계층
 //패시브 증강의 실제 효과를 구현하고 중복 적용을 막음
-//받는 데미지 계산은 소유 액터의 OnTakeAnyDamage에 물려서 자동으로 돎
-//따라서 5계층은 TakeDamage를 직접 건드릴 필요가 없음
+//받는 데미지는 5계층 TakeDamage가 UAugmentDamageLibrary::ProcessIncomingDamage를 불러 처리
+//여기는 순서를 모르고 계산 함수만 제공함
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class DREAMVEIL_API UPassiveSkillsComponent : public UActorComponent
 {
@@ -28,8 +25,16 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	float CalculateOutgoingDamage();
 
+	//받은 데미지를 방어력으로 줄여 체력에 적용하고 실제 적용한 데미지를 반환
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	float ApplyIncomingDamage(float IncomingDamage);
+
+	//실제 받은 데미지로 가시 갑옷 반사 데미지를 계산 가시 갑옷이 없으면 0
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	float CalculateThornReflectDamage(float FinalDamage);
+
 	//데미지를 입힌 뒤 보유 중인 패시브 효과를 처리 흡혈
-	//때린 쪽은 실제로 얼마가 깎였는지 모르기 때문에 맞은 쪽이 대신 불러줌
+	//때린 쪽은 실제로 얼마가 깎였는지 모르기 때문에 ProcessIncomingDamage가 대신 불러줌
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void ProcessOnDamageDealt(float DamageAmount);
 
@@ -110,10 +115,6 @@ private:
 
 	//재생력 타이머 핸들
 	FTimerHandle RegenerationTimerHandle;
-
-	//언리얼 데미지 시스템이 올려주는 데미지를 받아 방어력 체력 가시갑옷 흡혈을 처리
-	UFUNCTION()
-	void HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser);
 
 	//체력 상태에 따라 광전사 효과를 갱신
 	void UpdateBerserkerState();

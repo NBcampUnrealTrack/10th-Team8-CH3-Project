@@ -1,11 +1,9 @@
 #include "PassiveSkillsComponent.h"
 
 #include "AttackComponent.h"
-#include "AugmentDamageLibrary.h"
 #include "DefenceComponent.h"
 #include "HealthComponent.h"
 #include "Engine/World.h"
-#include "GameFramework/Actor.h"
 #include "TimerManager.h"
 
 // 생성자
@@ -34,67 +32,41 @@ float UPassiveSkillsComponent::CalculateOutgoingDamage()
     return AttackComponent->GetAttackPower();
 }
 
-//언리얼 데미지 시스템이 올려주는 데미지를 받아 방어력 체력 가시갑옷 흡혈을 처리
-//UGameplayStatics::ApplyDamage -> AActor::TakeDamage -> OnTakeAnyDamage 순서로 여기까지 옴
-void UPassiveSkillsComponent::HandleTakeAnyDamage(AActor* DamagedActor, float Damage, const UDamageType* DamageType, AController* InstigatedBy, AActor* DamageCauser)
+//받은 데미지를 방어력으로 줄여 체력에 적용하고 실제 적용한 데미지를 반환
+float UPassiveSkillsComponent::ApplyIncomingDamage(float IncomingDamage)
 {
     if (!DefenceComponent || !HealthComponent)
     {
-        return;
+        return 0.0f;
     }
 
     if (HealthComponent->bIsDead)
     {
-        return;
+        return 0.0f;
     }
 
-    if (Damage <= 0.0f)
+    if (IncomingDamage <= 0.0f)
     {
-        return;
+        return 0.0f;
     }
 
     //방어력으로 깎되 최소 보장치는 남김
-    const float FinalDamage = FMath::Max(Damage - DefenceComponent->GetDefencePower(), MIN_DAMAGE);
+    const float FinalDamage = FMath::Max(IncomingDamage - DefenceComponent->GetDefencePower(), MIN_DAMAGE);
 
     HealthComponent->ApplyDamage(FinalDamage);
 
-    //반사로 들어온 데미지는 다시 반사하지 않고 상대를 회복시키지도 않음
-    //서로 가시 갑옷을 들고 있을 때 무한히 주고받는 것을 막음
-    if (UAugmentDamageLibrary::IsThornReflectDamage(DamageType))
-    {
-        return;
-    }
+    return FinalDamage;
+}
 
-    if (!DamageCauser)
-    {
-        return;
-    }
-
-    //자기가 자기를 때린 경우는 흡혈도 반사도 없음
-    if (DamageCauser == DamagedActor)
-    {
-        return;
-    }
-
-    //때린 쪽은 실제로 얼마가 깎였는지 모르기 때문에 여기서 흡혈을 대신 걸어줌
-    UPassiveSkillsComponent* CauserPassive = DamageCauser->FindComponentByClass<UPassiveSkillsComponent>();
-
-    if (CauserPassive)
-    {
-        CauserPassive->ProcessOnDamageDealt(FinalDamage);
-    }
-
+//실제 받은 데미지로 가시 갑옷 반사 데미지를 계산 가시 갑옷이 없으면 0
+float UPassiveSkillsComponent::CalculateThornReflectDamage(float FinalDamage)
+{
     if (!bThornArmor)
     {
-        return;
+        return 0.0f;
     }
 
-    //가시 갑옷 반사 반사 표식을 달아서 되돌려 보냄
-    UAugmentDamageLibrary::ApplyThornReflectDamage(
-        GetOwner(),
-        DamageCauser,
-        FinalDamage * THORN_ARMOR_REFLECT_RATIO
-    );
+    return FinalDamage * THORN_ARMOR_REFLECT_RATIO;
 }
 
 //데미지를 입힌 뒤 보유 중인 패시브 효과를 처리 흡혈
@@ -287,21 +259,10 @@ void UPassiveSkillsComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    if (HealthComponent)
-    {
-        HealthComponent->OnCurrentHealthChanged.AddDynamic(this, &UPassiveSkillsComponent::HandleCurrentHealthChanged);
-    }
-
-    AActor* OwnerActor = GetOwner();
-
-    if (!OwnerActor)
+    if (!HealthComponent)
     {
         return;
     }
 
-    //이게 꺼져 있으면 데미지가 통째로 무시됨
-    OwnerActor->SetCanBeDamaged(true);
-
-    //여기 물려두면 5계층이 TakeDamage를 건드리지 않아도 방어력과 가시 갑옷이 자동으로 걸림
-    OwnerActor->OnTakeAnyDamage.AddDynamic(this, &UPassiveSkillsComponent::HandleTakeAnyDamage);
+    HealthComponent->OnCurrentHealthChanged.AddDynamic(this, &UPassiveSkillsComponent::HandleCurrentHealthChanged);
 }
