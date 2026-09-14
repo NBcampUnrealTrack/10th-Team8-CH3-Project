@@ -4,7 +4,7 @@
 #include "CombatStats.generated.h"
 
 //체력 공격력 방어력 숫자 묶음
-//여기는 계산만 하고 값 변경과 이벤트 방송은 DispatchTableComponent가 함
+//여기는 계산만 하고 값 변경과 이벤트 방송은 UCombatStatsComponent가 함
 USTRUCT(BlueprintType)
 struct FCombatStats
 {

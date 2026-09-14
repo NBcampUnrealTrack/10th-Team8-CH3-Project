@@ -4,6 +4,7 @@
 #include "MonsterBase.h"
 #include "MonsterAIController.h"
 #include "Components/SphereComponent.h"
+#include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
 #include "AugmentDamageLibrary.h"
 #include "Engine/DamageEvents.h"
@@ -15,6 +16,7 @@ AMonsterBase::AMonsterBase()
 	PrimaryActorTick.bCanEverTick = false;
 	// 월드에 스폰됐을 경우 AIController Possess 시키기
 	AutoPossessAI = EAutoPossessAI::PlacedInWorld;
+	MonsterCombatStats = CreateDefaultSubobject<UCombatStatsComponent>(TEXT("MonsterCombatStats"));
 	MonsterDispatchTable = CreateDefaultSubobject<UDispatchTableComponent>(TEXT("MonsterDispatchTable"));
 	MonsterCollisionComponent = nullptr;
 	MonsterMeshComponent = GetMesh();

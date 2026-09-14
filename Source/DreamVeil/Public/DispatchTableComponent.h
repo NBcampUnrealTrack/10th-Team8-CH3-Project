@@ -4,28 +4,15 @@
 #include "Components/ActorComponent.h"
 #include "AugmentTypes.h"
 #include "AugmentPool.h"
-#include "CombatStats.h"
+#include "Engine/HitResult.h"
 #include "DispatchTableComponent.generated.h"
 
 class UAugmentSkillBase;
+class UCombatStatsComponent;
 
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
-	FOnCurrentHealthChanged,
-	float, OldValue,
-	float, NewValue
-);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
-	FOnMaxHealthChanged,
-	float, OldValue,
-	float, NewValue
-);
-
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDead);
-
-//플레이어 보스 일반 몬스터에 붙는 유일한 증강 컴포넌트
-//스탯 구조체 증강 풀 증강 번호별 스킬 테이블을 전부 들고 있음
-//데미지 처리 순서는 AugmentDamageLibrary에 있고 여기는 계산과 적용만 제공
+//증강을 뽑고 적용하고 스킬에게 알림을 전달하는 컴포넌트
+//스탯은 들고 있지 않고 같은 액터의 UCombatStatsComponent를 찾아서 스킬이 그걸 바꿈
+//플레이어 보스 일반 몬스터는 UCombatStatsComponent와 이 컴포넌트를 둘 다 붙임
 UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class DREAMVEIL_API UDispatchTableComponent : public UActorComponent
 {
@@ -35,105 +22,9 @@ public:
 	//생성자
 	UDispatchTableComponent();
 
-	// 이벤트
-
-	//현재 체력 변화 이벤트
-	UPROPERTY(BlueprintAssignable, Category = "Stats|Event")
-	FOnCurrentHealthChanged OnCurrentHealthChanged;
-
-	//최대 체력 변화 이벤트
-	UPROPERTY(BlueprintAssignable, Category = "Stats|Event")
-	FOnMaxHealthChanged OnMaxHealthChanged;
-
-	//사망 이벤트 체력이 0이 된 순간 한 번
-	UPROPERTY(BlueprintAssignable, Category = "Stats|Event")
-	FOnDead OnDead;
-
-	// 스탯 조회
-
-	//스탯 전체 복사본
-	UFUNCTION(BlueprintPure, Category = "Stats")
-	FCombatStats GetStats() const;
-
-	//최종 공격력
-	UFUNCTION(BlueprintPure, Category = "Stats")
-	float GetAttackPower() const;
-
-	//최종 방어력
-	UFUNCTION(BlueprintPure, Category = "Stats")
-	float GetDefencePower() const;
-
-	//현재 체력
-	UFUNCTION(BlueprintPure, Category = "Stats")
-	float GetCurrentHealth() const;
-
-	//최대 체력
-	UFUNCTION(BlueprintPure, Category = "Stats")
-	float GetMaxHealth() const;
-
-	//체력 비율 0~1
-	UFUNCTION(BlueprintPure, Category = "Stats")
-	float GetHealthPercentage() const;
-
-	//죽었는지 여부
-	UFUNCTION(BlueprintPure, Category = "Stats")
-	bool IsDead() const;
-
-	// 스탯 변경
-
-	//공방체 기본값을 넣고 죽음 상태를 풀고 체력을 가득 채움 증강으로 더해진 값은 유지
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void InitStats(float NewMaxHealth, float NewDefencePower, float NewAttackPower);
-
-	//추가 공격력을 더함
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void AddAttackPower(float Amount);
-
-	//공격력 배율을 곱함
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void MultiplyAttackPower(float Multiplier);
-
-	//추가 방어력을 더함
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void AddDefencePower(float Amount);
-
-	//방어력 배율을 곱함
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void MultiplyDefencePower(float Multiplier);
-
-	//최대 체력을 바꿈 현재 체력이 더 크면 최대 체력까지 줄임
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void SetMaxHealth(float NewMaxHealth);
-
-	//현재 체력을 바꿈 0이면 사망 0보다 크면 살아 있는 상태로 되돌림
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void SetCurrentHealth(float NewCurrentHealth);
-
-	//체력 회복 죽은 상태면 무시
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void Heal(float HealAmount);
-
-	//죽음 상태를 풀고 체력을 가득 채움 부활이나 오브젝트 풀링 재사용용
-	UFUNCTION(BlueprintCallable, Category = "Stats")
-	void ResetHealth();
-
-	// 데미지 AugmentDamageLibrary가 부름
-
-	//이번 공격으로 줄 데미지
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	float CalculateOutgoingDamage() const;
-
-	//받은 데미지를 방어력으로 줄여 체력에 적용하고 적용한 데미지를 반환 죽었거나 0 이하면 0
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	float ApplyIncomingDamage(float IncomingDamage);
-
-	//받은 데미지로 공격자에게 돌려줄 반사 데미지 가시 갑옷이 없으면 0
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	float CalculateThornReflectDamage(float FinalDamage);
-
-	//데미지를 입힌 뒤 보유 스킬 효과를 처리 흡혈
-	UFUNCTION(BlueprintCallable, Category = "Combat")
-	void ProcessOnDamageDealt(float FinalDamage);
+	//같은 액터의 스탯 컴포넌트 BeginPlay에서 찾아둠 스킬이 스탯을 바꿀 때 씀
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	UCombatStatsComponent* GetStatsComponent() const;
 
 	// 증강
 
@@ -169,6 +60,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Augment")
 	bool HasAcquiredAugment(EAugmentID AugmentID) const;
 
+	// 스킬 알림 AugmentDamageLibrary가 부름
+
+	//받은 데미지로 공격자에게 돌려줄 반사 데미지 가시 갑옷이 없으면 0
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	float CalculateThornReflectDamage(float FinalDamage);
+
+	//데미지를 입힌 뒤 보유 스킬 효과를 처리 흡혈
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ProcessOnDamageDealt(float FinalDamage);
+
+	//무기가 무언가를 맞혔을 때 보유 스킬 효과를 처리 범위 공격 감속 지속 공격
+	UFUNCTION(BlueprintCallable, Category = "Combat")
+	void ProcessWeaponHit(const FHitResult& HitResult, float HitDamage);
+
 protected:
 	//생명주기 함수
 	virtual void BeginPlay() override;
@@ -176,9 +81,9 @@ protected:
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-	//체력 공격력 방어력 기본값은 디테일 패널에서 캐릭터별로 입력
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats", meta = (AllowPrivateAccess = "true"))
-	FCombatStats Stats;
+	//같은 액터의 스탯 컴포넌트
+	UPROPERTY(Transient)
+	TObjectPtr<UCombatStatsComponent> StatsComponent;
 
 	//디스패치 테이블 증강 번호마다 어떤 스킬 클래스를 만들지
 	UPROPERTY(VisibleAnywhere, Category = "Augment")
@@ -193,4 +98,8 @@ private:
 
 	//얻은 스킬이 있으면 돌려주고 없으면 테이블을 보고 새로 만듦 테이블에 없는 번호면 nullptr
 	UAugmentSkillBase* FindOrCreateSkill(EAugmentID AugmentID);
+
+	//스탯 컴포넌트의 체력 변화를 받아 스킬에게 전달 광전사 최후의 요새
+	UFUNCTION()
+	void HandleCurrentHealthChanged(float OldValue, float NewValue);
 };

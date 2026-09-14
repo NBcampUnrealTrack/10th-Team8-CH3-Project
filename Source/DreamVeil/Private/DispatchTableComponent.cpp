@@ -2,6 +2,8 @@
 
 #include "ActiveAugmentSkills.h"
 #include "AugmentSkillBase.h"
+#include "CombatStatsComponent.h"
+#include "GameFramework/Actor.h"
 #include "PassiveAugmentSkills.h"
 
 //생성자
@@ -36,207 +38,10 @@ void UDispatchTableComponent::RegisterSkillClasses()
     //무기 증강 스킬이 생기면 여기에 한 줄씩 추가
 }
 
-//스탯 전체 복사본
-FCombatStats UDispatchTableComponent::GetStats() const
+//같은 액터의 스탯 컴포넌트
+UCombatStatsComponent* UDispatchTableComponent::GetStatsComponent() const
 {
-    return Stats;
-}
-
-//최종 공격력
-float UDispatchTableComponent::GetAttackPower() const
-{
-    return Stats.GetAttackPower();
-}
-
-//최종 방어력
-float UDispatchTableComponent::GetDefencePower() const
-{
-    return Stats.GetDefencePower();
-}
-
-//현재 체력
-float UDispatchTableComponent::GetCurrentHealth() const
-{
-    return Stats.CurrentHealth;
-}
-
-//최대 체력
-float UDispatchTableComponent::GetMaxHealth() const
-{
-    return Stats.MaxHealth;
-}
-
-//체력 비율 0~1
-float UDispatchTableComponent::GetHealthPercentage() const
-{
-    return Stats.GetHealthPercentage();
-}
-
-//죽었는지 여부
-bool UDispatchTableComponent::IsDead() const
-{
-    return Stats.bIsDead;
-}
-
-//공방체 기본값을 넣고 죽음 상태를 풀고 체력을 가득 채움
-void UDispatchTableComponent::InitStats(float NewMaxHealth, float NewDefencePower, float NewAttackPower)
-{
-    //최종값은 매번 계산하므로 기본값만 바꾸면 바로 반영됨
-    Stats.BaseDefencePower = NewDefencePower;
-    Stats.BaseAttackPower = NewAttackPower;
-
-    SetMaxHealth(NewMaxHealth);
-
-    ResetHealth();
-}
-
-//추가 공격력을 더함
-void UDispatchTableComponent::AddAttackPower(float Amount)
-{
-    Stats.AdditionalAttackPower += Amount;
-}
-
-//공격력 배율을 곱함
-void UDispatchTableComponent::MultiplyAttackPower(float Multiplier)
-{
-    Stats.AttackMultiplier *= Multiplier;
-}
-
-//추가 방어력을 더함
-void UDispatchTableComponent::AddDefencePower(float Amount)
-{
-    Stats.AdditionalDefencePower += Amount;
-}
-
-//방어력 배율을 곱함
-void UDispatchTableComponent::MultiplyDefencePower(float Multiplier)
-{
-    Stats.DefenceMultiplier *= Multiplier;
-}
-
-//최대 체력을 바꿈 현재 체력이 더 크면 최대 체력까지 줄임
-void UDispatchTableComponent::SetMaxHealth(float NewMaxHealth)
-{
-    const float OldMaxHealth = Stats.MaxHealth;
-
-    Stats.MaxHealth = FMath::Max(NewMaxHealth, 1.0f);
-
-    if (OldMaxHealth != Stats.MaxHealth)
-    {
-        OnMaxHealthChanged.Broadcast(OldMaxHealth, Stats.MaxHealth);
-    }
-
-    if (Stats.CurrentHealth > Stats.MaxHealth)
-    {
-        SetCurrentHealth(Stats.MaxHealth);
-    }
-}
-
-//현재 체력을 바꿈 0이면 사망 0보다 크면 살아 있는 상태로 되돌림
-void UDispatchTableComponent::SetCurrentHealth(float NewCurrentHealth)
-{
-    const float OldCurrentHealth = Stats.CurrentHealth;
-    const bool bWasDead = Stats.bIsDead;
-
-    Stats.CurrentHealth = FMath::Clamp(NewCurrentHealth, 0.0f, Stats.MaxHealth);
-
-    if (OldCurrentHealth == Stats.CurrentHealth)
-    {
-        return;
-    }
-
-    //방송 전에 죽음 상태부터 맞춰둠 받는 쪽이 체력 0인데 살아 있는 상태를 보지 않도록
-    Stats.bIsDead = Stats.CurrentHealth <= 0.0f;
-
-    //광전사 최후의 요새 같은 스킬이 체력 변화를 먼저 반영
-    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
-    {
-        if (SkillPair.Value)
-        {
-            SkillPair.Value->OnHealthChanged(OldCurrentHealth, Stats.CurrentHealth);
-        }
-    }
-
-    OnCurrentHealthChanged.Broadcast(OldCurrentHealth, Stats.CurrentHealth);
-
-    if (Stats.bIsDead && !bWasDead)
-    {
-        OnDead.Broadcast();
-    }
-}
-
-//체력 회복 죽은 상태면 무시
-void UDispatchTableComponent::Heal(float HealAmount)
-{
-    if (Stats.bIsDead)
-    {
-        return;
-    }
-
-    SetCurrentHealth(Stats.CurrentHealth + HealAmount);
-}
-
-//죽음 상태를 풀고 체력을 가득 채움
-void UDispatchTableComponent::ResetHealth()
-{
-    Stats.bIsDead = false;
-
-    SetCurrentHealth(Stats.MaxHealth);
-}
-
-//이번 공격으로 줄 데미지
-float UDispatchTableComponent::CalculateOutgoingDamage() const
-{
-    return Stats.GetAttackPower();
-}
-
-//받은 데미지를 방어력으로 줄여 체력에 적용하고 적용한 데미지를 반환
-float UDispatchTableComponent::ApplyIncomingDamage(float IncomingDamage)
-{
-    if (Stats.bIsDead)
-    {
-        return 0.0f;
-    }
-
-    if (IncomingDamage <= 0.0f)
-    {
-        return 0.0f;
-    }
-
-    //방어력으로 깎되 최소 보장치는 남김 남은 체력보다 커도 자르지 않음(오버킬 허용)
-    const float FinalDamage = FMath::Max(IncomingDamage - Stats.GetDefencePower(), MIN_DAMAGE);
-
-    SetCurrentHealth(Stats.CurrentHealth - FinalDamage);
-
-    return FinalDamage;
-}
-
-//받은 데미지로 공격자에게 돌려줄 반사 데미지
-float UDispatchTableComponent::CalculateThornReflectDamage(float FinalDamage)
-{
-    float ReflectDamage = 0.0f;
-
-    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
-    {
-        if (SkillPair.Value)
-        {
-            ReflectDamage += SkillPair.Value->CalculateReflectDamage(FinalDamage);
-        }
-    }
-
-    return ReflectDamage;
-}
-
-//데미지를 입힌 뒤 보유 스킬 효과를 처리
-void UDispatchTableComponent::ProcessOnDamageDealt(float FinalDamage)
-{
-    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
-    {
-        if (SkillPair.Value)
-        {
-            SkillPair.Value->OnDamageDealt(FinalDamage);
-        }
-    }
+    return StatsComponent;
 }
 
 //보상 UI 선택지를 겹치지 않게 뽑음
@@ -274,7 +79,7 @@ bool UDispatchTableComponent::DrawAndApplyAugment()
 //풀과 상관없이 증강 효과만 실행
 bool UDispatchTableComponent::ExecuteAugment(EAugmentID AugmentID)
 {
-    //스킬 객체는 월드에서 만들어야 해서 BeginPlay 전에 불리면 막음
+    //스킬 객체는 월드에서 만들어야 하고 스탯 컴포넌트도 BeginPlay에서 찾으므로 그 전에는 막음
     if (!HasBegunPlay())
     {
         UE_LOG(LogTemp, Warning, TEXT("DispatchTableComponent: apply augments after BeginPlay (%s)"), *GetNameSafe(GetOwner()));
@@ -318,6 +123,58 @@ bool UDispatchTableComponent::HasAcquiredAugment(EAugmentID AugmentID) const
     return AcquiredSkills.Contains(AugmentID);
 }
 
+//받은 데미지로 공격자에게 돌려줄 반사 데미지
+float UDispatchTableComponent::CalculateThornReflectDamage(float FinalDamage)
+{
+    float ReflectDamage = 0.0f;
+
+    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
+    {
+        if (SkillPair.Value)
+        {
+            ReflectDamage += SkillPair.Value->CalculateReflectDamage(FinalDamage);
+        }
+    }
+
+    return ReflectDamage;
+}
+
+//데미지를 입힌 뒤 보유 스킬 효과를 처리
+void UDispatchTableComponent::ProcessOnDamageDealt(float FinalDamage)
+{
+    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
+    {
+        if (SkillPair.Value)
+        {
+            SkillPair.Value->OnDamageDealt(FinalDamage);
+        }
+    }
+}
+
+//무기가 무언가를 맞혔을 때 보유 스킬 효과를 처리
+void UDispatchTableComponent::ProcessWeaponHit(const FHitResult& HitResult, float HitDamage)
+{
+    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
+    {
+        if (SkillPair.Value)
+        {
+            SkillPair.Value->OnWeaponHit(HitResult, HitDamage);
+        }
+    }
+}
+
+//스탯 컴포넌트의 체력 변화를 받아 스킬에게 전달
+void UDispatchTableComponent::HandleCurrentHealthChanged(float OldValue, float NewValue)
+{
+    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
+    {
+        if (SkillPair.Value)
+        {
+            SkillPair.Value->OnHealthChanged(OldValue, NewValue);
+        }
+    }
+}
+
 //얻은 스킬이 있으면 돌려주고 없으면 테이블을 보고 새로 만듦
 UAugmentSkillBase* UDispatchTableComponent::FindOrCreateSkill(EAugmentID AugmentID)
 {
@@ -348,13 +205,30 @@ void UDispatchTableComponent::BeginPlay()
 {
     Super::BeginPlay();
 
-    //시작할 때 체력을 가득 채움 이벤트는 보내지 않으므로 UI는 Getter로 시작 값을 읽을 것
-    Stats.CurrentHealth = Stats.MaxHealth;
-    Stats.bIsDead = false;
+    AActor* OwnerActor = GetOwner();
+
+    if (OwnerActor)
+    {
+        StatsComponent = OwnerActor->FindComponentByClass<UCombatStatsComponent>();
+    }
+
+    //스탯 컴포넌트가 없으면 스탯을 바꾸는 증강은 아무 효과가 없음
+    if (!StatsComponent)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("DispatchTableComponent: CombatStatsComponent is missing on %s"), *GetNameSafe(OwnerActor));
+        return;
+    }
+
+    StatsComponent->OnCurrentHealthChanged.AddDynamic(this, &UDispatchTableComponent::HandleCurrentHealthChanged);
 }
 
 void UDispatchTableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if (StatsComponent)
+    {
+        StatsComponent->OnCurrentHealthChanged.RemoveDynamic(this, &UDispatchTableComponent::HandleCurrentHealthChanged);
+    }
+
     //스킬이 걸어둔 타이머와 효과를 정리
     for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
     {

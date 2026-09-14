@@ -24,6 +24,11 @@ float UAugmentSkillBase::CalculateReflectDamage(float FinalDamage)
     return 0.0f;
 }
 
+//주인의 무기가 무언가를 맞혔을 때 불림
+void UAugmentSkillBase::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
+{
+}
+
 //주인 컴포넌트가 사라질 때 정리
 void UAugmentSkillBase::Deactivate()
 {
@@ -52,6 +57,19 @@ UWorld* UAugmentSkillBase::GetWorld() const
 UDispatchTableComponent* UAugmentSkillBase::GetOwnerComponent() const
 {
     return GetTypedOuter<UDispatchTableComponent>();
+}
+
+//주인 액터의 스탯 컴포넌트
+UCombatStatsComponent* UAugmentSkillBase::GetStats() const
+{
+    UDispatchTableComponent* OwnerComponent = GetOwnerComponent();
+
+    if (!OwnerComponent)
+    {
+        return nullptr;
+    }
+
+    return OwnerComponent->GetStatsComponent();
 }
 
 //컴포넌트가 붙어 있는 액터

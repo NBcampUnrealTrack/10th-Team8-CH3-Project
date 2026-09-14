@@ -2,13 +2,14 @@
 
 #include "AugmentDamageLibrary.h"
 #include "AugmentTypes.h"
+#include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TimerManager.h"
 
-//감속 발동 타이머 시작 이미 돌고 있으면 무시
-void USlowEnemySkill::Apply()
+//감속 총에 맞은 캐릭터를 느리게 만듦 이미 느린 대상이면 시간만 다시 시작
+void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
     UWorld* World = GetWorld();
 
@@ -17,100 +18,60 @@ void USlowEnemySkill::Apply()
         return;
     }
 
-    if (World->GetTimerManager().IsTimerActive(SlowTimerHandle))
+    ACharacter* TargetCharacter = Cast<ACharacter>(HitResult.GetActor());
+
+    if (!TargetCharacter)
     {
         return;
     }
 
-    World->GetTimerManager().SetTimer(
-        SlowTimerHandle,
-        this,
-        &USlowEnemySkill::ProcessSlowTick,
-        SLOW_ENEMY_INTERVAL,
-        true
-    );
-}
-
-//감속 느려진 대상을 되돌리고 타이머 정리
-void USlowEnemySkill::Deactivate()
-{
-    //느려진 대상을 그대로 두고 사라지지 않도록 정리
-    RestoreSlowedCharacters();
-
-    UWorld* World = GetWorld();
-
-    if (!World)
+    if (TargetCharacter == GetOwnerActor())
     {
         return;
     }
 
-    World->GetTimerManager().ClearTimer(SlowTimerHandle);
-    World->GetTimerManager().ClearTimer(RestoreTimerHandle);
-}
+    UCharacterMovementComponent* MovementComponent = TargetCharacter->GetCharacterMovement();
 
-//감속 주변 대상의 이동 속도를 낮춤
-void USlowEnemySkill::ProcessSlowTick()
-{
-    UWorld* World = GetWorld();
-
-    if (!World)
+    if (!MovementComponent)
     {
         return;
     }
 
-    //이전에 걸린 속도 저하가 남아 있으면 먼저 되돌림
-    RestoreSlowedCharacters();
+    FSlowedCharacterState* SlowedState = SlowedCharacters.Find(TargetCharacter);
 
-    TArray<AActor*> FoundTargets;
-
-    UAugmentDamageLibrary::FindTargetsInRadius(GetOwnerActor(), SLOW_ENEMY_RADIUS, FoundTargets);
-
-    for (AActor* Target : FoundTargets)
+    //처음 느려지는 대상만 원래 속도를 저장하고 배율을 곱함 다시 맞아도 더 느려지지 않음
+    if (!SlowedState)
     {
-        ACharacter* TargetCharacter = Cast<ACharacter>(Target);
-
-        if (!TargetCharacter)
-        {
-            continue;
-        }
-
-        UCharacterMovementComponent* MovementComponent = TargetCharacter->GetCharacterMovement();
-
-        if (!MovementComponent)
-        {
-            continue;
-        }
-
-        //같은 대상을 두 번 느리게 만들어 원래 속도를 잃어버리는 것을 막음
-        if (SlowedCharacters.Contains(TargetCharacter))
-        {
-            continue;
-        }
-
-        SlowedCharacters.Add(TargetCharacter, MovementComponent->MaxWalkSpeed);
+        FSlowedCharacterState NewState;
+        NewState.OriginalWalkSpeed = MovementComponent->MaxWalkSpeed;
 
         MovementComponent->MaxWalkSpeed *= SLOW_ENEMY_RATIO;
+
+        SlowedState = &SlowedCharacters.Add(TargetCharacter, NewState);
     }
 
-    if (SlowedCharacters.Num() == 0)
-    {
-        return;
-    }
-
-    World->GetTimerManager().SetTimer(
-        RestoreTimerHandle,
+    //같은 핸들로 다시 걸면 이전 타이머는 취소되고 지속 시간이 처음부터 다시 흐름
+    FTimerDelegate RestoreDelegate = FTimerDelegate::CreateUObject(
         this,
-        &USlowEnemySkill::RestoreSlowedCharacters,
-        SLOW_ENEMY_DURATION,
-        false
+        &USlowEnemySkill::RestoreCharacter,
+        TWeakObjectPtr<ACharacter>(TargetCharacter)
     );
+
+    World->GetTimerManager().SetTimer(SlowedState->RestoreTimerHandle, RestoreDelegate, SLOW_ENEMY_DURATION, false);
 }
 
-//감속 속도가 저하된 대상을 원래 속도로 되돌림
-void USlowEnemySkill::RestoreSlowedCharacters()
+//감속 느려진 대상을 전부 되돌리고 타이머 정리
+void USlowEnemySkill::Deactivate()
 {
-    for (TPair<TWeakObjectPtr<ACharacter>, float>& SlowedPair : SlowedCharacters)
+    UWorld* World = GetWorld();
+
+    for (TPair<TWeakObjectPtr<ACharacter>, FSlowedCharacterState>& SlowedPair : SlowedCharacters)
     {
+        if (World)
+        {
+            World->GetTimerManager().ClearTimer(SlowedPair.Value.RestoreTimerHandle);
+        }
+
         ACharacter* SlowedCharacter = SlowedPair.Key.Get();
 
         if (!SlowedCharacter)
@@ -125,75 +86,79 @@ void USlowEnemySkill::RestoreSlowedCharacters()
             continue;
         }
 
-        MovementComponent->MaxWalkSpeed = SlowedPair.Value;
+        MovementComponent->MaxWalkSpeed = SlowedPair.Value.OriginalWalkSpeed;
     }
 
     SlowedCharacters.Empty();
 }
 
-//범위 공격 발동 타이머 시작 이미 돌고 있으면 무시
-void UAreaAttackSkill::Apply()
+//감속 한 대상의 이동 속도를 원래대로 되돌림
+void USlowEnemySkill::RestoreCharacter(TWeakObjectPtr<ACharacter> WeakTarget)
 {
-    UWorld* World = GetWorld();
+    FSlowedCharacterState* SlowedState = SlowedCharacters.Find(WeakTarget);
 
-    if (!World)
+    if (!SlowedState)
     {
         return;
     }
 
-    if (World->GetTimerManager().IsTimerActive(AreaAttackTimerHandle))
+    ACharacter* SlowedCharacter = WeakTarget.Get();
+
+    if (SlowedCharacter)
     {
-        return;
+        UCharacterMovementComponent* MovementComponent = SlowedCharacter->GetCharacterMovement();
+
+        if (MovementComponent)
+        {
+            MovementComponent->MaxWalkSpeed = SlowedState->OriginalWalkSpeed;
+        }
     }
 
-    World->GetTimerManager().SetTimer(
-        AreaAttackTimerHandle,
-        this,
-        &UAreaAttackSkill::ProcessAreaAttackTick,
-        AREA_ATTACK_INTERVAL,
-        true
-    );
+    //대상이 이미 사라졌어도 목록에서는 지움
+    SlowedCharacters.Remove(WeakTarget);
 }
 
-//범위 공격 타이머 정리
-void UAreaAttackSkill::Deactivate()
-{
-    UWorld* World = GetWorld();
-
-    if (!World)
-    {
-        return;
-    }
-
-    World->GetTimerManager().ClearTimer(AreaAttackTimerHandle);
-}
-
-//범위 공격 주변 대상 전원에게 데미지
-void UAreaAttackSkill::ProcessAreaAttackTick()
+//범위 공격 총알이 맞은 지점 주변 대상에게 데미지
+void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
     AActor* OwnerActor = GetOwnerActor();
 
+    if (!OwnerActor)
+    {
+        return;
+    }
+
+    const float SplashDamage = HitDamage * AREA_ATTACK_DAMAGE_RATIO;
+
+    if (SplashDamage <= 0.0f)
+    {
+        return;
+    }
+
+    //쏜 사람은 자기 범위 공격에 안 맞고 직접 맞은 대상은 이미 총 데미지를 받았으므로 제외
+    TArray<AActor*> ActorsToIgnore;
+    ActorsToIgnore.Add(OwnerActor);
+
+    if (HitResult.GetActor())
+    {
+        ActorsToIgnore.Add(HitResult.GetActor());
+    }
+
     TArray<AActor*> FoundTargets;
 
-    UAugmentDamageLibrary::FindTargetsInRadius(OwnerActor, AREA_ATTACK_RADIUS, FoundTargets);
+    UAugmentDamageLibrary::FindTargetsAtLocation(OwnerActor, HitResult.ImpactPoint, AREA_ATTACK_RADIUS, ActorsToIgnore, FoundTargets);
 
     if (FoundTargets.Num() == 0)
     {
         return;
     }
 
-    const float Damage = UAugmentDamageLibrary::GetOutgoingDamage(OwnerActor) * AREA_ATTACK_DAMAGE_RATIO;
-
-    if (Damage <= 0.0f)
-    {
-        return;
-    }
-
-    UAugmentDamageLibrary::ApplyAugmentDamage(OwnerActor, FoundTargets, Damage);
+    //범위 데미지는 ApplyWeaponHit를 거치지 않으므로 범위 공격이 다시 터지지 않음
+    UAugmentDamageLibrary::ApplyAugmentDamage(OwnerActor, FoundTargets, SplashDamage);
 }
 
-//지속 공격 발동 타이머 시작 이미 돌고 있으면 무시
-void UContinuousAttackSkill::Apply()
+//지속 공격 총에 맞은 대상에게 독을 걺 이미 걸린 대상이면 시간과 데미지만 갱신
+void UContinuousAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
     UWorld* World = GetWorld();
 
@@ -202,53 +167,106 @@ void UContinuousAttackSkill::Apply()
         return;
     }
 
-    if (World->GetTimerManager().IsTimerActive(ContinuousAttackTimerHandle))
+    AActor* TargetActor = HitResult.GetActor();
+
+    if (!TargetActor)
     {
         return;
     }
 
-    World->GetTimerManager().SetTimer(
-        ContinuousAttackTimerHandle,
+    if (TargetActor == GetOwnerActor())
+    {
+        return;
+    }
+
+    const float TickDamage = HitDamage * CONTINUOUS_ATTACK_DAMAGE_RATIO;
+
+    if (TickDamage <= 0.0f)
+    {
+        return;
+    }
+
+    FPoisonedTargetState* PoisonState = PoisonedTargets.Find(TargetActor);
+
+    //이미 독에 걸려 있으면 틱 주기는 그대로 두고 남은 시간과 데미지만 새로 맞음
+    if (PoisonState)
+    {
+        PoisonState->TickDamage = TickDamage;
+        PoisonState->RemainingTime = CONTINUOUS_ATTACK_DURATION;
+        return;
+    }
+
+    FPoisonedTargetState NewState;
+    NewState.TickDamage = TickDamage;
+    NewState.RemainingTime = CONTINUOUS_ATTACK_DURATION;
+
+    PoisonState = &PoisonedTargets.Add(TargetActor, NewState);
+
+    //첫 독 데미지는 맞은 순간이 아니라 한 간격 뒤부터
+    FTimerDelegate TickDelegate = FTimerDelegate::CreateUObject(
         this,
-        &UContinuousAttackSkill::ProcessContinuousAttackTick,
-        CONTINUOUS_ATTACK_INTERVAL,
-        true
+        &UContinuousAttackSkill::ProcessPoisonTick,
+        TWeakObjectPtr<AActor>(TargetActor)
     );
+
+    World->GetTimerManager().SetTimer(PoisonState->TickTimerHandle, TickDelegate, CONTINUOUS_ATTACK_INTERVAL, true);
 }
 
-//지속 공격 타이머 정리
+//지속 공격 독 타이머 전부 정리
 void UContinuousAttackSkill::Deactivate()
 {
     UWorld* World = GetWorld();
 
-    if (!World)
+    if (World)
     {
-        return;
+        for (TPair<TWeakObjectPtr<AActor>, FPoisonedTargetState>& PoisonPair : PoisonedTargets)
+        {
+            World->GetTimerManager().ClearTimer(PoisonPair.Value.TickTimerHandle);
+        }
     }
 
-    World->GetTimerManager().ClearTimer(ContinuousAttackTimerHandle);
+    PoisonedTargets.Empty();
 }
 
-//지속 공격 주변 대상 전원에게 데미지
-void UContinuousAttackSkill::ProcessContinuousAttackTick()
+//지속 공격 한 대상에게 독 데미지 한 번
+void UContinuousAttackSkill::ProcessPoisonTick(TWeakObjectPtr<AActor> WeakTarget)
 {
-    AActor* OwnerActor = GetOwnerActor();
+    FPoisonedTargetState* PoisonState = PoisonedTargets.Find(WeakTarget);
 
-    TArray<AActor*> FoundTargets;
-
-    UAugmentDamageLibrary::FindTargetsInRadius(OwnerActor, CONTINUOUS_ATTACK_RADIUS, FoundTargets);
-
-    if (FoundTargets.Num() == 0)
+    if (!PoisonState)
     {
         return;
     }
 
-    const float Damage = UAugmentDamageLibrary::GetOutgoingDamage(OwnerActor) * CONTINUOUS_ATTACK_DAMAGE_RATIO;
+    UWorld* World = GetWorld();
 
-    if (Damage <= 0.0f)
+    AActor* TargetActor = WeakTarget.Get();
+
+    //독 데미지 표식을 달아서 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않음
+    //대상이 사라졌거나 이미 죽어서 데미지가 안 들어가면 0이 돌아옴
+    const float AppliedDamage = UAugmentDamageLibrary::ApplyPoisonDamage(GetOwnerActor(), TargetActor, PoisonState->TickDamage);
+
+    //데미지 처리 중에 목록이 바뀌었을 수 있으니 다시 찾음
+    PoisonState = PoisonedTargets.Find(WeakTarget);
+
+    if (!PoisonState)
     {
         return;
     }
 
-    UAugmentDamageLibrary::ApplyAugmentDamage(OwnerActor, FoundTargets, Damage);
+    PoisonState->RemainingTime -= CONTINUOUS_ATTACK_INTERVAL;
+
+    const bool bExpired = PoisonState->RemainingTime <= KINDA_SMALL_NUMBER;
+
+    if (!bExpired && AppliedDamage > 0.0f)
+    {
+        return;
+    }
+
+    if (World)
+    {
+        World->GetTimerManager().ClearTimer(PoisonState->TickTimerHandle);
+    }
+
+    PoisonedTargets.Remove(WeakTarget);
 }

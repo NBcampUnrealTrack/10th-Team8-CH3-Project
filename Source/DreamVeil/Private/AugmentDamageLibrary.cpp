@@ -3,6 +3,7 @@
 
 #include "AugmentDamageLibrary.h"
 
+#include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Controller.h"
@@ -61,15 +62,16 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         return 0.0f;
     }
 
-    UDispatchTableComponent* DamagedTable = DamagedActor->FindComponentByClass<UDispatchTableComponent>();
+    //체력과 방어력은 스탯 컴포넌트가 들고 있음 없으면 데미지를 받을 수 없는 액터
+    UCombatStatsComponent* DamagedStats = DamagedActor->FindComponentByClass<UCombatStatsComponent>();
 
-    if (!DamagedTable)
+    if (!DamagedStats)
     {
         return 0.0f;
     }
 
     //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴
-    const float FinalDamage = DamagedTable->ApplyIncomingDamage(Damage);
+    const float FinalDamage = DamagedStats->ApplyIncomingDamage(Damage);
 
     if (FinalDamage <= 0.0f)
     {
@@ -79,6 +81,12 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
     //반사로 들어온 데미지는 다시 반사하지 않고 상대를 회복시키지도 않음
     //서로 가시 갑옷을 들고 있을 때 무한히 주고받는 것을 막음
     if (IsThornReflectDamage(DamageTypeClass))
+    {
+        return FinalDamage;
+    }
+
+    //독 데미지는 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않게 여기서 끝냄
+    if (IsPoisonDamage(DamageTypeClass))
     {
         return FinalDamage;
     }
@@ -96,6 +104,7 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         return FinalDamage;
     }
 
+    //흡혈과 가시 갑옷은 증강이라 디스패치 테이블에게 물음 증강이 없는 액터면 건너뜀
     //때린 쪽은 실제로 얼마가 깎였는지 모르기 때문에 여기서 흡혈을 대신 걸어줌
     UDispatchTableComponent* AttackerTable = Attacker->FindComponentByClass<UDispatchTableComponent>();
 
@@ -105,11 +114,16 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
     }
 
     //가시 갑옷 반사 가시 갑옷이 없으면 0이라 ApplyThornReflectDamage 안에서 걸러짐
-    ApplyThornReflectDamage(
-        DamagedActor,
-        Attacker,
-        DamagedTable->CalculateThornReflectDamage(FinalDamage)
-    );
+    UDispatchTableComponent* DamagedTable = DamagedActor->FindComponentByClass<UDispatchTableComponent>();
+
+    if (DamagedTable)
+    {
+        ApplyThornReflectDamage(
+            DamagedActor,
+            Attacker,
+            DamagedTable->CalculateThornReflectDamage(FinalDamage)
+        );
+    }
 
     return FinalDamage;
 }
@@ -182,6 +196,39 @@ bool UAugmentDamageLibrary::IsThornReflectDamage(TSubclassOf<UDamageType> Damage
     return DamageTypeClass->IsChildOf(UThornReflectDamageType::StaticClass());
 }
 
+//지속 공격 독 데미지를 보냄 독 표식이 붙어서 흡혈과 가시 갑옷 반사가 일어나지 않음
+float UAugmentDamageLibrary::ApplyPoisonDamage(AActor* DamageCauser, AActor* Target, float Damage)
+{
+    if (!Target)
+    {
+        return 0.0f;
+    }
+
+    if (Damage <= 0.0f)
+    {
+        return 0.0f;
+    }
+
+    return UGameplayStatics::ApplyDamage(
+        Target,
+        Damage,
+        FindEventInstigator(DamageCauser),
+        DamageCauser,
+        UPoisonDamageType::StaticClass()
+    );
+}
+
+//독으로 들어온 데미지인지 확인
+bool UAugmentDamageLibrary::IsPoisonDamage(TSubclassOf<UDamageType> DamageTypeClass)
+{
+    if (!DamageTypeClass)
+    {
+        return false;
+    }
+
+    return DamageTypeClass->IsChildOf(UPoisonDamageType::StaticClass());
+}
+
 //공격자의 현재 공격력을 가져옴 평타 데미지를 만들 때 씀
 float UAugmentDamageLibrary::GetOutgoingDamage(AActor* DamageCauser)
 {
@@ -190,14 +237,46 @@ float UAugmentDamageLibrary::GetOutgoingDamage(AActor* DamageCauser)
         return 0.0f;
     }
 
-    UDispatchTableComponent* CauserTable = DamageCauser->FindComponentByClass<UDispatchTableComponent>();
+    UCombatStatsComponent* CauserStats = DamageCauser->FindComponentByClass<UCombatStatsComponent>();
 
-    if (!CauserTable)
+    if (!CauserStats)
     {
         return 0.0f;
     }
 
-    return CauserTable->CalculateOutgoingDamage();
+    return CauserStats->CalculateOutgoingDamage();
+}
+
+//총이 무언가를 맞혔을 때 맞은 대상에게 데미지를 보내고 쏜 사람의 적중 증강을 발동
+float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResult& HitResult, float Damage)
+{
+    if (!DamageCauser)
+    {
+        return 0.0f;
+    }
+
+    //맞은 대상에게 먼저 데미지 벽이나 바닥을 맞혔으면 대상이 없어서 0
+    const float AppliedDamage = ApplyAugmentDamageToTarget(DamageCauser, HitResult.GetActor(), Damage);
+
+    //투사체가 맞혔으면 쏜 사람을 찾아서 그 사람의 증강을 발동
+    AActor* Shooter = FindAttacker(FindEventInstigator(DamageCauser), DamageCauser);
+
+    if (!Shooter)
+    {
+        return AppliedDamage;
+    }
+
+    UDispatchTableComponent* ShooterTable = Shooter->FindComponentByClass<UDispatchTableComponent>();
+
+    if (!ShooterTable)
+    {
+        return AppliedDamage;
+    }
+
+    //벽을 맞혀도 적중 지점 주변에 범위 공격이 터지도록 대상 유무와 상관없이 부름
+    ShooterTable->ProcessWeaponHit(HitResult, Damage);
+
+    return AppliedDamage;
 }
 
 //지정한 범위 안의 대상을 찾음 자기 자신은 제외
@@ -210,16 +289,29 @@ void UAugmentDamageLibrary::FindTargetsInRadius(AActor* OwnerActor, float Radius
         return;
     }
 
-    TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
-
     TArray<AActor*> ActorsToIgnore;
     ActorsToIgnore.Add(OwnerActor);
 
+    FindTargetsAtLocation(OwnerActor, OwnerActor->GetActorLocation(), Radius, ActorsToIgnore, OutTargets);
+}
+
+//원하는 위치 기준 범위 안의 대상을 찾음 ActorsToIgnore에 넣은 대상은 제외
+void UAugmentDamageLibrary::FindTargetsAtLocation(UObject* WorldContextObject, FVector Location, float Radius, const TArray<AActor*>& ActorsToIgnore, TArray<AActor*>& OutTargets)
+{
+    OutTargets.Empty();
+
+    if (!WorldContextObject)
+    {
+        return;
+    }
+
+    TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
+    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+
     //지금은 폰 전체를 잡음 아군 적군 구분은 팀 태그가 정해지면 여기서 걸러냄
     UKismetSystemLibrary::SphereOverlapActors(
-        OwnerActor,
-        OwnerActor->GetActorLocation(),
+        WorldContextObject,
+        Location,
         Radius,
         ObjectTypes,
         AActor::StaticClass(),

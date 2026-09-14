@@ -72,32 +72,23 @@ const float LAST_FORTRESS_MULTIPLIER = 1.5f;
 //데미지 최소 보장치
 const float MIN_DAMAGE = 1.0f;
 
-//속도 저하 탐지 반경
-const float SLOW_ENEMY_RADIUS = 600.0f;
-
-//속도 저하 발동 간격
-const float SLOW_ENEMY_INTERVAL = 5.0f;
-
-//속도 저하 지속 시간
+//감속 지속 시간 총에 맞은 대상 기준 다시 맞으면 시간만 처음부터 다시
 const float SLOW_ENEMY_DURATION = 3.0f;
 
-//속도 저하 배율
+//감속 이동 속도 배율 다시 맞아도 겹쳐서 더 느려지지 않음
 const float SLOW_ENEMY_RATIO = 0.5f;
 
-//범위 공격 반경
+//범위 공격 반경 총알이 맞은 지점 기준
 const float AREA_ATTACK_RADIUS = 400.0f;
 
-//범위 공격 발동 간격
-const float AREA_ATTACK_INTERVAL = 6.0f;
-
-//범위 공격 데미지 비율
+//범위 공격 데미지 비율 총 데미지 기준 주변 대상 각자의 방어력은 따로 빠짐
 const float AREA_ATTACK_DAMAGE_RATIO = 1.0f;
 
-//지속 공격 반경
-const float CONTINUOUS_ATTACK_RADIUS = 300.0f;
-
-//지속 공격 발동 간격
+//지속 공격 독 데미지 간격
 const float CONTINUOUS_ATTACK_INTERVAL = 1.0f;
 
-//지속 공격 데미지 비율
+//지속 공격 독 지속 시간 다시 맞으면 시간만 처음부터 다시
+const float CONTINUOUS_ATTACK_DURATION = 3.0f;
+
+//지속 공격 틱당 데미지 비율 총 데미지 기준 틱마다 대상 방어력이 빠짐
 const float CONTINUOUS_ATTACK_DAMAGE_RATIO = 0.3f;
