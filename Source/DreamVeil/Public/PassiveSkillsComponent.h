@@ -54,6 +54,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Passive")
 	UHealthComponent* GetHealthComponent();
 
+	//공방체 설정(하고 현재 체력 다시 채워줌)
+	UFUNCTION(BlueprintCallable, Category = "Passive")
+	void PassiveInit(float NewMaxHealth, float NewDefencePower, float NewAttackPower);
+
 	//1계층 공방체
 	//공격
 	UPROPERTY(VisibleAnywhere, Category = "Passive")

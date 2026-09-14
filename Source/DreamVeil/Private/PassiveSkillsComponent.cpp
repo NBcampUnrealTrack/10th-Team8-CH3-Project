@@ -110,6 +110,26 @@ UHealthComponent* UPassiveSkillsComponent::GetHealthComponent()
     return HealthComponent;
 }
 
+//공방체 설정 
+void UPassiveSkillsComponent::PassiveInit(float NewMaxHealth, float NewDefencePower, float NewAttackPower)
+{
+    if (!HealthComponent || !DefenceComponent || !AttackComponent)
+    {
+        return;
+    }
+
+    //최대 체력을 바꾸고 현재 체력도 가득 채움
+    HealthComponent->SetMaxHealth(NewMaxHealth);
+    HealthComponent->SetCurrentHealth(HealthComponent->GetMaxHealth());
+
+    //기본값만 넣으면 최종값 캐시가 안 바뀌므로 바로 재계산
+    DefenceComponent->BaseDefencePower = NewDefencePower;
+    DefenceComponent->SetDefencePower();
+
+    AttackComponent->BaseAttackPower = NewAttackPower;
+    AttackComponent->SetAttackPower(); 
+}
+
 //공격력 증가 증강을 적용
 void UPassiveSkillsComponent::ExecuteAttackPowerUp()
 {
