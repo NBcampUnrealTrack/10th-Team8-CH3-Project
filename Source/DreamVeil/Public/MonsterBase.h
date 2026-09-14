@@ -7,7 +7,7 @@
 #include "MonsterBase.generated.h"
 
 class UShapeComponent;
-class UHealthComponent;
+class UPassiveSkillsComponent;
 
 UCLASS()
 class DREAMVEIL_API AMonsterBase : public ACharacter
@@ -28,7 +28,7 @@ public:
 	
 	float GetMonsterAttackRange() const;
 
-	TObjectPtr<UHealthComponent> MonsterHealthComponent;
+	TObjectPtr<UPassiveSkillsComponent> MonsterPassive;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh")
 	TObjectPtr<UMeshComponent> MonsterMeshComponent;

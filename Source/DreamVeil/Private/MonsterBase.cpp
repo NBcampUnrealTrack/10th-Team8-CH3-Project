@@ -4,7 +4,7 @@
 #include "MonsterBase.h"
 #include "MonsterAIController.h"
 #include "Components/SphereComponent.h"
-#include "HealthComponent.h"
+#include "PassiveSkillsComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
 
 // Sets default values
@@ -13,7 +13,12 @@ AMonsterBase::AMonsterBase()
 	PrimaryActorTick.bCanEverTick = false;
 	// 월드에 스폰됐을 경우 AIController Possess 시키기
 	AutoPossessAI = EAutoPossessAI::PlacedInWorld;
-	MonsterHealthComponent = CreateDefaultSubobject<UHealthComponent>(TEXT("MonsterHealthComponent"));
+	// 패시브 값(체력, 공격력, 방어력)들은 전부 자식 클래스에서 초기화 해야하고, 
+	// 초기화를 하기 위해서 미리 인클루드 한번 해줘야 함.
+	MonsterPassive = CreateDefaultSubobject<UPassiveSkillsComponent>(TEXT("Monster Passive Skills"));
+
+	MonsterPassive->HealthComponent->여기가안됩니다윤재님
+
 	MonsterCollisionComponent = nullptr;
 	MonsterMeshComponent = GetMesh();
 
