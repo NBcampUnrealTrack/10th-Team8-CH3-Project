@@ -16,7 +16,6 @@ class DREAMVEIL_API AMonsterBase : public ACharacter
 private:
 
 protected:
-	// Called when the game starts or when spawned
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
@@ -26,12 +25,7 @@ protected:
 	TObjectPtr<UShapeComponent> MonsterCollisionComponent;
 public:	
 	AMonsterBase();
-	// Called every frame
-	virtual void Tick(float DeltaTime) override;
-
-	// Called to bind functionality to input
-	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
-
+	
 	float GetMonsterAttackRange() const;
 
 	TObjectPtr<UHealthComponent> MonsterHealthComponent;
