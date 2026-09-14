@@ -23,7 +23,8 @@ void UDefenceComponent::AddDefencePower(float Amount)
 
 void UDefenceComponent::MultiplyDefencePower(float Multiplier)
 {
-    DefenceMultiplier *= Multiplier;//누적 구조로 갈것이냐 아니면 새로운 배율(누적 구조 생각중)
+    //배율은 곱해서 누적 해제할 때는 역수를 곱함(최후의 요새)
+    DefenceMultiplier *= Multiplier;
 
     SetDefencePower();
 }

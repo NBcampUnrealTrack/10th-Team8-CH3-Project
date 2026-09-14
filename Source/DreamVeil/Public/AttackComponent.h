@@ -36,6 +36,9 @@ public:
     //공격력 배율 적용
     void MultiplyAttackPower(float Multiplier);
 
+    //최종 공격력을 계산 BeginPlay 이후 BaseAttackPower를 바꿨으면 불러줄 것
+    void SetAttackPower();
+
     UFUNCTION(BlueprintCallable, Category = "Attack")
     float GetAttackPower();
 private:
@@ -48,9 +51,6 @@ private:
 
     //최종 공격력
     float AttackPower;
-
-    //최종 공격력을 계산
-    void SetAttackPower();
 
     //생명주기 함수
     virtual void BeginPlay() override;

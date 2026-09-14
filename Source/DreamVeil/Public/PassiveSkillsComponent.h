@@ -21,7 +21,7 @@ public:
 	//생성자
 	UPassiveSkillsComponent();
 
-	//이번 공격으로 줄 데미지를 계산 평타 데미지를 만들 때 씀
+	//이번 공격으로 줄 데미지를 계산, 평타 데미지를 만들 때 씀
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	float CalculateOutgoingDamage();
 
@@ -73,6 +73,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Passive")
 	void ExecuteBerserker();
 
+	//최후의 요새 증강을 활성화하고 즉시 상태를 반영
+	UFUNCTION(BlueprintCallable, Category = "Passive")
+	void ExecuteLastFortress();
+
 	//가시 갑옷 증강을 활성화
 	UFUNCTION(BlueprintCallable, Category = "Passive")
 	void ExecuteThornArmor();
@@ -110,8 +114,14 @@ private:
 	//재생력
 	bool bRegeneration;
 
+	//최후의 요새
+	bool bLastFortress;
+
 	//광전사 배율이 현재 적용된 상태인지 여부
 	bool bBerserkerActivated;
+
+	//최후의 요새 배율이 현재 적용된 상태인지 여부
+	bool bLastFortressActivated;
 
 	//재생력 타이머 핸들
 	FTimerHandle RegenerationTimerHandle;
@@ -119,7 +129,10 @@ private:
 	//체력 상태에 따라 광전사 효과를 갱신
 	void UpdateBerserkerState();
 
-	//현재 체력이 바뀔 때 광전사 상태를 갱신
+	//체력 상태에 따라 최후의 요새 효과를 갱신
+	void UpdateLastFortressState();
+
+	//현재 체력이 바뀔 때 광전사와 최후의 요새 상태를 갱신
 	UFUNCTION()
 	void HandleCurrentHealthChanged(float OldValue, float NewValue);
 

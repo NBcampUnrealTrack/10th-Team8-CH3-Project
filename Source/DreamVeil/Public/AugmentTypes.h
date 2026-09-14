@@ -14,6 +14,7 @@ enum class EAugmentID : uint8
 	ThornArmor,
 	Vampire,
 	Regeneration,
+	LastFortress,
 	//액티브
 	SlowEnemy,
 	AreaAttack,
@@ -111,6 +112,12 @@ const float BERSERKER_THRESHOLD = 0.3f;
 
 //광전사 공격력 배율
 const float BERSERKER_MULTIPLIER = 1.5f;
+
+//최후의 요새 발동 체력 비율
+const float LAST_FORTRESS_THRESHOLD = 0.3f;
+
+//최후의 요새 방어력 배율
+const float LAST_FORTRESS_MULTIPLIER = 1.5f;
 
 //데미지 최소 보장치
 const float MIN_DAMAGE = 1.0f;

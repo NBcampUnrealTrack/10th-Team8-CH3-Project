@@ -18,10 +18,12 @@ UPassiveSkillsComponent::UPassiveSkillsComponent()
     bVampire = false;
     bThornArmor = false;
     bRegeneration = false;
+    bLastFortress = false;
     bBerserkerActivated = false;
+    bLastFortressActivated = false;
 }
 
-//이번 공격으로 줄 데미지를 계산 평타 데미지를 만들 때 씀
+//이번 공격으로 줄 데미지를 계산, 평타 데미지를 만들 때 씀
 float UPassiveSkillsComponent::CalculateOutgoingDamage()
 {
     if (!AttackComponent)
@@ -155,6 +157,19 @@ void UPassiveSkillsComponent::ExecuteBerserker()
     UpdateBerserkerState();
 }
 
+//최후의 요새 증강을 활성화하고 즉시 상태를 반영
+void UPassiveSkillsComponent::ExecuteLastFortress()
+{
+    if (bLastFortress)
+    {
+        return;
+    }
+
+    bLastFortress = true;
+
+    UpdateLastFortressState();
+}
+
 //가시 갑옷 증강을 활성화
 void UPassiveSkillsComponent::ExecuteThornArmor()
 {
@@ -232,10 +247,40 @@ void UPassiveSkillsComponent::UpdateBerserkerState()
     }
 }
 
-//현재 체력이 바뀔 때 광전사 상태를 갱신
+//체력 상태에 따라 최후의 요새 효과를 갱신
+void UPassiveSkillsComponent::UpdateLastFortressState()
+{
+    if (!DefenceComponent || !HealthComponent)
+    {
+        return;
+    }
+
+    if (!bLastFortress)
+    {
+        return;
+    }
+
+    const bool bShouldActivate = HealthComponent->GetHealthPercentage() <= LAST_FORTRESS_THRESHOLD;
+
+    if (bShouldActivate && !bLastFortressActivated)
+    {
+        DefenceComponent->MultiplyDefencePower(LAST_FORTRESS_MULTIPLIER);
+        bLastFortressActivated = true;
+        return;
+    }
+
+    if (!bShouldActivate && bLastFortressActivated)
+    {
+        DefenceComponent->MultiplyDefencePower(1.0f / LAST_FORTRESS_MULTIPLIER);
+        bLastFortressActivated = false;
+    }
+}
+
+//현재 체력이 바뀔 때 광전사와 최후의 요새 상태를 갱신
 void UPassiveSkillsComponent::HandleCurrentHealthChanged(float OldValue, float NewValue)
 {
     UpdateBerserkerState();
+    UpdateLastFortressState();
 }
 
 //일정 간격마다 체력을 회복

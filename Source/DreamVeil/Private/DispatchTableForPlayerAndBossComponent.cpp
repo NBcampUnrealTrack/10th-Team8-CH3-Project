@@ -59,6 +59,14 @@ void UDispatchTableForPlayerAndBossComponent::RegisterAugmentFunctions()
             }
         });
 
+    AugmentMap.Add(EAugmentID::LastFortress, [this]()
+        {
+            if (PassiveSkillsComponent)
+            {
+                PassiveSkillsComponent->ExecuteLastFortress();
+            }
+        });
+
     AugmentMap.Add(EAugmentID::ThornArmor, [this]()
         {
             if (PassiveSkillsComponent)

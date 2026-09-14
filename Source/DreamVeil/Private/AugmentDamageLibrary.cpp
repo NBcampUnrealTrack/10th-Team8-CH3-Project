@@ -129,7 +129,8 @@ float UAugmentDamageLibrary::ApplyAugmentDamageToTarget(AActor* DamageCauser, AA
 
     //여기서 보낸 데미지는 대상의 TakeDamage로 들어감
     //방어력 차감 체력 적용 흡혈 가시 갑옷은 받는 쪽 5계층 TakeDamage가 ProcessIncomingDamage로 처리
-    //반환값은 받는 쪽 TakeDamage의 반환값 5계층이 ProcessIncomingDamage 결과를 돌려주면 실제 깎인 양
+    //반환값은 받는 쪽 TakeDamage의 반환값 5계층이 ProcessIncomingDamage 결과를 돌려주면 방어력을 뺀 데미지
+    //남은 체력보다 커도 자르지 않음 흡혈과 가시 갑옷도 이 값 기준(오버킬 허용)
     return UGameplayStatics::ApplyDamage(
         Target,
         Damage,

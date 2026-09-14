@@ -35,6 +35,9 @@ public:
     //방어력 배율 적용
     void MultiplyDefencePower(float Multiplier);
 
+    //최종 방어력을 계산 BeginPlay 이후 BaseDefencePower를 바꿨으면 불러줄 것
+    void SetDefencePower();
+
     UFUNCTION(BlueprintCallable, Category = "Defence")
     float GetDefencePower();
 
@@ -46,11 +49,8 @@ private:
     //방어력 배율
     float DefenceMultiplier;
 
-    //최종 방어력 
+    //최종 방어력
     float DefencePower;
-    
-    //최종 방어력을 계산
-    void SetDefencePower();
 
     //생명주기 함수
     virtual void BeginPlay() override;

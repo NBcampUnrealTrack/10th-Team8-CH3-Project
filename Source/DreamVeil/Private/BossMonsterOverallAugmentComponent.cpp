@@ -32,6 +32,7 @@ void UBossMonsterOverallAugmentComponent::BuildDefaultAugmentPool()
 
     //2계층에 중복 방지 bool이 있는 증강은 두 번째가 무시되므로 반복 획득 금지
     AugmentPool.Add(FAugmentData(EAugmentID::Berserker, EAugmentCategory::Passive, 8.0f, false));
+    AugmentPool.Add(FAugmentData(EAugmentID::LastFortress, EAugmentCategory::Passive, 8.0f, false));
     AugmentPool.Add(FAugmentData(EAugmentID::ThornArmor, EAugmentCategory::Passive, 8.0f, false));
     AugmentPool.Add(FAugmentData(EAugmentID::Vampire, EAugmentCategory::Passive, 8.0f, false));
     AugmentPool.Add(FAugmentData(EAugmentID::Regeneration, EAugmentCategory::Passive, 8.0f, false));

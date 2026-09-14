@@ -52,6 +52,14 @@ void UDispatchTableForNormalMonsterComponent::RegisterPassiveAugmentFunctions()
             }
         });
 
+    PassiveAugmentMap.Add(EAugmentID::LastFortress, [this]()
+        {
+            if (PassiveSkillsComponent)
+            {
+                PassiveSkillsComponent->ExecuteLastFortress();
+            }
+        });
+
     PassiveAugmentMap.Add(EAugmentID::ThornArmor, [this]()
         {
             if (PassiveSkillsComponent)
