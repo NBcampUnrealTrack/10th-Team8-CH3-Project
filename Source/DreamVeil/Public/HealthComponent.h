@@ -12,45 +12,72 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
     float, NewValue
 );
 
-UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOnCurrentHealthChanged,
+    float, OldValue,
+    float, NewValue
+);
+
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDead);
+
+UCLASS(ClassGroup = (Custom), meta = (BlueprintSpawnableComponent))
 class DREAMVEIL_API UHealthComponent : public UActorComponent
 {
-	GENERATED_BODY()
+    GENERATED_BODY()
 
-private:
-    //ÇöÀç Ã¼·Â º¯¼ö
-    float CurrentHealth;
-
-    //°ÔÀÓ ½ÃÀÛ ÀÌº¥Æ®(ºíÇÁ Ã¼·Â¿¡ ¸ÂÃç¼­ ½ÃÀÛ)
-    virtual void BeginPlay() override;
 public:
-    
-    UPROPERTY(BlueprintAssignable, Category="HealthEvent")
+
+    //ìƒì„±ì
+    UHealthComponent();
+
+    //ìµœëŒ€ ì²´ë ¥ ë³€í™” ì´ë²¤íŠ¸
+    UPROPERTY(BlueprintAssignable, Category = "HealthEvent")
     FOnMaxHealthChanged OnMaxHealthChanged;
 
-    //Á×À½ »óÅÂ º¯¼ö
+    //í˜„ì¬ ì²´ë ¥ ë³€í™” ì´ë²¤íŠ¸
+    UPROPERTY(BlueprintAssignable, Category = "HealthEvent")
+    FOnCurrentHealthChanged OnCurrentHealthChanged;
+
+    //ì‚¬ë§ ì´ë²¤íŠ¸
+    UPROPERTY(BlueprintAssignable, Category = "HealthEvent")//ë¯¸ë¥´ë‹˜ ì“°ì„¸ìš”!í•˜ê³  ë‚˜ë‘ ìƒì˜í•´ìš”!
+    FOnDead OnDead;
+
+    //ì£½ìŒ ìƒíƒœ ë³€ìˆ˜
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "State")
     bool bIsDead;
-    //ÃÖ´ë Ã¼·Â º¯¼ö
+
+    //ìµœëŒ€ ì²´ë ¥ ë³€ìˆ˜
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Health")
     float MaxHealth;
-    //»ı¼ºÀÚ
-    UHealthComponent();
-    //Èú
-    void HealHealth(float HealAmount);
-    //ÇöÀç Ã¼·Â ¼³Á¤
-    void SetCurrentHealth(float CurrentHealth);
-    //ÃÖ´ë Ã¼·Â ¼³Á¤
-    void SetMaxHealth(float MaxHealth);
-    //ÇöÀç Ã¼·Â Getter
-    UFUNCTION(BlueprintCallable, Category = "Health")
-    float GetCurrentHealth();
-    //ÃÖ´ë Ã¼·Â Getter
-    UFUNCTION(BlueprintCallable, Category = "Health")
-    float GetMaxHealth();
-    //Ã¼·Â ÆÛ¼¾Æ¼Áö Getter
-    UFUNCTION(BlueprintCallable, Category = "Health")
-    float GetHealthPercentage();
-   
-};
 
+    //ë°ë¯¸ì§€ë¥¼ ë°›ì•„ í˜„ì¬ ì²´ë ¥ì„ ê°ì†Œ
+    void ApplyDamage(float DamageAmount);
+
+    //í
+    void HealHealth(float HealAmount);
+
+    //í˜„ì¬ ì²´ë ¥ ì„¤ì •
+    void SetCurrentHealth(float NewCurrentHealth);
+
+    //ìµœëŒ€ ì²´ë ¥ ì„¤ì •
+    void SetMaxHealth(float NewMaxHealth);
+
+    //í˜„ì¬ ì²´ë ¥ Getter
+    UFUNCTION(BlueprintCallable, Category = "Health")//ë¯¸ë¥´ë‹˜ ì“°ì„¸ìš”!
+    float GetCurrentHealth();
+
+    //ìµœëŒ€ ì²´ë ¥ Getter
+    UFUNCTION(BlueprintCallable, Category = "Health")//ë¯¸ë¥´ë‹˜ ì“°ì„¸ìš”!
+    float GetMaxHealth();
+
+    //ì²´ë ¥ í¼ì„¼í‹°ì§€ Getter
+    UFUNCTION(BlueprintCallable, Category = "Health")//ë¯¸ë¥´ë‹˜ ì“°ì„¸ìš”!
+    float GetHealthPercentage();
+
+private:
+    //í˜„ì¬ ì²´ë ¥ ë³€ìˆ˜
+    float CurrentHealth;
+
+    // ìƒëª…ì£¼ê¸° í•¨ìˆ˜
+    virtual void BeginPlay() override;
+};

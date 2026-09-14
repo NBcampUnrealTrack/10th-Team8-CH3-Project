@@ -6,35 +6,54 @@
 #include "Components/ActorComponent.h"
 #include "AttackComponent.generated.h"
 
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+    FOnAttackPowerChanged,
+    float, OldValue,
+    float, NewValue
+);
 
 UCLASS( ClassGroup=(Custom), meta=(BlueprintSpawnableComponent) )
 class DREAMVEIL_API UAttackComponent : public UActorComponent
 {
 	GENERATED_BODY()
 
-private:
-
-    // °ø°İ·Â ¼öÄ¡
-    float AttackPower;
-    // °ÔÀÓ ½ÃÀÛ ÀÌº¥Æ®(°ø°İ·Â Base·Î ÃÊ±âÈ­)
-    virtual void BeginPlay() override;
-
 public:
 
-    // °ø°İ·Â º¯¼ö
+    //ìƒì„±ì
+    UAttackComponent();
+
+    //ê³µê²©ë ¥ ë³€í™” ì´ë²¤íŠ¸
+    UPROPERTY(BlueprintAssignable, Category = "AttackEvent")
+    FOnAttackPowerChanged OnAttackPowerChanged;
+
+    //ê¸°ë³¸ ê³µê²©ë ¥
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
     float BaseAttackPower;
 
-    // »ı¼ºÀÚ
-    UAttackComponent();
-
-    // °ø°İ·Â Áõ°¡
+    //ê³µê²©ë ¥ì„ ì¶”ê°€
     void AddAttackPower(float Amount);
 
-    // °ø°İ·Â ¹èÀ² Àû¿ë
+    //ê³µê²©ë ¥ ë°°ìœ¨ ì ìš©
     void MultiplyAttackPower(float Multiplier);
 
-    // °ø°İ·Â Getter
     UFUNCTION(BlueprintCallable, Category = "Attack")
     float GetAttackPower();
+private:
+
+    //ì¶”ê°€ ê³µê²©ë ¥
+    float AdditionalAttackPower;
+
+    //ê³µê²©ë ¥ ë°°ìœ¨
+    float AttackMultiplier;
+
+    //ìµœì¢… ê³µê²©ë ¥
+    float AttackPower;
+
+    //ìµœì¢… ê³µê²©ë ¥ì„ ê³„ì‚°
+    void SetAttackPower();
+
+    //ìƒëª…ì£¼ê¸° í•¨ìˆ˜
+    virtual void BeginPlay() override;
+
+
 };

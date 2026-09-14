@@ -1,44 +1,85 @@
-﻿#include "HealthComponent.h"
+#include "HealthComponent.h"
 
 //생성자
 
 UHealthComponent::UHealthComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
-    MaxHealth = 0.0f;
-    CurrentHealth=0.0f;
+
     bIsDead = false;
+    MaxHealth = 100.0f;
+    CurrentHealth = 0.0f;
 }
 
-//일반함수
+//일반 함수
+
+void UHealthComponent::ApplyDamage(float DamageAmount)
+{
+    if (bIsDead)
+    {
+        return;
+    }
+
+    SetCurrentHealth(CurrentHealth - DamageAmount);
+}
 
 void UHealthComponent::HealHealth(float HealAmount)
 {
-    CurrentHealth += HealAmount;
-    CurrentHealth = FMath::Min(CurrentHealth, MaxHealth);
+    if (bIsDead)
+    {
+        return;
+    }
+
+    SetCurrentHealth(CurrentHealth + HealAmount);
 }
-void UHealthComponent::SetCurrentHealth(float NewHealth)
+
+void UHealthComponent::SetCurrentHealth(float NewCurrentHealth)
 {
-    CurrentHealth = NewHealth;
+    const float OldCurrentHealth = CurrentHealth;
+
+    CurrentHealth = FMath::Clamp(NewCurrentHealth, 0.0f, MaxHealth);
+
+    if (OldCurrentHealth == CurrentHealth)
+    {
+        return;
+    }
+
+    OnCurrentHealthChanged.Broadcast(OldCurrentHealth, CurrentHealth);
+
+    if (CurrentHealth > 0.0f)
+    {
+        return;
+    }
+
+    bIsDead = true;
+
+    OnDead.Broadcast();//몬스터 플레이어 등등 뒤졌을 때 시체에서 아이템 남기기 플러스 UI 등등 활용 
 }
 
 void UHealthComponent::SetMaxHealth(float NewMaxHealth)
 {
     const float OldMaxHealth = MaxHealth;
-    MaxHealth = NewMaxHealth;
+
+    MaxHealth = FMath::Max(NewMaxHealth, 1.0f);
+
+    if (OldMaxHealth == MaxHealth)
+    {
+        return;
+    }
+
     OnMaxHealthChanged.Broadcast(OldMaxHealth, MaxHealth);
 }
 
-//UFUNCTION 함수들
-
-float UHealthComponent::GetMaxHealth()
-{
-    return MaxHealth;
-}
+//UFUNCTION 함수
 
 float UHealthComponent::GetCurrentHealth()
 {
     return CurrentHealth;
+}
+
+float UHealthComponent::GetMaxHealth()
+{
+    return MaxHealth;
 }
 
 float UHealthComponent::GetHealthPercentage()
@@ -47,13 +88,15 @@ float UHealthComponent::GetHealthPercentage()
     {
         return 0.0f;
     }
+
     return CurrentHealth / MaxHealth;
 }
 
-//가상함수(이벤트)
+//생명주기 함수
 
 void UHealthComponent::BeginPlay()
 {
     Super::BeginPlay();
+
     CurrentHealth = MaxHealth;
 }
