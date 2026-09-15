@@ -31,11 +31,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* SprintAction;
 
-<<<<<<< HEAD
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
-	UInputAction* FireAction;
-
-=======
 	//사격 입력 누르고 있으면 무기 연사 간격마다 발사
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* FireAction;
@@ -48,7 +43,6 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* EquipRifleAction;
 
->>>>>>> 2026-09-15-GameInstanceState-ETC
 	virtual void BeginPlay() override;
 
 };
