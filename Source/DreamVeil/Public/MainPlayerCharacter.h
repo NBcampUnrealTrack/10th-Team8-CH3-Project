@@ -2,8 +2,8 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
-#include "MainPlayerCharacter.generated.h"
 #include "WeaponBase.h"
+#include "MainPlayerCharacter.generated.h"
 
 class USpringArmComponent; 
 class UCameraComponent;
@@ -42,7 +42,7 @@ protected:
 	void StopSprint(const FInputActionValue& value);
 
 	TSubclassOf<AWeaponBase> PistolClass;
-	TSubclassOf<AWeaponBase> RifleClass; // ¶óÀÌÇÃÀº ¾ÆÁ÷ ±¸Çö ¾ÈÇÔ
+	TSubclassOf<AWeaponBase> RifleClass; // ë¼ì´í”Œì€ ì•„ì§ êµ¬í˜„ ì•ˆí•¨
 	AWeaponBase* PostolInstance;
 	AWeaponBase* RifleInstance;
 	

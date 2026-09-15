@@ -1,6 +1,6 @@
 #include "WeaponBase.h"
-#include "HealthComponent.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "AugmentDamageLibrary.h"
 #include "DrawDebugHelpers.h"
 
 
@@ -11,7 +11,7 @@ AWeaponBase::AWeaponBase()
 
 void AWeaponBase::BeginPlay()
 {
-
+	Super::BeginPlay();
 }
 
 bool AWeaponBase::CanFire() const
@@ -46,13 +46,8 @@ void AWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 
 	if (bHitSomething)
 	{
-		if (AActor* HitActor = Hit.GetActor())
-		{
-			if (UHealthComponent* TargetHealth = HitActor->FindComponentByClass<UHealthComponent>())
-			{
-				TargetHealth->ApplyDamage(Damage);
-			}
-		}
+		//쏜 캐릭터를 넘김 데미지 방어력 흡혈 가시 갑옷 적중 증강을 한 번에 처리
+		UAugmentDamageLibrary::ApplyWeaponHit(GetOwner(), Hit, Damage);
 	}
 }
 
