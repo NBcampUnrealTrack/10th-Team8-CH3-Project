@@ -9,11 +9,6 @@ AWeaponBase::AWeaponBase()
 	PrimaryActorTick.bCanEverTick = false;
 }
 
-void AWeaponBase::BeginPlay()
-{
-	Super::BeginPlay();
-}
-
 bool AWeaponBase::CanFire() const
 {
 	return (GetWorld()->GetTimeSeconds() - LastFireTime) >= FireInterval;

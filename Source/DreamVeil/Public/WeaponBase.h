@@ -24,8 +24,6 @@ public:
 
 protected:
 
-	virtual void BeginPlay() override;
-
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
 	float Damage = 10.0f;
 
@@ -36,7 +34,7 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
 	float FireInterval = 0.3f;
 
-	//∆Æ∑π¿ÃΩ∫ º±
+	//Ìä∏Î†àÏù¥Ïä§ ÏÑ†
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Debug")
 	bool bDrawDebugTrace = true;
 
