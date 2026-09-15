@@ -21,7 +21,7 @@ class DREAMVEIL_API UThornReflectDamageType : public UDamageType
 };
 
 //지속 공격 독 데미지에 붙이는 표식
-//이 타입으로 들어온 데미지는 흡혈과 가시 갑옷 반사를 일으키지 않음
+//이 타입으로 들어온 데미지는 대상 방어력을 무시하고 흡혈과 가시 갑옷 반사를 일으키지 않음
 //틱마다 가시 갑옷 반사가 들어와 쏜 사람이 계속 깎이는 것을 막기 위함
 UCLASS()
 class DREAMVEIL_API UPoisonDamageType : public UDamageType
@@ -29,7 +29,6 @@ class DREAMVEIL_API UPoisonDamageType : public UDamageType
 	GENERATED_BODY()
 };
 
-//계층 밖 클래스
 //언리얼 데미지 시스템으로 데미지를 주고받는 처리를 모아둠
 //보내는 쪽은 ApplyAugmentDamageToTarget 총 적중은 ApplyWeaponHit
 //받는 쪽은 캐릭터 TakeDamage에서 Super::TakeDamage 뒤에 ProcessIncomingDamage를 부름
@@ -40,7 +39,7 @@ class DREAMVEIL_API UAugmentDamageLibrary : public UBlueprintFunctionLibrary
 
 public:
 	//받은 데미지를 순서대로 처리 방어력 차감 -> 체력 적용 -> 흡혈 -> 가시 갑옷 반사
-	//5계층 TakeDamage가 부르고 반환값을 그대로 TakeDamage의 반환값으로 쓸 것
+	//캐릭터 TakeDamage가 부르고 반환값을 그대로 TakeDamage의 반환값으로 쓸 것
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
 	static float ProcessIncomingDamage(AActor* DamagedActor, float Damage, TSubclassOf<UDamageType> DamageTypeClass, AController* EventInstigator, AActor* DamageCauser);
 
@@ -54,6 +53,7 @@ public:
 
 	//총이 무언가를 맞혔을 때 부름 맞은 대상에게 데미지를 보내고 쏜 사람의 적중 증강(범위 공격 감속 지속 공격)을 발동
 	//히트스캔은 DamageCauser에 쏜 캐릭터 투사체는 투사체 자신을 넘김 투사체는 스폰할 때 Instigator 필수
+	//빗나간 결과나 아군 자기 자신을 맞힌 결과는 아무것도 하지 않고 0을 돌려줌
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
 	static float ApplyWeaponHit(AActor* DamageCauser, const FHitResult& HitResult, float Damage);
 
@@ -81,9 +81,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
 	static void FindTargetsInRadius(AActor* OwnerActor, float Radius, TArray<AActor*>& OutTargets);
 
-	//원하는 위치 기준 범위 안의 대상을 찾음 ActorsToIgnore에 넣은 대상은 제외
+	//원하는 위치 기준 범위 안의 대상을 찾음 ActorsToIgnore에 넣은 대상은 제외 아군 적군은 가리지 않음
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage", meta = (WorldContext = "WorldContextObject"))
 	static void FindTargetsAtLocation(UObject* WorldContextObject, FVector Location, float Radius, const TArray<AActor*>& ActorsToIgnore, TArray<AActor*>& OutTargets);
+
+	//두 액터가 서로 적인지 확인 몬스터끼리는 아군 몬스터가 아닌 쪽(플레이어)과 몬스터는 적
+	UFUNCTION(BlueprintPure, Category = "AugmentDamage")
+	static bool IsEnemy(AActor* ActorA, AActor* ActorB);
 
 private:
 	//데미지를 일으킨 컨트롤러를 찾음 킬 판정이나 어그로에 쓰라고 같이 넘김

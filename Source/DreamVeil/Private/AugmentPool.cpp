@@ -24,7 +24,7 @@ void FAugmentPool::BuildDefault()
     Augments.Add(FAugmentData(EAugmentID::AreaAttack, EAugmentCategory::Active, 6.0f, false));
     Augments.Add(FAugmentData(EAugmentID::ContinuousAttack, EAugmentCategory::Active, 6.0f, false));
 
-    //무기 증강은 무기 작업이 들어오면 EAugmentCategory::Weapon으로 여기에 추가
+    //무기 증강은 소총 권총 강화가 기획되면 EAugmentCategory::Weapon으로 여기에 추가
 }
 
 //번호로 증강 정보를 찾음 없으면 nullptr

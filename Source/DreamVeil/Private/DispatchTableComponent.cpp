@@ -60,6 +60,8 @@ bool UDispatchTableComponent::ApplyAugment(EAugmentID AugmentID)
 
     AugmentPool.RemoveIfNotRepeatable(AugmentID);
 
+    AugmentHistory.Add(AugmentID);
+
     return true;
 }
 
@@ -123,16 +125,48 @@ bool UDispatchTableComponent::HasAcquiredAugment(EAugmentID AugmentID) const
     return AcquiredSkills.Contains(AugmentID);
 }
 
+//ApplyAugment로 얻은 증강 기록
+TArray<EAugmentID> UDispatchTableComponent::GetAugmentHistory() const
+{
+    return AugmentHistory;
+}
+
+//저장해둔 기록대로 증강을 다시 얻음
+bool UDispatchTableComponent::RestoreAugments(const TArray<EAugmentID>& History)
+{
+    //스킬 객체와 스탯 컴포넌트가 준비된 뒤여야 함
+    if (!HasBegunPlay())
+    {
+        UE_LOG(LogTemp, Warning, TEXT("DispatchTableComponent: restore augments after BeginPlay (%s)"), *GetNameSafe(GetOwner()));
+        return false;
+    }
+
+    //두 번 부르면 공격력 증가 같은 반복 증강이 두 배로 쌓이므로 막음
+    if (AugmentHistory.Num() > 0)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("DispatchTableComponent: augments already acquired, restore skipped (%s)"), *GetNameSafe(GetOwner()));
+        return false;
+    }
+
+    //ApplyAugment를 거쳐야 반복 획득이 안 되는 증강이 풀에서도 빠지고 기록도 다시 쌓임
+    for (EAugmentID AugmentID : History)
+    {
+        ApplyAugment(AugmentID);
+    }
+
+    return true;
+}
+
 //받은 데미지로 공격자에게 돌려줄 반사 데미지
 float UDispatchTableComponent::CalculateThornReflectDamage(float FinalDamage)
 {
     float ReflectDamage = 0.0f;
 
-    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
+    for (UAugmentSkillBase* Skill : GetAcquiredSkillsSnapshot())
     {
-        if (SkillPair.Value)
+        if (Skill)
         {
-            ReflectDamage += SkillPair.Value->CalculateReflectDamage(FinalDamage);
+            ReflectDamage += Skill->CalculateReflectDamage(FinalDamage);
         }
     }
 
@@ -142,11 +176,17 @@ float UDispatchTableComponent::CalculateThornReflectDamage(float FinalDamage)
 //데미지를 입힌 뒤 보유 스킬 효과를 처리
 void UDispatchTableComponent::ProcessOnDamageDealt(float FinalDamage)
 {
-    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
+    for (UAugmentSkillBase* Skill : GetAcquiredSkillsSnapshot())
     {
-        if (SkillPair.Value)
+        //앞 스킬 처리 중에 주인이 죽어 정리됐으면 남은 스킬은 부르지 않음
+        if (!HasBegunPlay())
         {
-            SkillPair.Value->OnDamageDealt(FinalDamage);
+            break;
+        }
+
+        if (Skill)
+        {
+            Skill->OnDamageDealt(FinalDamage);
         }
     }
 }
@@ -154,11 +194,17 @@ void UDispatchTableComponent::ProcessOnDamageDealt(float FinalDamage)
 //무기가 무언가를 맞혔을 때 보유 스킬 효과를 처리
 void UDispatchTableComponent::ProcessWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
-    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
+    for (UAugmentSkillBase* Skill : GetAcquiredSkillsSnapshot())
     {
-        if (SkillPair.Value)
+        //범위 공격의 가시 갑옷 반사로 주인이 죽어 정리됐으면 남은 스킬은 부르지 않음
+        if (!HasBegunPlay())
         {
-            SkillPair.Value->OnWeaponHit(HitResult, HitDamage);
+            break;
+        }
+
+        if (Skill)
+        {
+            Skill->OnWeaponHit(HitResult, HitDamage);
         }
     }
 }
@@ -166,13 +212,29 @@ void UDispatchTableComponent::ProcessWeaponHit(const FHitResult& HitResult, floa
 //스탯 컴포넌트의 체력 변화를 받아 스킬에게 전달
 void UDispatchTableComponent::HandleCurrentHealthChanged(float OldValue, float NewValue)
 {
-    for (TPair<EAugmentID, TObjectPtr<UAugmentSkillBase>>& SkillPair : AcquiredSkills)
+    for (UAugmentSkillBase* Skill : GetAcquiredSkillsSnapshot())
     {
-        if (SkillPair.Value)
+        //앞 스킬 처리 중에 주인이 정리됐으면 남은 스킬은 부르지 않음
+        if (!HasBegunPlay())
         {
-            SkillPair.Value->OnHealthChanged(OldValue, NewValue);
+            break;
+        }
+
+        if (Skill)
+        {
+            Skill->OnHealthChanged(OldValue, NewValue);
         }
     }
+}
+
+//얻은 스킬 목록을 배열로 복사 스킬 객체 자체가 아니라 포인터만 복사함
+TArray<TObjectPtr<UAugmentSkillBase>> UDispatchTableComponent::GetAcquiredSkillsSnapshot() const
+{
+    TArray<TObjectPtr<UAugmentSkillBase>> Skills;
+
+    AcquiredSkills.GenerateValueArray(Skills);
+
+    return Skills;
 }
 
 //얻은 스킬이 있으면 돌려주고 없으면 테이블을 보고 새로 만듦

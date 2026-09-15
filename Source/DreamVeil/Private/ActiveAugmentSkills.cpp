@@ -8,7 +8,11 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TimerManager.h"
 
-//감속 총에 맞은 캐릭터를 느리게 만듦 이미 느린 대상이면 시간만 다시 시작
+//감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
+//감속 대상이 3초 안에 죽을 수 있어서 약한 참조 사용
+TMap<TWeakObjectPtr<ACharacter>, FSlowedCharacterState> USlowEnemySkill::SlowedCharacters;
+
+//감속 총에 맞은 캐릭터를 느리게 만듦 이미 느린 대상이면 누가 걸었든 시간만 다시 시작
 void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
     UWorld* World = GetWorld();
@@ -39,9 +43,11 @@ void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 
     FSlowedCharacterState* SlowedState = SlowedCharacters.Find(TargetCharacter);
 
-    //처음 느려지는 대상만 원래 속도를 저장하고 배율을 곱함 다시 맞아도 더 느려지지 않음
+    //처음 느려지는 대상만 원래 속도를 저장하고 배율을 곱함 다른 공격자에게 다시 맞아도 더 느려지지 않음
     if (!SlowedState)
     {
+        RemoveInvalidTargets();
+
         FSlowedCharacterState NewState;
         NewState.OriginalWalkSpeed = MovementComponent->MaxWalkSpeed;
 
@@ -51,8 +57,8 @@ void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
     }
 
     //같은 핸들로 다시 걸면 이전 타이머는 취소되고 지속 시간이 처음부터 다시 흐름
-    FTimerDelegate RestoreDelegate = FTimerDelegate::CreateUObject(
-        this,
+    //스킬 객체에 묶지 않은 정적 함수라서 쏜 사람이 사라져 스킬이 정리돼도 타이머는 끝까지 돌아 속도를 되돌림
+    FTimerDelegate RestoreDelegate = FTimerDelegate::CreateStatic(
         &USlowEnemySkill::RestoreCharacter,
         TWeakObjectPtr<ACharacter>(TargetCharacter)
     );
@@ -60,36 +66,16 @@ void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
     World->GetTimerManager().SetTimer(SlowedState->RestoreTimerHandle, RestoreDelegate, SLOW_ENEMY_DURATION, false);
 }
 
-//감속 느려진 대상을 전부 되돌리고 타이머 정리
-void USlowEnemySkill::Deactivate()
+//이미 사라진 대상의 상태를 목록에서 지움
+void USlowEnemySkill::RemoveInvalidTargets()
 {
-    UWorld* World = GetWorld();
-
-    for (TPair<TWeakObjectPtr<ACharacter>, FSlowedCharacterState>& SlowedPair : SlowedCharacters)
+    for (auto It = SlowedCharacters.CreateIterator(); It; ++It)
     {
-        if (World)
+        if (!It->Key.IsValid())
         {
-            World->GetTimerManager().ClearTimer(SlowedPair.Value.RestoreTimerHandle);
+            It.RemoveCurrent();
         }
-
-        ACharacter* SlowedCharacter = SlowedPair.Key.Get();
-
-        if (!SlowedCharacter)
-        {
-            continue;
-        }
-
-        UCharacterMovementComponent* MovementComponent = SlowedCharacter->GetCharacterMovement();
-
-        if (!MovementComponent)
-        {
-            continue;
-        }
-
-        MovementComponent->MaxWalkSpeed = SlowedPair.Value.OriginalWalkSpeed;
     }
-
-    SlowedCharacters.Empty();
 }
 
 //감속 한 대상의 이동 속도를 원래대로 되돌림
@@ -147,6 +133,12 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
     TArray<AActor*> FoundTargets;
 
     UAugmentDamageLibrary::FindTargetsAtLocation(OwnerActor, HitResult.ImpactPoint, AREA_ATTACK_RADIUS, ActorsToIgnore, FoundTargets);
+
+    //쏜 사람의 아군은 범위 공격에 맞지 않음 보스의 범위 공격이 주변 몬스터를 때리지 않도록
+    FoundTargets.RemoveAll([OwnerActor](AActor* FoundTarget)
+        {
+            return !UAugmentDamageLibrary::IsEnemy(OwnerActor, FoundTarget);
+        });
 
     if (FoundTargets.Num() == 0)
     {
@@ -242,7 +234,7 @@ void UContinuousAttackSkill::ProcessPoisonTick(TWeakObjectPtr<AActor> WeakTarget
 
     AActor* TargetActor = WeakTarget.Get();
 
-    //독 데미지 표식을 달아서 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않음
+    //독 데미지 표식을 달아서 대상 방어력을 무시하고 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않음
     //대상이 사라졌거나 이미 죽어서 데미지가 안 들어가면 0이 돌아옴
     const float AppliedDamage = UAugmentDamageLibrary::ApplyPoisonDamage(GetOwnerActor(), TargetActor, PoisonState->TickDamage);
 

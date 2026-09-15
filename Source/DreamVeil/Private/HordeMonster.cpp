@@ -15,7 +15,7 @@ AHordeMonster::AHordeMonster()
 
 	AIControllerClass = AMonsterAIController::StaticClass();
 	
-	// SkeletalMeshComponent¸¸ÀÇ °íÀ¯ÇÑ ±â´ÉÀ» ¾µ ¼öµµ ÀÖÀ¸´Ï ÀÌ·¸°Ô µÎ º¯¼ö·Î ³ª´¯´Ï´Ù. µÑ ´Ù °¡¸®Å°´Â ÄÄÆ÷³ÍÆ®´Â µ¿ÀÏ
+	// SkeletalMeshComponentë§Œì˜ ê³ ìœ í•œ ê¸°ëŠ¥ì„ ì“¸ ìˆ˜ë„ ìžˆìœ¼ë‹ˆ ì´ë ‡ê²Œ ë‘ ë³€ìˆ˜ë¡œ ë‚˜ëˆ•ë‹ˆë‹¤. ë‘˜ ë‹¤ ê°€ë¦¬í‚¤ëŠ” ì»´í¬ë„ŒíŠ¸ëŠ” ë™ì¼
 	MonsterSkeletalMeshComponent = GetMesh();
 	MonsterMeshComponent->SetupAttachment(RootComponent);
 	
@@ -37,10 +37,10 @@ void AHordeMonster::BeginPlay()
 
 void AHordeMonster::MaxHealthChanged(float OldValue, float NewValue)
 {
-	//¾µ¶óÇß´Âµ¥ »ý°¢ÇØº¸´Ï ¾µÀÏ¾øÀ»°Å°°À½
+	//ì“¸ë¼í–ˆëŠ”ë° ìƒê°í•´ë³´ë‹ˆ ì“¸ì¼ì—†ì„ê±°ê°™ìŒ
 }
 void AHordeMonster::MonsterInit()
 {
-	//¸ó½ºÅÍ »ý¼º ½Ã ÃÊ±âÈ­, ¿ÀºêÁ§Æ® Ç®¸µ¿¡ »ç¿ëÇÒ ¼öµµ ÀÖ¾î¼­ µû·Î »©³õÀ½
+	//ëª¬ìŠ¤í„° ìƒì„± ì‹œ ì´ˆê¸°í™”, ì˜¤ë¸Œì íŠ¸ í’€ë§ì— ì‚¬ìš©í•  ìˆ˜ë„ ìžˆì–´ì„œ ë”°ë¡œ ë¹¼ë†“ìŒ
 	MonsterCombatStats->SetCurrentHealth(MaxHealth);
 }

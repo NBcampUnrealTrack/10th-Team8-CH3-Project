@@ -60,6 +60,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Augment")
 	bool HasAcquiredAugment(EAugmentID AugmentID) const;
 
+	//ApplyAugment로 얻은 증강 기록 레벨을 넘길 때 저장용
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	TArray<EAugmentID> GetAugmentHistory() const;
+
+	//저장해둔 기록대로 증강을 다시 얻음 스탯 스킬 풀 상태가 함께 복원됨
+	//BeginPlay 이후에 한 번만 부를 것 이미 얻은 증강이 있으면 중복 적용을 막으려고 실패함
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	bool RestoreAugments(const TArray<EAugmentID>& History);
+
 	// 스킬 알림 AugmentDamageLibrary가 부름
 
 	//받은 데미지로 공격자에게 돌려줄 반사 데미지 가시 갑옷이 없으면 0
@@ -93,11 +102,19 @@ private:
 	UPROPERTY(Transient)
 	TMap<EAugmentID, TObjectPtr<UAugmentSkillBase>> AcquiredSkills;
 
+	//ApplyAugment로 얻은 증강 번호 얻은 순서대로 같은 번호가 여러 번이면 그만큼 중첩
+	//레벨을 넘길 때 GameInstance가 이걸 저장했다가 새 레벨의 플레이어에게 RestoreAugments로 다시 적용함
+	UPROPERTY(Transient)
+	TArray<EAugmentID> AugmentHistory;
+
 	//증강 번호와 스킬 클래스를 테이블에 등록
 	void RegisterSkillClasses();
 
 	//얻은 스킬이 있으면 돌려주고 없으면 테이블을 보고 새로 만듦 테이블에 없는 번호면 nullptr
 	UAugmentSkillBase* FindOrCreateSkill(EAugmentID AugmentID);
+
+	//얻은 스킬 목록을 배열로 복사 스킬을 부르는 도중 증강을 얻거나 컴포넌트가 정리돼 맵이 바뀌어도 안전하게 돌기 위함
+	TArray<TObjectPtr<UAugmentSkillBase>> GetAcquiredSkillsSnapshot() const;
 
 	//스탯 컴포넌트의 체력 변화를 받아 스킬에게 전달 광전사 최후의 요새
 	UFUNCTION()
