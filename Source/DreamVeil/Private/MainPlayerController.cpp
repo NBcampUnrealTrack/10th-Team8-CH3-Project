@@ -6,7 +6,8 @@ InputMappingContext(nullptr),
 MoveAction(nullptr),
 JumpAction(nullptr),
 LookAction(nullptr),
-SprintAction(nullptr)
+SprintAction(nullptr),
+FireAction(nullptr)
 {
 
 }
