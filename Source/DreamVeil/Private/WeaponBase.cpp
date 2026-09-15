@@ -33,6 +33,13 @@ float UWeaponBase::GetRange() const
 	return Range;
 }
 
+//무기 데미지에 공격력을 더함 곱하면 공격력 증강으로 데미지가 너무 커져서 더하기로 함
+//공격력 증가 광전사 같은 증강은 공격력 쪽에 반영되고 여기서 같이 들어감
+float UWeaponBase::GetFinalDamage() const
+{
+	return Damage + UAugmentDamageLibrary::GetOutgoingDamage(GetOwner());
+}
+
 void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirection)
 {
 	if (!CanFire())
@@ -61,6 +68,6 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 	if (bHitSomething)
 	{
 		//쏜 캐릭터를 넘김 데미지 방어력 흡혈 가시 갑옷 적중 증강을 한 번에 처리
-		UAugmentDamageLibrary::ApplyWeaponHit(GetOwner(), Hit, Damage);
+		UAugmentDamageLibrary::ApplyWeaponHit(GetOwner(), Hit, GetFinalDamage());
 	}
 }
