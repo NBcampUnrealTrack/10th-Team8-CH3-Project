@@ -364,9 +364,10 @@ void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 			}
 			if (PlayerController->JumpAction)
 			{
-				EnhancedInput->BindAction(PlayerController->JumpAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::StartJump);
+				//누른 순간 점프 시작 뗀 순간 점프 멈춤 Triggered는 누르고 있는 동안에만 불려서 떼는 순간을 못 잡음
+				EnhancedInput->BindAction(PlayerController->JumpAction, ETriggerEvent::Started, this, &AMainPlayerCharacter::StartJump);
 
-				EnhancedInput->BindAction(PlayerController->JumpAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::StopJump);
+				EnhancedInput->BindAction(PlayerController->JumpAction, ETriggerEvent::Completed, this, &AMainPlayerCharacter::StopJump);
 			}
 			if (PlayerController->LookAction)
 			{
@@ -395,6 +396,7 @@ void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 	}
 }
 
+//플레이어 앞뒤 양 옆으로 움직이기
 void AMainPlayerCharacter::MovePlayer(const FInputActionValue& value)
 {
 	if (!Controller) return;
@@ -411,20 +413,16 @@ void AMainPlayerCharacter::MovePlayer(const FInputActionValue& value)
 	}
 }
 
+//Started에 묶여서 누른 순간 한 번 불림
 void AMainPlayerCharacter::StartJump(const FInputActionValue& value)
 {
-	if (value.Get<bool>())
-	{
-		Jump();
-	}
+	Jump();
 }
 
+//Completed에 묶여서 뗀 순간 한 번 불림
 void AMainPlayerCharacter::StopJump(const FInputActionValue& value)
 {
-	if (!value.Get<bool>())
-	{
-		StopJumping();
-	}
+	StopJumping();
 }
 
 void AMainPlayerCharacter::CameraLock(const FInputActionValue& value)
