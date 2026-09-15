@@ -7,7 +7,13 @@ MoveAction(nullptr),
 JumpAction(nullptr),
 LookAction(nullptr),
 SprintAction(nullptr),
+<<<<<<< HEAD
 FireAction(nullptr)
+=======
+FireAction(nullptr),
+EquipPistolAction(nullptr),
+EquipRifleAction(nullptr)
+>>>>>>> 2026-09-15-GameInstanceState-ETC
 {
 
 }
