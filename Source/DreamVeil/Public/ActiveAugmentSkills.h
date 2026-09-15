@@ -35,6 +35,8 @@ struct FPoisonedTargetState
 };
 
 //감속 총에 맞은 캐릭터의 이동 속도를 일정 시간 낮춤
+//감속 상태는 모든 감속 스킬이 같이 씀 공격자가 여럿이어도 원래 속도는 한 번만 저장하고 겹쳐서 느려지지 않음
+//되돌리는 타이머는 스킬 객체와 상관없이 돌아서 쏜 사람이 먼저 사라져도 대상은 제때 원래 속도로 돌아옴
 UCLASS()
 class DREAMVEIL_API USlowEnemySkill : public UAugmentSkillBase
 {
@@ -43,14 +45,15 @@ class DREAMVEIL_API USlowEnemySkill : public UAugmentSkillBase
 public:
 	virtual void OnWeaponHit(const FHitResult& HitResult, float HitDamage) override;
 
-	virtual void Deactivate() override;
-
 private:
-	//감속 중인 대상과 상태
-	TMap<TWeakObjectPtr<ACharacter>, FSlowedCharacterState> SlowedCharacters;
+	//감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
+	static TMap<TWeakObjectPtr<ACharacter>, FSlowedCharacterState> SlowedCharacters;
 
 	//한 대상의 이동 속도를 원래대로 되돌림
-	void RestoreCharacter(TWeakObjectPtr<ACharacter> WeakTarget);
+	static void RestoreCharacter(TWeakObjectPtr<ACharacter> WeakTarget);
+
+	//이미 사라진 대상의 상태를 목록에서 지움 레벨이 바뀌어 타이머가 사라진 경우 대비
+	static void RemoveInvalidTargets();
 };
 
 //범위 공격 총알이 맞은 지점을 중심으로 반경 안의 대상에게 총 데미지 비율만큼 데미지

@@ -154,7 +154,7 @@ float UCombatStatsComponent::CalculateOutgoingDamage() const
 }
 
 //받은 데미지를 방어력으로 줄여 체력에 적용하고 적용한 데미지를 반환
-float UCombatStatsComponent::ApplyIncomingDamage(float IncomingDamage)
+float UCombatStatsComponent::ApplyIncomingDamage(float IncomingDamage, bool bIgnoreDefence)
 {
     if (Stats.bIsDead)
     {
@@ -166,8 +166,10 @@ float UCombatStatsComponent::ApplyIncomingDamage(float IncomingDamage)
         return 0.0f;
     }
 
+    const float DefencePower = bIgnoreDefence ? 0.0f : Stats.GetDefencePower();
+
     //방어력으로 깎되 최소 보장치는 남김 남은 체력보다 커도 자르지 않음(오버킬 허용)
-    const float FinalDamage = FMath::Max(IncomingDamage - Stats.GetDefencePower(), MIN_DAMAGE);
+    const float FinalDamage = FMath::Max(IncomingDamage - DefencePower, MIN_DAMAGE);
 
     SetCurrentHealth(Stats.CurrentHealth - FinalDamage);
 

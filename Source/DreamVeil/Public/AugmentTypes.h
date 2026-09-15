@@ -90,5 +90,5 @@ const float CONTINUOUS_ATTACK_INTERVAL = 1.0f;
 //지속 공격 독 지속 시간 다시 맞으면 시간만 처음부터 다시
 const float CONTINUOUS_ATTACK_DURATION = 3.0f;
 
-//지속 공격 틱당 데미지 비율 총 데미지 기준 틱마다 대상 방어력이 빠짐
-const float CONTINUOUS_ATTACK_DAMAGE_RATIO = 0.3f;
+//지속 공격 틱당 데미지 비율 총 데미지 기준 대상 방어력을 무시하므로 낮게 잡음
+const float CONTINUOUS_ATTACK_DAMAGE_RATIO = 0.1f;

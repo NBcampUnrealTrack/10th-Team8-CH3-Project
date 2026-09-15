@@ -10,6 +10,7 @@
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
+#include "MonsterBase.h"
 
 //데미지를 일으킨 컨트롤러를 찾음 킬 판정이나 어그로에 쓰라고 같이 넘김
 AController* UAugmentDamageLibrary::FindEventInstigator(AActor* DamageCauser)
@@ -70,8 +71,8 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         return 0.0f;
     }
 
-    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴
-    const float FinalDamage = DamagedStats->ApplyIncomingDamage(Damage);
+    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴 독 데미지는 방어력을 무시함
+    const float FinalDamage = DamagedStats->ApplyIncomingDamage(Damage, IsPoisonDamage(DamageTypeClass));
 
     if (FinalDamage <= 0.0f)
     {
@@ -142,8 +143,8 @@ float UAugmentDamageLibrary::ApplyAugmentDamageToTarget(AActor* DamageCauser, AA
     }
 
     //여기서 보낸 데미지는 대상의 TakeDamage로 들어감
-    //방어력 차감 체력 적용 흡혈 가시 갑옷은 받는 쪽 5계층 TakeDamage가 ProcessIncomingDamage로 처리
-    //반환값은 받는 쪽 TakeDamage의 반환값 5계층이 ProcessIncomingDamage 결과를 돌려주면 방어력을 뺀 데미지
+    //방어력 차감 체력 적용 흡혈 가시 갑옷은 받는 쪽 캐릭터 TakeDamage가 ProcessIncomingDamage로 처리
+    //반환값은 받는 쪽 TakeDamage의 반환값 ProcessIncomingDamage 결과를 돌려주면 방어력을 뺀 데미지
     //남은 체력보다 커도 자르지 않음 흡혈과 가시 갑옷도 이 값 기준(오버킬 허용)
     return UGameplayStatics::ApplyDamage(
         Target,
@@ -308,7 +309,7 @@ void UAugmentDamageLibrary::FindTargetsAtLocation(UObject* WorldContextObject, F
     TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
     ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 
-    //지금은 폰 전체를 잡음 아군 적군 구분은 팀 태그가 정해지면 여기서 걸러냄
+    //폰 전체를 잡음 아군 적군 구분이 필요하면 받은 쪽에서 IsEnemy로 거를 것
     UKismetSystemLibrary::SphereOverlapActors(
         WorldContextObject,
         Location,
@@ -318,4 +319,21 @@ void UAugmentDamageLibrary::FindTargetsAtLocation(UObject* WorldContextObject, F
         ActorsToIgnore,
         OutTargets
     );
+}
+
+//두 액터가 서로 적인지 확인
+bool UAugmentDamageLibrary::IsEnemy(AActor* ActorA, AActor* ActorB)
+{
+    if (!ActorA || !ActorB)
+    {
+        return false;
+    }
+
+    if (ActorA == ActorB)
+    {
+        return false;
+    }
+
+    //몬스터끼리는 아군 한쪽만 몬스터면 적 팀이 더 생기면 여기만 바꾸면 됨
+    return ActorA->IsA<AMonsterBase>() != ActorB->IsA<AMonsterBase>();
 }
