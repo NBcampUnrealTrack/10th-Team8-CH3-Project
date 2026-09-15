@@ -41,6 +41,8 @@ void UHealthUpSkill::Apply()
         return;
     }
 
+    //SetMaxHealth는 현재 체력 변화 이벤트를 보내지 않아서 체력 비율이 바뀌어도 광전사 최후의 요새가 다시 판정하지 않음
+    //바로 뒤 Heal이 현재 체력을 바꾸면서 이벤트를 보내 다시 판정하게 됨 Heal을 빼거나 순서를 바꾸지 말 것
     Stats->SetMaxHealth(Stats->GetMaxHealth() + HEALTH_UP_AMOUNT);
     Stats->Heal(HEALTH_UP_AMOUNT);
 }

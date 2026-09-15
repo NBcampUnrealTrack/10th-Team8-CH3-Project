@@ -256,11 +256,35 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
         return 0.0f;
     }
 
-    //맞은 대상에게 먼저 데미지 벽이나 바닥을 맞혔으면 대상이 없어서 0
-    const float AppliedDamage = ApplyAugmentDamageToTarget(DamageCauser, HitResult.GetActor(), Damage);
+    AActor* HitActor = HitResult.GetActor();
 
-    //투사체가 맞혔으면 쏜 사람을 찾아서 그 사람의 증강을 발동
+    //아무것도 맞지 않은 결과 빗나간 트레이스나 비어 있는 오버랩 결과면 범위 공격이 원점에서 터지지 않게 끝냄
+    if (!HitResult.bBlockingHit && !HitActor)
+    {
+        return 0.0f;
+    }
+
+    //투사체가 맞혔으면 쏜 사람을 찾음 팀 구분과 적중 증강 발동에 씀
     AActor* Shooter = FindAttacker(FindEventInstigator(DamageCauser), DamageCauser);
+
+    //아군이나 자기 자신을 맞혔으면 데미지도 적중 증강(범위 공격 감속 지속 공격)도 없음
+    //벽이나 바닥처럼 스탯 컴포넌트가 없는 액터는 팀 구분 대상이 아니라서 그대로 진행
+    if (Shooter && HitActor && HitActor->FindComponentByClass<UCombatStatsComponent>() && !IsEnemy(Shooter, HitActor))
+    {
+        return 0.0f;
+    }
+
+    //오버랩으로 들어온 적중은 충돌 지점이 비어 있을 수 있어서 맞은 대상 위치를 적중 지점으로 씀
+    FHitResult WeaponHitResult = HitResult;
+
+    if (!HitResult.bBlockingHit)
+    {
+        WeaponHitResult.ImpactPoint = HitActor->GetActorLocation();
+        WeaponHitResult.Location = WeaponHitResult.ImpactPoint;
+    }
+
+    //맞은 대상에게 먼저 데미지 벽이나 바닥을 맞혔으면 스탯이 없어서 0
+    const float AppliedDamage = ApplyAugmentDamageToTarget(DamageCauser, HitActor, Damage);
 
     if (!Shooter)
     {
@@ -275,7 +299,7 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
     }
 
     //벽을 맞혀도 적중 지점 주변에 범위 공격이 터지도록 대상 유무와 상관없이 부름
-    ShooterTable->ProcessWeaponHit(HitResult, Damage);
+    ShooterTable->ProcessWeaponHit(WeaponHitResult, Damage);
 
     return AppliedDamage;
 }
@@ -324,16 +348,34 @@ void UAugmentDamageLibrary::FindTargetsAtLocation(UObject* WorldContextObject, F
 //두 액터가 서로 적인지 확인
 bool UAugmentDamageLibrary::IsEnemy(AActor* ActorA, AActor* ActorB)
 {
+    //하나라도 없으면 판정할 수 없으니 적 아님
     if (!ActorA || !ActorB)
     {
         return false;
     }
 
+    //자기 자신은 적 아님
     if (ActorA == ActorB)
     {
         return false;
     }
 
-    //몬스터끼리는 아군 한쪽만 몬스터면 적 팀이 더 생기면 여기만 바꾸면 됨
-    return ActorA->IsA<AMonsterBase>() != ActorB->IsA<AMonsterBase>();
+    //각자 몬스터인지 확인 팀이 더 생기면 여기부터 바꾸면 됨
+    const bool bIsActorAMonster = ActorA->IsA<AMonsterBase>();
+    const bool bIsActorBMonster = ActorB->IsA<AMonsterBase>();
+
+    //둘 다 몬스터면 아군
+    if (bIsActorAMonster && bIsActorBMonster)
+    {
+        return false;
+    }
+
+    //둘 다 몬스터가 아니면 플레이어끼리 아군
+    if (!bIsActorAMonster && !bIsActorBMonster)
+    {
+        return false;
+    }
+
+    //한쪽만 몬스터면 적
+    return true;
 }

@@ -53,6 +53,7 @@ public:
 
 	//총이 무언가를 맞혔을 때 부름 맞은 대상에게 데미지를 보내고 쏜 사람의 적중 증강(범위 공격 감속 지속 공격)을 발동
 	//히트스캔은 DamageCauser에 쏜 캐릭터 투사체는 투사체 자신을 넘김 투사체는 스폰할 때 Instigator 필수
+	//빗나간 결과나 아군 자기 자신을 맞힌 결과는 아무것도 하지 않고 0을 돌려줌
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
 	static float ApplyWeaponHit(AActor* DamageCauser, const FHitResult& HitResult, float Damage);
 

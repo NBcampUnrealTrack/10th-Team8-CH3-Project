@@ -50,7 +50,7 @@ bool UCombatStatsComponent::IsDead() const
     return Stats.bIsDead;
 }
 
-//공방체 기본값을 넣고 죽음 상태를 풀고 체력을 가득 채움
+//공방체 기본값을 넣기 죽음 상태를 풀고 체력을 가득 채움
 void UCombatStatsComponent::InitStats(float NewMaxHealth, float NewDefencePower, float NewAttackPower)
 {
     //최종값은 매번 계산하므로 기본값만 바꾸면 바로 반영됨

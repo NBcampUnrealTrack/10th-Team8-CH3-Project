@@ -9,6 +9,7 @@
 #include "TimerManager.h"
 
 //감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
+//감속 대상이 3초 안에 죽을 수 있어서 약한 참조 사용
 TMap<TWeakObjectPtr<ACharacter>, FSlowedCharacterState> USlowEnemySkill::SlowedCharacters;
 
 //감속 총에 맞은 캐릭터를 느리게 만듦 이미 느린 대상이면 누가 걸었든 시간만 다시 시작
