@@ -375,9 +375,9 @@ void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 			}
 			if (PlayerController->SprintAction)
 			{
-				EnhancedInput->BindAction(PlayerController->SprintAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::StartSprint);
+				EnhancedInput->BindAction(PlayerController->SprintAction, ETriggerEvent::Started, this, &AMainPlayerCharacter::StartSprint);
 
-				EnhancedInput->BindAction(PlayerController->SprintAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::StopSprint);
+				EnhancedInput->BindAction(PlayerController->SprintAction, ETriggerEvent::Completed, this, &AMainPlayerCharacter::StopSprint);
 			}
 			if (PlayerController->FireAction)
 			{
