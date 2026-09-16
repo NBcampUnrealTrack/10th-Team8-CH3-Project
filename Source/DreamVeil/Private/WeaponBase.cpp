@@ -33,6 +33,11 @@ float UWeaponBase::GetRange() const
 	return Range;
 }
 
+ECollisionChannel UWeaponBase::GetTraceChannel() const
+{
+	return TraceChannel;
+}
+
 //무기 데미지에 공격력을 더함 곱하면 공격력 증강으로 데미지가 너무 커져서 더하기로 함
 //공격력 증가 광전사 같은 증강은 공격력 쪽에 반영되고 여기서 같이 들어감
 float UWeaponBase::GetFinalDamage() const

@@ -208,6 +208,9 @@ void AMainPlayerCharacter::EquipRifleInput(const FInputActionValue& value)
 }
 
 //들고 있는 무기로 화면 가운데를 향해 쏨
+//여기서 하는 일은 조준까지 어디서 어느 쪽으로 쏠지만 정하고 마지막에 무기에게 넘김
+//발사 뒤의 연사 간격 사격 트레이스 데미지 적중 증강은 전부 UWeaponBase::Fire가 함
+//그래서 카메라 방식이 바뀌면 이 함수만 고치고 무기가 늘어나면 무기 클래스만 만들면 됨
 void AMainPlayerCharacter::FireWeapon(const FInputActionValue& value)
 {
 	UWeaponBase* CurrentWeapon = GetCurrentWeapon();
@@ -223,12 +226,42 @@ void AMainPlayerCharacter::FireWeapon(const FInputActionValue& value)
 		return;
 	}
 
-	//카메라가 캐릭터 뒤에 있어서 총구에서 카메라 정면으로 쏘면 조준점과 어긋남
-	//사거리 끝의 조준점을 먼저 구하고 총구에서 그 점을 향해 쏨
 	const FVector MuzzleLocation = CurrentWeapon->GetMuzzleLocation();
-	const FVector AimPoint = CameraComp->GetComponentLocation() + CameraComp->GetForwardVector() * CurrentWeapon->GetRange();
-	const FVector FireDirection = (AimPoint - MuzzleLocation).GetSafeNormal();
+	const FVector CameraLocation = CameraComp->GetComponentLocation();
+	const FVector CameraDirection = CameraComp->GetForwardVector();
+	const FVector CameraTraceEnd = CameraLocation + CameraDirection * CurrentWeapon->GetRange();
 
+	//카메라와 총구 사이에 있는 내 캐릭터가 먼저 잡히지 않도록 제외
+	FCollisionQueryParams AimQueryParams;
+	AimQueryParams.AddIgnoredActor(this);
+
+	//화면 가운데가 실제로 가리키는 지점을 카메라에서 먼저 찾음
+	//사거리 끝을 그냥 조준점으로 쓰면 카메라가 캐릭터에 가깝거나 아래에 있을 때 총구 방향이 조준선과 어긋남
+	FHitResult AimHit;
+	const bool bAimHitSomething = GetWorld()->LineTraceSingleByChannel(
+		AimHit, CameraLocation, CameraTraceEnd, CurrentWeapon->GetTraceChannel(), AimQueryParams
+	);
+
+	FVector AimPoint = bAimHitSomething ? AimHit.ImpactPoint : CameraTraceEnd;
+
+	//벽에 바짝 붙으면 조준점이 총구보다 뒤에 잡힐 수 있음 그대로 쏘면 총알이 뒤로 날아감
+	//내적이 0 이하면 총구에서 조준점으로 가는 방향이 카메라가 보는 쪽과 반대라는 뜻 즉 조준점이 뒤에 있음
+	//이때는 조준점을 총구 앞쪽 사거리 끝으로 다시 잡아서 정면으로 쏨
+	if (FVector::DotProduct(AimPoint - MuzzleLocation, CameraDirection) <= 0.0f)
+	{
+		AimPoint = MuzzleLocation + CameraDirection * CurrentWeapon->GetRange();
+	}
+
+	//총구에서 조준점으로 가는 방향 길이는 버리고 방향만 남김
+	FVector FireDirection = (AimPoint - MuzzleLocation).GetSafeNormal();
+
+	//총구와 조준점이 같은 자리면 방향을 못 구해서 0이 나옴 그때는 카메라 정면으로 쏨
+	if (FireDirection.IsNearlyZero())
+	{
+		FireDirection = CameraDirection;
+	}
+
+	//여기부터는 무기 담당 총구 위치와 방향만 넘기면 나머지는 무기가 처리
 	CurrentWeapon->Fire(MuzzleLocation, FireDirection);
 }
 
@@ -297,6 +330,12 @@ TArray<EAugmentID> AMainPlayerCharacter::GetCurrentAugmentChoices() const
 bool AMainPlayerCharacter::HasAugmentChoices() const
 {
 	return CurrentAugmentChoices.Num() > 0;
+}
+
+//지금 떠 있는 선택지 말고 뒤에 더 기다리는 보상 수
+int32 AMainPlayerCharacter::GetPendingAugmentChoiceCount() const
+{
+	return PendingAugmentChoiceCount;
 }
 
 //UI에서 고른 증강을 적용
@@ -449,3 +488,77 @@ void AMainPlayerCharacter::StopSprint(const FInputActionValue& value)
 	}
 }
 
+// 테스트용 치트 콘솔(~)에서 부름 몬스터 보상 상점 UI가 붙으면 지워도 됨
+
+//경험치를 넣어 레벨업과 증강 선택지를 확인
+void AMainPlayerCharacter::CheatAddExp(float Amount)
+{
+	AddExperience(Amount);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Exp +%.0f -> Level %d (%.0f / %.0f), Choices %d"),
+		Amount, PlayerLevel, CurrentExperience, GetRequiredExperience(), CurrentAugmentChoices.Num());
+}
+
+//소총을 얻음 얻은 뒤에 숫자 2로 바꿔 들 수 있음
+void AMainPlayerCharacter::CheatAcquireRifle()
+{
+	AcquireWeapon(EWeaponSlot::Rifle);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Rifle acquired: %s"), HasWeapon(EWeaponSlot::Rifle) ? TEXT("true") : TEXT("false"));
+}
+
+//떠 있는 증강 선택지 중 하나를 고름
+void AMainPlayerCharacter::CheatPickAugment(int32 ChoiceIndex)
+{
+	if (!CurrentAugmentChoices.IsValidIndex(ChoiceIndex))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Cheat] No choice at index %d (choices: %d)"), ChoiceIndex, CurrentAugmentChoices.Num());
+		return;
+	}
+
+	const EAugmentID PickedAugmentID = CurrentAugmentChoices[ChoiceIndex];
+	const bool bApplied = SelectAugmentChoice(PickedAugmentID);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Augment %d applied: %s, next choices %d"),
+		(int32)PickedAugmentID, bApplied ? TEXT("true") : TEXT("false"), CurrentAugmentChoices.Num());
+}
+
+//자기 자신에게 데미지 흡혈과 가시 갑옷은 자기 공격이라 걸리지 않음
+void AMainPlayerCharacter::CheatDamageMe(float Amount)
+{
+	UAugmentDamageLibrary::ApplyAugmentDamageToTarget(this, this, Amount);
+
+	if (!CombatStats)
+	{
+		return;
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Damage %.0f -> Health %.0f / %.0f, Dead %s"),
+		Amount, CombatStats->GetCurrentHealth(), CombatStats->GetMaxHealth(), CombatStats->IsDead() ? TEXT("true") : TEXT("false"));
+}
+
+//지금 상태를 로그로 출력
+void AMainPlayerCharacter::CheatShowStatus()
+{
+	FString ChoiceText;
+
+	for (EAugmentID ChoiceAugmentID : CurrentAugmentChoices)
+	{
+		ChoiceText += FString::Printf(TEXT("%d "), (int32)ChoiceAugmentID);
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Level %d, Exp %.0f / %.0f, Weapon %s, Rifle owned %s"),
+		PlayerLevel, CurrentExperience, GetRequiredExperience(),
+		CurrentWeaponSlot == EWeaponSlot::Pistol ? TEXT("Pistol") : TEXT("Rifle"),
+		HasWeapon(EWeaponSlot::Rifle) ? TEXT("true") : TEXT("false"));
+
+	if (CombatStats)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Cheat] Health %.0f / %.0f, Attack %.1f, Defence %.1f"),
+			CombatStats->GetCurrentHealth(), CombatStats->GetMaxHealth(),
+			CombatStats->GetAttackPower(), CombatStats->GetDefencePower());
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Pending rewards %d, Choices now: %s"),
+		PendingAugmentChoiceCount, ChoiceText.IsEmpty() ? TEXT("none") : *ChoiceText);
+}

@@ -149,10 +149,37 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Augment")
 	bool HasAugmentChoices() const;
 
+	//지금 떠 있는 선택지 말고 뒤에 더 기다리는 보상 수 UI에 남은 횟수를 띄울 때 씀
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	int32 GetPendingAugmentChoiceCount() const;
+
 	//UI에서 고른 증강을 적용 지금 선택지에 없는 번호면 실패
 	//한 번에 여러 레벨이 올랐으면 적용 뒤 다음 선택지 이벤트가 이어서 나감
 	UFUNCTION(BlueprintCallable, Category = "Augment")
 	bool SelectAugmentChoice(EAugmentID AugmentID);
+
+	// 테스트용 치트 콘솔(~)을 열고 함수 이름과 값을 입력해서 부름
+	// 몬스터 보상 상점 UI가 아직 없어서 레벨업 무기 사망 흐름을 확인하는 용도
+
+	//경험치를 넣어 레벨업과 증강 선택지를 확인 예) CheatAddExp 150
+	UFUNCTION(Exec)
+	void CheatAddExp(float Amount);
+
+	//소총을 얻음 이후 숫자 2로 바꿔 들 수 있음 예) CheatAcquireRifle
+	UFUNCTION(Exec)
+	void CheatAcquireRifle();
+
+	//떠 있는 증강 선택지 중 하나를 고름 번호는 0부터 예) CheatPickAugment 0
+	UFUNCTION(Exec)
+	void CheatPickAugment(int32 ChoiceIndex);
+
+	//자기 자신에게 데미지 사망 흐름 확인용 예) CheatDamageMe 9999
+	UFUNCTION(Exec)
+	void CheatDamageMe(float Amount);
+
+	//지금 상태를 로그로 출력 레벨 경험치 체력 공방 무기 선택지 예) CheatShowStatus
+	UFUNCTION(Exec)
+	void CheatShowStatus();
 
 protected:
 	float SprintSpeed;

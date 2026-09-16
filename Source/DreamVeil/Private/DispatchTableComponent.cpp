@@ -125,6 +125,114 @@ bool UDispatchTableComponent::HasAcquiredAugment(EAugmentID AugmentID) const
     return AcquiredSkills.Contains(AugmentID);
 }
 
+//증강 이름 보상 UI와 보유 증강 목록에서 씀
+FText UDispatchTableComponent::GetAugmentDisplayName(EAugmentID AugmentID)
+{
+    switch (AugmentID)
+    {
+    case EAugmentID::AttackUp:
+        return NSLOCTEXT("Augment", "AttackUpName", "공격력 증가");
+    case EAugmentID::DefenceUp:
+        return NSLOCTEXT("Augment", "DefenceUpName", "방어력 증가");
+    case EAugmentID::HealthUp:
+        return NSLOCTEXT("Augment", "HealthUpName", "최대 체력 증가");
+    case EAugmentID::Berserker:
+        return NSLOCTEXT("Augment", "BerserkerName", "광전사");
+    case EAugmentID::LastFortress:
+        return NSLOCTEXT("Augment", "LastFortressName", "최후의 요새");
+    case EAugmentID::ThornArmor:
+        return NSLOCTEXT("Augment", "ThornArmorName", "가시 갑옷");
+    case EAugmentID::Vampire:
+        return NSLOCTEXT("Augment", "VampireName", "흡혈");
+    case EAugmentID::Regeneration:
+        return NSLOCTEXT("Augment", "RegenerationName", "재생력");
+    case EAugmentID::SlowEnemy:
+        return NSLOCTEXT("Augment", "SlowEnemyName", "감속탄");
+    case EAugmentID::AreaAttack:
+        return NSLOCTEXT("Augment", "AreaAttackName", "폭발탄");
+    case EAugmentID::ContinuousAttack:
+        return NSLOCTEXT("Augment", "ContinuousAttackName", "독탄");
+    default:
+        return NSLOCTEXT("Augment", "UnknownName", "알 수 없는 증강");
+    }
+}
+
+//증강 설명 수치는 AugmentTypes.h 값을 넣어서 밸런스를 바꾸면 설명도 같이 바뀜
+FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
+{
+    switch (AugmentID)
+    {
+    case EAugmentID::AttackUp:
+        return FText::Format(
+            NSLOCTEXT("Augment", "AttackUpDesc", "공격력이 {0} 늘어납니다. 여러 번 얻을 수 있습니다."),
+            FText::AsNumber(ATTACK_POWER_UP_AMOUNT));
+    case EAugmentID::DefenceUp:
+        return FText::Format(
+            NSLOCTEXT("Augment", "DefenceUpDesc", "방어력이 {0} 늘어납니다. 여러 번 얻을 수 있습니다."),
+            FText::AsNumber(DEFENCE_POWER_UP_AMOUNT));
+    case EAugmentID::HealthUp:
+        return FText::Format(
+            NSLOCTEXT("Augment", "HealthUpDesc", "최대 체력이 {0} 늘어나고 그만큼 회복합니다. 여러 번 얻을 수 있습니다."),
+            FText::AsNumber(HEALTH_UP_AMOUNT));
+    case EAugmentID::Berserker:
+        return FText::Format(
+            NSLOCTEXT("Augment", "BerserkerDesc", "체력이 {0}% 이하일 때 공격력이 {1}배가 됩니다."),
+            FText::AsNumber(FMath::RoundToInt(BERSERKER_THRESHOLD * 100.0f)),
+            FText::AsNumber(BERSERKER_MULTIPLIER));
+    case EAugmentID::LastFortress:
+        return FText::Format(
+            NSLOCTEXT("Augment", "LastFortressDesc", "체력이 {0}% 이하일 때 방어력이 {1}배가 됩니다."),
+            FText::AsNumber(FMath::RoundToInt(LAST_FORTRESS_THRESHOLD * 100.0f)),
+            FText::AsNumber(LAST_FORTRESS_MULTIPLIER));
+    case EAugmentID::ThornArmor:
+        return FText::Format(
+            NSLOCTEXT("Augment", "ThornArmorDesc", "받은 피해의 {0}%를 공격자에게 되돌려줍니다."),
+            FText::AsNumber(FMath::RoundToInt(THORN_ARMOR_REFLECT_RATIO * 100.0f)));
+    case EAugmentID::Vampire:
+        return FText::Format(
+            NSLOCTEXT("Augment", "VampireDesc", "입힌 피해의 {0}%만큼 체력을 회복합니다."),
+            FText::AsNumber(FMath::RoundToInt(VAMPIRE_HEAL_RATIO * 100.0f)));
+    case EAugmentID::Regeneration:
+        return FText::Format(
+            NSLOCTEXT("Augment", "RegenerationDesc", "{0}초마다 체력을 {1} 회복합니다."),
+            FText::AsNumber(REGENERATION_INTERVAL),
+            FText::AsNumber(REGENERATION_HEAL_AMOUNT));
+    case EAugmentID::SlowEnemy:
+        return FText::Format(
+            NSLOCTEXT("Augment", "SlowEnemyDesc", "총에 맞은 적의 이동 속도가 {0}초 동안 {1}%로 느려집니다."),
+            FText::AsNumber(SLOW_ENEMY_DURATION),
+            FText::AsNumber(FMath::RoundToInt(SLOW_ENEMY_RATIO * 100.0f)));
+    case EAugmentID::AreaAttack:
+        return FText::Format(
+            NSLOCTEXT("Augment", "AreaAttackDesc", "총알이 맞은 지점 주변 {0}m 안의 적에게 피해의 {1}%가 함께 들어갑니다."),
+            FText::AsNumber(AREA_ATTACK_RADIUS / 100.0f),
+            FText::AsNumber(FMath::RoundToInt(AREA_ATTACK_DAMAGE_RATIO * 100.0f)));
+    case EAugmentID::ContinuousAttack:
+        return FText::Format(
+            NSLOCTEXT("Augment", "ContinuousAttackDesc", "총에 맞은 적이 {0}초 동안 {1}초마다 피해의 {2}%를 입습니다. 방어력을 무시합니다."),
+            FText::AsNumber(CONTINUOUS_ATTACK_DURATION),
+            FText::AsNumber(CONTINUOUS_ATTACK_INTERVAL),
+            FText::AsNumber(FMath::RoundToInt(CONTINUOUS_ATTACK_DAMAGE_RATIO * 100.0f)));
+    default:
+        return FText::GetEmpty();
+    }
+}
+
+//풀에 남아 있는 증강 정보
+bool UDispatchTableComponent::FindAugmentData(EAugmentID AugmentID, FAugmentData& OutAugmentData) const
+{
+    const FAugmentData* FoundAugmentData = AugmentPool.Find(AugmentID);
+
+    if (!FoundAugmentData)
+    {
+        return false;
+    }
+
+    OutAugmentData = *FoundAugmentData;
+
+    return true;
+}
+
 //ApplyAugment로 얻은 증강 기록
 TArray<EAugmentID> UDispatchTableComponent::GetAugmentHistory() const
 {

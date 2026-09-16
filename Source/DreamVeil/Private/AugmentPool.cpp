@@ -1,5 +1,7 @@
 #include "AugmentPool.h"
 
+#include "DispatchTableComponent.h"
+
 //기본 증강 목록을 채움 이미 채워져 있으면 건너뜀
 void FAugmentPool::BuildDefault()
 {
@@ -25,6 +27,13 @@ void FAugmentPool::BuildDefault()
     Augments.Add(FAugmentData(EAugmentID::ContinuousAttack, EAugmentCategory::Active, 6.0f, false));
 
     //무기 증강은 소총 권총 강화가 기획되면 EAugmentCategory::Weapon으로 여기에 추가
+
+    //이름과 설명은 한곳에서 관리하고 여기서 복사해옴 블루프린트에서 따로 고칠 수도 있음
+    for (FAugmentData& AugmentData : Augments)
+    {
+        AugmentData.DisplayName = UDispatchTableComponent::GetAugmentDisplayName(AugmentData.AugmentID);
+        AugmentData.Description = UDispatchTableComponent::GetAugmentDescription(AugmentData.AugmentID);
+    }
 }
 
 //번호로 증강 정보를 찾음 없으면 nullptr
