@@ -207,11 +207,34 @@ void AMainPlayerCharacter::EquipRifleInput(const FInputActionValue& value)
 	EquipWeapon(EWeaponSlot::Rifle);
 }
 
+//사격 입력을 누른 순간 단발 무기 연사 무기 상관없이 한 발
+void AMainPlayerCharacter::FireWeapon(const FInputActionValue& value)
+{
+	FireCurrentWeapon();
+}
+
+//사격 입력을 누르고 있는 동안 매 프레임 불림 연사 무기만 계속 쏘고 단발 무기는 누른 순간 한 발로 끝
+//누른 첫 프레임에는 FireWeapon과 같이 불리지만 무기의 FireInterval이 막아서 두 발이 나가지 않음
+//단발 연사 구분은 무기가 아니라 여기서 함 누름과 유지를 구분하는 건 입력 시스템만 알기 때문
+//무기는 bAutomatic 값과 발사 간격만 담당하므로 나중에 몬스터가 총을 써도 무기 코드는 그대로 쓰고 쏘는 주기만 AI에서 정하면 됨
+void AMainPlayerCharacter::FireWeaponHeld(const FInputActionValue& value)
+{
+	UWeaponBase* CurrentWeapon = GetCurrentWeapon();
+
+	//단발 무기면 누르고 있어도 더 쏘지 않음
+	if (!CurrentWeapon || !CurrentWeapon->IsAutomatic())
+	{
+		return;
+	}
+
+	FireCurrentWeapon();
+}
+
 //들고 있는 무기로 화면 가운데를 향해 쏨
 //여기서 하는 일은 조준까지 어디서 어느 쪽으로 쏠지만 정하고 마지막에 무기에게 넘김
 //발사 뒤의 연사 간격 사격 트레이스 데미지 적중 증강은 전부 UWeaponBase::Fire가 함
 //그래서 카메라 방식이 바뀌면 이 함수만 고치고 무기가 늘어나면 무기 클래스만 만들면 됨
-void AMainPlayerCharacter::FireWeapon(const FInputActionValue& value)
+void AMainPlayerCharacter::FireCurrentWeapon()
 {
 	UWeaponBase* CurrentWeapon = GetCurrentWeapon();
 
@@ -222,6 +245,13 @@ void AMainPlayerCharacter::FireWeapon(const FInputActionValue& value)
 
 	//죽은 뒤에는 쏘지 않음
 	if (CombatStats && CombatStats->IsDead())
+	{
+		return;
+	}
+
+	//연사 간격이 안 지났으면 조준 계산도 하지 않고 나감
+	//소총을 누르고 있으면 매 프레임 여기로 오는데 대부분은 간격에 막히므로 카메라 트레이스를 아낌
+	if (!CurrentWeapon->CanFire())
 	{
 		return;
 	}
@@ -420,8 +450,11 @@ void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 			}
 			if (PlayerController->FireAction)
 			{
-				//누르고 있는 동안 계속 불리고 실제 발사 간격은 무기의 FireInterval이 막음
-				EnhancedInput->BindAction(PlayerController->FireAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::FireWeapon);
+				//누른 순간 한 발 단발 연사 공통
+				EnhancedInput->BindAction(PlayerController->FireAction, ETriggerEvent::Started, this, &AMainPlayerCharacter::FireWeapon);
+
+				//누르고 있는 동안 매 프레임 불림 연사 무기만 쏘고 실제 발사 간격은 무기의 FireInterval이 막음
+				EnhancedInput->BindAction(PlayerController->FireAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::FireWeaponHeld);
 			}
 			if (PlayerController->EquipPistolAction)
 			{
@@ -499,12 +532,16 @@ void AMainPlayerCharacter::CheatAddExp(float Amount)
 		Amount, PlayerLevel, CurrentExperience, GetRequiredExperience(), CurrentAugmentChoices.Num());
 }
 
-//소총을 얻음 얻은 뒤에 숫자 2로 바꿔 들 수 있음
+//소총을 얻고 바로 들게 함 1 2번 입력 에셋이 아직 없어도 연사를 테스트할 수 있게
 void AMainPlayerCharacter::CheatAcquireRifle()
 {
 	AcquireWeapon(EWeaponSlot::Rifle);
 
-	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Rifle acquired: %s"), HasWeapon(EWeaponSlot::Rifle) ? TEXT("true") : TEXT("false"));
+	const bool bEquipped = EquipWeapon(EWeaponSlot::Rifle);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Rifle acquired: %s, equipped: %s"),
+		HasWeapon(EWeaponSlot::Rifle) ? TEXT("true") : TEXT("false"),
+		bEquipped ? TEXT("true") : TEXT("false"));
 }
 
 //떠 있는 증강 선택지 중 하나를 고름

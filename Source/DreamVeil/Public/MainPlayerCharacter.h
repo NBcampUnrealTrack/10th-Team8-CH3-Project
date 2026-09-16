@@ -165,7 +165,7 @@ public:
 	UFUNCTION(Exec)
 	void CheatAddExp(float Amount);
 
-	//소총을 얻음 이후 숫자 2로 바꿔 들 수 있음 예) CheatAcquireRifle
+	//소총을 얻고 바로 들게 함 1 2번 입력 에셋이 없어도 연사 테스트 가능 예) CheatAcquireRifle
 	UFUNCTION(Exec)
 	void CheatAcquireRifle();
 
@@ -197,8 +197,11 @@ protected:
 	void StartSprint(const FInputActionValue& value);
 	void StopSprint(const FInputActionValue& value);
 
-	//들고 있는 무기로 화면 가운데를 향해 쏨
+	//사격 입력을 누른 순간 단발 연사 상관없이 한 발
 	void FireWeapon(const FInputActionValue& value);
+
+	//사격 입력을 누르고 있는 동안 연사 무기만 계속 쏨
+	void FireWeaponHeld(const FInputActionValue& value);
 
 	//숫자 1 권총으로 바꿈
 	void EquipPistolInput(const FInputActionValue& value);
@@ -242,6 +245,9 @@ private:
 
 	//들고 있는 무기만 보이고 나머지는 숨김
 	void UpdateWeaponVisibility();
+
+	//조준점을 계산해서 들고 있는 무기로 한 발 쏨 FireWeapon과 FireWeaponHeld가 같이 씀
+	void FireCurrentWeapon();
 
 	//쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
 	void DrawNextAugmentChoices();

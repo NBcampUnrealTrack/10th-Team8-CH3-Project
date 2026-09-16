@@ -10,7 +10,7 @@
 
 //감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
 //감속 대상이 3초 안에 죽을 수 있어서 약한 참조 사용
-TMap<TWeakObjectPtr<ACharacter>, FSlowedCharacterState> USlowEnemySkill::SlowedCharacters;
+FSlowedCharacterMap USlowEnemySkill::SlowedCharacters;
 
 //감속 총에 맞은 캐릭터를 느리게 만듦 이미 느린 대상이면 누가 걸었든 시간만 다시 시작
 void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
@@ -69,7 +69,8 @@ void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 //이미 사라진 대상의 상태를 목록에서 지움
 void USlowEnemySkill::RemoveInvalidTargets()
 {
-    for (auto It = SlowedCharacters.CreateIterator(); It; ++It)
+    //순회 중에 지워야 해서 range-for 대신 반복자를 씀 RemoveCurrent는 지금 칸을 지우고 안전하게 다음으로 넘어감
+    for (FSlowedCharacterMap::TIterator It = SlowedCharacters.CreateIterator(); It; ++It)
     {
         if (!It->Key.IsValid())
         {

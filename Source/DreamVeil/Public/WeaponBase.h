@@ -42,6 +42,15 @@ public:
 	//사격 트레이스 채널 조준점을 찾을 때도 같은 채널을 써야 결과가 맞음
 	ECollisionChannel GetTraceChannel() const;
 
+	//마지막 발사 뒤로 FireInterval이 지났는지 쏘는 쪽에서 조준 계산 전에 미리 확인할 때 씀
+	//Fire 안에서도 다시 확인하므로 이걸 안 불러도 연사 간격은 지켜짐
+	bool CanFire() const;
+
+	//누르고 있으면 계속 쏘는 무기인지 false면 누를 때마다 한 발
+	//무기는 값만 알려주고 실제로 거르는 건 쏘는 쪽 입력 함수 플레이어는 AMainPlayerCharacter::FireWeaponHeld
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	bool IsAutomatic() const;
+
 protected:
 	//기본값은 권총 수치 데미지는 높고 연사력은 낮음
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
@@ -52,6 +61,12 @@ protected:
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
 	float FireInterval = 0.35f;
+
+	//연사 무기인지 true면 누르고 있는 동안 FireInterval마다 계속 발사 기본 권총은 단발 소총은 URifleWeapon에서 true
+	//무기 안에서는 이 값으로 발사를 막지 않음 무기는 버튼을 누른 순간인지 누르고 있는 중인지 모르기 때문
+	//그래서 무기는 값만 들고 있고 입력을 받는 쪽이 IsAutomatic으로 보고 쏠지 말지 정함
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
+	bool bAutomatic = false;
 
 	//사격 트레이스 채널 기본 Pawn 캐릭터가 막히는 곳에서 총알도 막힘
 	//Visibility는 캐릭터 캡슐과 메시가 무시해서 총알이 몬스터를 통과하므로 쓰지 말 것
@@ -67,7 +82,6 @@ protected:
 	bool bDrawDebugTrace = true;
 
 private:
+	//마지막으로 쏜 시각 게임 시작 직후 첫 발이 바로 나가도록 아주 옛날 시각으로 시작
 	float LastFireTime = -100.0f;
-
-	bool CanFire() const;
 };

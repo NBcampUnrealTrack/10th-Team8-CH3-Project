@@ -21,6 +21,9 @@ struct FSlowedCharacterState
 	FTimerHandle RestoreTimerHandle;
 };
 
+//감속 중인 대상과 상태를 담는 맵 타입 반복자처럼 긴 타입을 짧게 쓰려고 별명을 붙임
+using FSlowedCharacterMap = TMap<TWeakObjectPtr<ACharacter>, FSlowedCharacterState>;
+
 //독에 걸린 대상 하나의 상태
 struct FPoisonedTargetState
 {
@@ -47,7 +50,7 @@ public:
 
 private:
 	//감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
-	static TMap<TWeakObjectPtr<ACharacter>, FSlowedCharacterState> SlowedCharacters;
+	static FSlowedCharacterMap SlowedCharacters;
 
 	//한 대상의 이동 속도를 원래대로 되돌림
 	static void RestoreCharacter(TWeakObjectPtr<ACharacter> WeakTarget);
