@@ -30,6 +30,10 @@ struct FAugmentData
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
 	FText DisplayName;
 
+	//보상 UI에 띄울 효과 설명 BuildDefault에서 채움
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
+	FText Description;
+
 	//기본 생성자
 	FAugmentData() {}
 

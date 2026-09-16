@@ -7,7 +7,9 @@ MoveAction(nullptr),
 JumpAction(nullptr),
 LookAction(nullptr),
 SprintAction(nullptr),
-FireAction(nullptr)
+FireAction(nullptr),
+EquipPistolAction(nullptr),
+EquipRifleAction(nullptr)
 {
 
 }

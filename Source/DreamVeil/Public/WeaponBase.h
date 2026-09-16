@@ -35,6 +35,13 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	float GetRange() const;
 
+	//실제로 들어갈 데미지 무기 데미지 + 쏜 캐릭터의 공격력 UI 표시용
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	float GetFinalDamage() const;
+
+	//사격 트레이스 채널 조준점을 찾을 때도 같은 채널을 써야 결과가 맞음
+	ECollisionChannel GetTraceChannel() const;
+
 protected:
 	//기본값은 권총 수치 데미지는 높고 연사력은 낮음
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")

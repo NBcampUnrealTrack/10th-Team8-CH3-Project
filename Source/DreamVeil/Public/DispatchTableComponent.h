@@ -60,6 +60,20 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Augment")
 	bool HasAcquiredAugment(EAugmentID AugmentID) const;
 
+	// UI 표시용 조회
+
+	//증강 이름 얻어서 풀에서 빠진 증강도 조회됨
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	static FText GetAugmentDisplayName(EAugmentID AugmentID);
+
+	//증강 효과 설명 수치는 AugmentTypes.h 값을 그대로 씀
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	static FText GetAugmentDescription(EAugmentID AugmentID);
+
+	//풀에 남아 있는 증강 정보 가중치와 반복 획득 여부까지 필요할 때 씀 풀에 없으면 false
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	bool FindAugmentData(EAugmentID AugmentID, FAugmentData& OutAugmentData) const;
+
 	//ApplyAugment로 얻은 증강 기록 레벨을 넘길 때 저장용
 	UFUNCTION(BlueprintPure, Category = "Augment")
 	TArray<EAugmentID> GetAugmentHistory() const;
