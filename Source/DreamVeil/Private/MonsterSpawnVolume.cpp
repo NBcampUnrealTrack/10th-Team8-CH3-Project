@@ -4,7 +4,6 @@
 #include "MonsterSpawnVolume.h"
 #include "Kismet/GameplayStatics.h"
 
-/*
 #include "MainPlayerCharacter.h"
 
 AMonsterSpawnVolume::AMonsterSpawnVolume()
@@ -65,8 +64,8 @@ void AMonsterSpawnVolume::BeginPlay()
 
 float AMonsterSpawnVolume::GetEliteRate()
 {
-	if (!PlayerPawn) return;
-	int32 PlayerLevel = PlayerPawn->GetLevel();
+	if (!PlayerPawn) return 0;
+	int32 PlayerLevel = PlayerPawn->GetPlayerLevel();
 
 	float LevelAlpha = FMath::Clamp(
 		static_cast<float>(PlayerLevel - 1) / (MaxDifficultyLevel - 1),
@@ -78,4 +77,3 @@ float AMonsterSpawnVolume::GetEliteRate()
 
 	return FMath::Lerp(EliteMonsterMinRate, EliteMonsterMaxRate, LevelAlpha);
 }
-*/

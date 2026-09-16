@@ -61,15 +61,6 @@ float AMonsterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEve
 		return 0.0f;
 	}
 
-	Passive->SetHealth(GetCurrentHealth(Damage));
-	if (GetHealth() < 0.0f)
-	{
-		Death(DamageCauser);
-	}
-
-
-
-
 	return UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
 }
 void Death(APawn* Pawn)
