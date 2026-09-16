@@ -34,11 +34,11 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 	//스켈레톤에 무기 소켓이 아직 없어서 오른손 뼈에 붙임 소켓을 만들면 블루프린트 Parent Socket을 바꿀 것
 	//기본 무기 권총은 UWeaponBase 그대로 씀
 	PistolWeapon = CreateDefaultSubobject<UWeaponBase>(TEXT("PistolWeapon"));
-	PistolWeapon->SetupAttachment(GetMesh(), TEXT("hand_r"));
+	PistolWeapon->SetupAttachment(GetMesh(), TEXT("Weapon_r_Pistol"));
 
 	//소총은 얻기 전까지 숨겨둠 상점 인벤토리 드랍으로 얻으면 AcquireWeapon으로 해금
 	RifleWeapon = CreateDefaultSubobject<URifleWeapon>(TEXT("RifleWeapon"));
-	RifleWeapon->SetupAttachment(GetMesh(), TEXT("hand_r"));
+	RifleWeapon->SetupAttachment(GetMesh(), TEXT("Weapon_r_Rifle"));
 	RifleWeapon->SetHiddenInGame(true);
 
 	CurrentWeaponSlot = EWeaponSlot::Pistol;
