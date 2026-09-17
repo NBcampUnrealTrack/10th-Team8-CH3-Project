@@ -1,0 +1,258 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "MainPlayerCharacter.generated.h"
+
+class USpringArmComponent;
+class UCameraComponent;
+class UCombatStatsComponent;
+class UDispatchTableComponent;
+class UWeaponBase;
+enum class EWeaponSlot : uint8;
+enum class EAugmentID : uint8;
+
+struct FInputActionValue;
+
+//경험치가 바뀌었을 때 현재 경험치와 다음 레벨까지 필요한 경험치
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FOnPlayerExperienceChanged,
+	float, CurrentExperience,
+	float, RequiredExperience
+);
+
+//레벨이 올랐을 때 새 레벨 한 번에 여러 레벨이 오르면 오른 레벨마다 한 번씩
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+	FOnPlayerLevelUp,
+	int32, NewLevel
+);
+
+//들고 있는 무기가 바뀌었을 때 새 무기 슬롯
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+	FOnWeaponChanged,
+	EWeaponSlot, NewSlot
+);
+
+//플레이어가 죽었을 때 한 번
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDied);
+
+//레벨업 보상으로 고를 증강 선택지가 준비됐을 때
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+	FOnAugmentChoicesReady,
+	const TArray<EAugmentID>&, Choices
+);
+
+UCLASS()
+class DREAMVEIL_API AMainPlayerCharacter : public ACharacter
+{
+	GENERATED_BODY()
+
+public:
+
+	AMainPlayerCharacter();
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	USpringArmComponent* SpringArmComp;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UCameraComponent* CameraComp;
+
+	//스탯 컴포넌트 체력 공격력 방어력과 사망 이벤트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	TObjectPtr<UCombatStatsComponent> CombatStats;
+
+	//증강 컴포넌트 보상 증강 뽑기와 적용
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Augment")
+	TObjectPtr<UDispatchTableComponent> DispatchTable;
+
+	//1번 무기 권총 처음부터 가지고 있음 붙일 소켓은 블루프린트 Details의 Parent Socket에서 바꿈
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TObjectPtr<UWeaponBase> PistolWeapon;
+
+	//2번 무기 소총 AcquireWeapon으로 얻기 전까지 숨겨져 있고 바꿀 수 없음
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TObjectPtr<UWeaponBase> RifleWeapon;
+
+	//받은 데미지를 증강 라이브러리로 넘김 이게 없으면 체력이 안 깎임
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	// 무기
+
+	//무기가 바뀌었을 때 이벤트 무기 UI 갱신용
+	UPROPERTY(BlueprintAssignable, Category = "Weapon")
+	FOnWeaponChanged OnWeaponChanged;
+
+	//무기를 얻음 상점 인벤토리 몬스터 드랍에서 부를 것 얻기만 하고 바로 들지는 않음
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void AcquireWeapon(EWeaponSlot Slot);
+
+	//가지고 있는 무기인지
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	bool HasWeapon(EWeaponSlot Slot) const;
+
+	//무기를 바꿔 듦 가지고 있지 않은 무기면 실패
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	bool EquipWeapon(EWeaponSlot Slot);
+
+	//지금 들고 있는 무기 슬롯
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	EWeaponSlot GetCurrentWeaponSlot() const;
+
+	//지금 들고 있는 무기
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	UWeaponBase* GetCurrentWeapon() const;
+
+	// 사망
+
+	//플레이어가 죽었을 때 이벤트 게임 오버 처리와 UI는 이걸 받는 쪽(GameState)이 함
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnPlayerDied OnPlayerDied;
+
+	// 레벨
+
+	//경험치 변화 이벤트
+	UPROPERTY(BlueprintAssignable, Category = "Level")
+	FOnPlayerExperienceChanged OnExperienceChanged;
+
+	//레벨 업 이벤트
+	UPROPERTY(BlueprintAssignable, Category = "Level")
+	FOnPlayerLevelUp OnLevelUp;
+
+	//현재 플레이어 레벨 1부터 시작
+	//AActor에 월드 레벨을 돌려주는 GetLevel이 이미 있어서 이름을 GetPlayerLevel로 함
+	UFUNCTION(BlueprintPure, Category = "Level")
+	int32 GetPlayerLevel() const;
+
+	//현재 레벨에서 모은 경험치
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetCurrentExperience() const;
+
+	//다음 레벨까지 필요한 경험치
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetRequiredExperience() const;
+
+	//경험치를 더함 필요한 만큼 모이면 레벨이 오르고 남은 경험치는 다음 레벨로 넘어감 죽은 상태면 무시
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void AddExperience(float Amount);
+
+	// 레벨업 보상 증강 선택 UI가 씀
+
+	//고를 증강 선택지가 준비됐을 때 이벤트 UI는 이걸 받아서 선택 창을 띄울 것
+	UPROPERTY(BlueprintAssignable, Category = "Augment")
+	FOnAugmentChoicesReady OnAugmentChoicesReady;
+
+	//지금 떠 있는 선택지 UI를 늦게 열었을 때 다시 읽는 용도 없으면 빈 배열
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	TArray<EAugmentID> GetCurrentAugmentChoices() const;
+
+	//지금 고를 선택지가 있는지
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	bool HasAugmentChoices() const;
+
+	//지금 떠 있는 선택지 말고 뒤에 더 기다리는 보상 수 UI에 남은 횟수를 띄울 때 씀
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	int32 GetPendingAugmentChoiceCount() const;
+
+	//UI에서 고른 증강을 적용 지금 선택지에 없는 번호면 실패
+	//한 번에 여러 레벨이 올랐으면 적용 뒤 다음 선택지 이벤트가 이어서 나감
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	bool SelectAugmentChoice(EAugmentID AugmentID);
+
+	// 테스트용 치트 콘솔(~)을 열고 함수 이름과 값을 입력해서 부름
+	// 몬스터 보상 상점 UI가 아직 없어서 레벨업 무기 사망 흐름을 확인하는 용도
+
+	//경험치를 넣어 레벨업과 증강 선택지를 확인 예) CheatAddExp 150
+	UFUNCTION(Exec)
+	void CheatAddExp(float Amount);
+
+	//소총을 얻고 바로 들게 함 1 2번 입력 에셋이 없어도 연사 테스트 가능 예) CheatAcquireRifle
+	UFUNCTION(Exec)
+	void CheatAcquireRifle();
+
+	//떠 있는 증강 선택지 중 하나를 고름 번호는 0부터 예) CheatPickAugment 0
+	UFUNCTION(Exec)
+	void CheatPickAugment(int32 ChoiceIndex);
+
+	//자기 자신에게 데미지 사망 흐름 확인용 예) CheatDamageMe 9999
+	UFUNCTION(Exec)
+	void CheatDamageMe(float Amount);
+
+	//지금 상태를 로그로 출력 레벨 경험치 체력 공방 무기 선택지 예) CheatShowStatus
+	UFUNCTION(Exec)
+	void CheatShowStatus();
+
+protected:
+	float SprintSpeed;
+	float NoramalSpeed;
+	float SprintSpeedMultiplier;
+
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	void MovePlayer(const FInputActionValue& value);
+	void StartJump(const FInputActionValue& value);
+	void StopJump(const FInputActionValue& value);
+	void CameraLock(const FInputActionValue& value);
+	void StartSprint(const FInputActionValue& value);
+	void StopSprint(const FInputActionValue& value);
+
+	//사격 입력을 누른 순간 단발 연사 상관없이 한 발
+	void FireWeapon(const FInputActionValue& value);
+
+	//사격 입력을 누르고 있는 동안 연사 무기만 계속 쏨
+	void FireWeaponHeld(const FInputActionValue& value);
+
+	//숫자 1 권총으로 바꿈
+	void EquipPistolInput(const FInputActionValue& value);
+
+	//숫자 2 소총으로 바꿈
+	void EquipRifleInput(const FInputActionValue& value);
+
+	//1레벨에서 2레벨로 갈 때 필요한 경험치
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
+	float BaseRequiredExperience = 100.0f;
+
+	//레벨이 하나 오를 때마다 필요한 경험치가 늘어나는 양
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
+	float RequiredExperienceGrowth = 50.0f;
+
+private:
+	//지금 들고 있는 무기 슬롯 생성자에서 권총으로 시작
+	EWeaponSlot CurrentWeaponSlot;
+
+	//가지고 있는 무기 슬롯 권총은 BeginPlay에서 넣음
+	UPROPERTY(Transient)
+	TArray<EWeaponSlot> AcquiredWeaponSlots;
+
+	//현재 레벨
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level", meta = (AllowPrivateAccess = "true"))
+	int32 PlayerLevel = 1;
+
+	//현재 레벨에서 모은 경험치
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level", meta = (AllowPrivateAccess = "true"))
+	float CurrentExperience = 0.0f;
+
+	//지금 떠 있는 증강 선택지
+	UPROPERTY(Transient)
+	TArray<EAugmentID> CurrentAugmentChoices;
+
+	//아직 띄우지 못한 레벨업 보상 수 선택지를 고르는 동안 또 레벨이 오르면 쌓임
+	int32 PendingAugmentChoiceCount = 0;
+
+	//슬롯에 해당하는 무기 컴포넌트
+	UWeaponBase* GetWeaponInSlot(EWeaponSlot Slot) const;
+
+	//들고 있는 무기만 보이고 나머지는 숨김
+	void UpdateWeaponVisibility();
+
+	//조준점을 계산해서 들고 있는 무기로 한 발 쏨 FireWeapon과 FireWeaponHeld가 같이 씀
+	void FireCurrentWeapon();
+
+	//쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
+	void DrawNextAugmentChoices();
+
+	//스탯 컴포넌트의 사망 이벤트를 받음
+	UFUNCTION()
+	void HandleDead();
+};
