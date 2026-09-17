@@ -63,3 +63,7 @@ float AMonsterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEve
 
 	return UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
 }
+void Death(APawn* Pawn)
+{
+
+}

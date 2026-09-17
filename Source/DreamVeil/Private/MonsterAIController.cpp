@@ -4,10 +4,16 @@
 #include "MonsterAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "UObject/ConstructorHelpers.h"
+#include "BehaviorTree//BehaviorTree.h"
 
 AMonsterAIController::AMonsterAIController()
 {
-	
+	static ConstructorHelpers::FObjectFinder<UBehaviorTree> BTObject(TEXT("/Game/Managers/AI/BT_BaseMonster.BT_BaseMonster"));
+	if (BTObject.Succeeded())
+	{
+		BehaviorTreeAsset = BTObject.Object;
+	}
 }
 
 void AMonsterAIController::StartBehaviorTree()
@@ -36,6 +42,4 @@ void AMonsterAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 	if (!InPawn) return;
-
-
 }
