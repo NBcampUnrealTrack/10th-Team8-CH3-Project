@@ -4,10 +4,18 @@
 #include "EliteMonsterAIController.h"
 #include "Perception/AIPerceptionComponent.h"
 #include "Perception/AISenseConfig_Sight.h"
+#include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "UObject/ConstructorHelpers.h"
 
 AEliteMonsterAIController::AEliteMonsterAIController()
 {
+	static ConstructorHelpers::FObjectFinder<UBehaviorTree> BTObject(TEXT("/Game/Managers/AI/BT_EliteMonster.BT_EliteMonster"));
+	if (BTObject.Succeeded())
+	{
+		BehaviorTreeAsset = BTObject.Object;
+	}
+
 	// AI 감각 관련 컴포넌트들 추가하고 Set시켜주기
 	AIPerception = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("AI Perception"));
 	SetPerceptionComponent(*AIPerception);
