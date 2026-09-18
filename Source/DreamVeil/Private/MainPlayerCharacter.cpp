@@ -1,6 +1,9 @@
 #include "MainPlayerCharacter.h"
 #include "MainPlayerController.h"
 #include "InteractableActorBase.h"
+#include "Engine/OverlapResult.h"
+#include "Engine/World.h"
+#include "Math/NumericLimits.h"
 #include "EnhancedInputComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -608,39 +611,57 @@ void AMainPlayerCharacter::CheatShowStatus()
 
 void AMainPlayerCharacter::TryInteract(const FInputActionValue& Value)
 {
-	// 카메라가 없으면 탐색 불가
-	if (!CameraComp)
-	{
-		return;
-	}
 	UWorld* World = GetWorld();
-	// 월드가 없으면 탐색 불가
+	// 월드 확인
 	if (!World)
 	{
 		return;
 	}
-	// 카메라 위치에서 탐색 시작
-	const FVector TraceStart = CameraComp->GetComponentLocation();
-	// 카메라 정면으로 거리만큼 탐색
-	const FVector TraceEnd = TraceStart + CameraComp->GetForwardVector() * InteractionDistance;
-	// 플레이어 자신은 탐색에서 제외
+	// 캐릭터 중심 위치
+	const FVector InteractionCenter = GetActorLocation();
+	// 주변에서 감지된 결과
+	TArray<FOverlapResult> OverlapResults;
+	// WorldDynamic 액터만 검색
+	FCollisionObjectQueryParams ObjectQueryParams;
+	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
+	// 플레이어 자신은 제외
 	FCollisionQueryParams QueryParams;
 	QueryParams.AddIgnoredActor(this);
-	FHitResult HitResult;
-	// 카메라 정면으로 Visibility Line Trace
-	const bool bHitActor = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+	// 캐릭터 주변 검색 범위
+	const FCollisionShape InteractionShape = FCollisionShape::MakeSphere(InteractionRadius);
+	// 캐릭터 주변 오브젝트 검색
+	const bool bFoundActor = World->OverlapMultiByObjectType(OverlapResults, InteractionCenter, FQuat::Identity, ObjectQueryParams, InteractionShape, QueryParams);
 	// 감지된 액터가 없으면 종료
-	if (!bHitActor)
+	if (!bFoundActor)
 	{
 		return;
 	}
-	// 상호작용 가능한 부모 타입인지 확인
-	AInteractableActorBase* InteractableActor = Cast<AInteractableActorBase>(HitResult.GetActor());
-	// 일반 액터라면 종료
-	if (!InteractableActor)
+	AInteractableActorBase* ClosestActor = nullptr;
+	float ClosestDistanceSquared = TNumericLimits<float>::Max();
+	// 가장 가까운 상호작용 액터 검색
+	for (const FOverlapResult& OverlapResult : OverlapResults)
+	{
+		AInteractableActorBase* InteractableActor = Cast<AInteractableActorBase>(OverlapResult.GetActor());
+		// 일반 액터는 제외
+		if (!InteractableActor)
+		{
+			continue;
+		}
+		// 캐릭터와 액터의 거리 계산
+		const float DistanceSquared = FVector::DistSquared(InteractionCenter, InteractableActor->GetActorLocation());
+		// 기존 대상보다 멀면 제외
+		if (DistanceSquared >= ClosestDistanceSquared)
+		{
+			continue;
+		}
+		ClosestActor = InteractableActor;
+		ClosestDistanceSquared = DistanceSquared;
+	}
+	// 상호작용 대상이 없으면 종료
+	if (!ClosestActor)
 	{
 		return;
 	}
-	// 상호작용 실행
-	InteractableActor->Interact(this);
+	// 가장 가까운 액터와 상호작용
+	ClosestActor->Interact(this);
 }

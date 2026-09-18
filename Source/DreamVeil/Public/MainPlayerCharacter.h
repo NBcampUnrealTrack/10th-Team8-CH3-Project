@@ -238,8 +238,12 @@ private:
 	TArray<EAugmentID> CurrentAugmentChoices;
 
 	// 상호작용 가능한 최대 거리
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
-	float InteractionDistance = 200.0f;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true")
+)
+	float InteractionRadius = 250.0f;
+
+	// 캐릭터 주변의 가장 가까운 액터와 상호작용
+	void TryInteract(const FInputActionValue& Value);
 
 	//아직 띄우지 못한 레벨업 보상 수 선택지를 고르는 동안 또 레벨이 오르면 쌓임
 	int32 PendingAugmentChoiceCount = 0;
@@ -259,7 +263,4 @@ private:
 	//스탯 컴포넌트의 사망 이벤트를 받음
 	UFUNCTION()
 	void HandleDead();
-
-	// 카메라 정면의 액터와 상호작용
-	void TryInteract(const FInputActionValue& Value);
 };
