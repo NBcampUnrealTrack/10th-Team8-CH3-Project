@@ -1,6 +1,11 @@
 #include "WeaponBase.h"
 #include "AugmentDamageLibrary.h"
 #include "DrawDebugHelpers.h"
+#include "GameFramework/Pawn.h"
+#include "Kismet/GameplayStatics.h"
+#include "NiagaraFunctionLibrary.h"
+#include "NiagaraSystem.h"
+#include "Sound/SoundBase.h"
 
 
 UWeaponBase::UWeaponBase()
@@ -58,6 +63,9 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 	}
 	LastFireTime = GetWorld()->GetTimeSeconds();
 
+	//발사가 확정된 뒤에 재생 연사 간격에 막힌 호출에서 소리가 나면 안 되므로 CanFire 검사 아래에 둠
+	PlayMuzzleEffects(MuzzleLocation);
+
 	FVector TraceEnd = MuzzleLocation + (FireDirection * Range);
 
 	//쏜 캐릭터 자신은 맞지 않음 무기는 컴포넌트라서 캐릭터를 무시하면 같이 무시됨
@@ -77,7 +85,48 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 
 	if (bHitSomething)
 	{
+		//데미지보다 먼저 재생 이번 발에 몬스터가 죽어서 사라져도 맞은 자리에 피는 튀게
+		PlayImpactEffect(Hit);
+
 		//쏜 캐릭터를 넘김 데미지 방어력 흡혈 가시 갑옷 적중 증강을 한 번에 처리
 		UAugmentDamageLibrary::ApplyWeaponHit(GetOwner(), Hit, GetFinalDamage());
 	}
+}
+
+//총구 불꽃과 발사음을 재생
+void UWeaponBase::PlayMuzzleEffects(const FVector& MuzzleLocation)
+{
+	if (MuzzleFlashEffect)
+	{
+		//총구 소켓에 붙여서 재생 소켓이 없으면 무기 원점에 붙음 GetMuzzleLocation과 같은 규칙
+		//SnapToTarget은 소켓의 위치와 방향을 그대로 따름 그래서 소켓의 X축이 총구 앞을 봐야 불꽃이 앞으로 나감
+		//bAutoDestroy가 true라 재생이 끝나면 알아서 지워짐 연사해도 컴포넌트가 쌓이지 않음
+		UNiagaraFunctionLibrary::SpawnSystemAttached(
+			MuzzleFlashEffect, this, MuzzleSocketName,
+			FVector::ZeroVector, FRotator::ZeroRotator,
+			EAttachLocation::SnapToTarget, true
+		);
+	}
+
+	if (FireSound)
+	{
+		//총소리는 짧아서 붙이지 않고 쏜 자리에서 한 번 재생
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, MuzzleLocation);
+	}
+}
+
+//맞은 곳에 이펙트를 재생
+void UWeaponBase::PlayImpactEffect(const FHitResult& Hit)
+{
+	//맞은 게 폰이면 피 벽 바닥 물건이면 파편
+	//몬스터 클래스가 아니라 폰으로 나누는 이유 나중에 몬스터가 총을 써서 플레이어가 맞아도 무기 코드를 안 고치고 피가 나게 하려고
+	UNiagaraSystem* EffectToPlay = Cast<APawn>(Hit.GetActor()) ? BloodEffect : ImpactEffect;
+
+	if (!EffectToPlay)
+	{
+		return;
+	}
+
+	//맞은 면의 바깥 방향(법선)을 이펙트의 앞(X축)으로 삼아서 표면 밖으로 튀게 함
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, EffectToPlay, Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
 }

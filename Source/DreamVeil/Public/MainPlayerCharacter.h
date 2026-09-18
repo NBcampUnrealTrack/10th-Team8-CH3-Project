@@ -186,9 +186,15 @@ protected:
 	float NoramalSpeed;
 	float SprintSpeedMultiplier;
 
+	//달리기 입력을 누르고 있는지 달리는 동안에는 총을 쏘지 않음
+	bool bIsSprinting = false;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	//컨트롤러가 붙을 때 카메라 위아래 각도 제한을 검
+	virtual void NotifyControllerChanged() override;
 
 	void MovePlayer(const FInputActionValue& value);
 	void StartJump(const FInputActionValue& value);
