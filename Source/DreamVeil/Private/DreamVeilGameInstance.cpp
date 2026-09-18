@@ -4,6 +4,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
+#include "Misc/PackageName.h"
 
 //로비 맵 경로 메인 메뉴에서 들어오고 레벨을 깰 때마다 돌아오는 곳
 const TCHAR* const LOBBY_MAP_PATH = TEXT("/Game/Maps/Level/Lobby");
@@ -98,6 +99,15 @@ void UDreamVeilGameInstance::CompleteCurrentLevel()
     UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
 }
 
+//제한 시간 안에 못 깼을 때
+void UDreamVeilGameInstance::FailCurrentLevel()
+{
+    //증강을 저장하지 않고 떠나서 로비의 플레이어는 이 레벨에 들어오기 전 증강으로 복원됨
+    //실패해도 증강을 남기면 쉬운 레벨을 일부러 시간 초과시키면서 증강만 모을 수 있어서 버림
+    //진행도(ClearedLevelCount)도 그대로라 로비에서 게임 시작을 누르면 같은 레벨을 다시 도전함
+    UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
+}
+
 //L4까지 다 깨서 Endless가 열렸는지
 bool UDreamVeilGameInstance::IsEndlessUnlocked() const
 {
@@ -116,4 +126,23 @@ void UDreamVeilGameInstance::SaveCurrentPlayerAugments()
 
     //증강 컴포넌트가 없는 폰이면 null이 넘어가고 SavePlayerAugments가 바로 돌아가서 기존 저장이 지워지지 않음
     SavePlayerAugments(PlayerController->GetPawn()->FindComponentByClass<UDispatchTableComponent>());
+}
+
+//지금 맵이 L1~L4 중 하나인지
+//레벨 목록을 이 파일이 들고 있으니 다른 곳에서 맵 이름을 따로 적지 않고 여기서 판단함
+bool UDreamVeilGameInstance::IsInLevelMap() const
+{
+    //PIE에서는 맵 이름 앞에 UEDPIE_0_ 같은 접두사가 붙는데 두 번째 인자 true가 그걸 떼줌
+    const FString CurrentMapName = UGameplayStatics::GetCurrentLevelName(this, true);
+
+    for (const TCHAR* LevelMapPath : LEVEL_MAP_PATHS)
+    {
+        //전체 경로에서 끝의 맵 이름만 떼서 비교 /Game/Maps/Level/LV_1 -> LV_1
+        if (FPackageName::GetShortName(LevelMapPath) == CurrentMapName)
+        {
+            return true;
+        }
+    }
+
+    return false;
 }

@@ -16,8 +16,8 @@
 
 //카메라가 위아래로 돌 수 있는 최대 각도
 //엔진 기본은 거의 90도라서 끝까지 내리면 카메라가 캐릭터 바로 위로 가고 조금만 움직여도 방향이 휙 뒤집힘
-const float CAMERA_PITCH_MIN = -80.0f;
-const float CAMERA_PITCH_MAX = 80.0f;
+const float CAMERA_PITCH_MIN = -50.0f;
+const float CAMERA_PITCH_MAX = 50.0f;
 
 
 AMainPlayerCharacter::AMainPlayerCharacter()
@@ -421,6 +421,25 @@ bool AMainPlayerCharacter::SelectAugmentChoice(EAugmentID AugmentID)
 	return true;
 }
 
+//증강 선택 보상을 하나 줌
+//레벨업과 같은 대기열(PendingAugmentChoiceCount)에 넣어서 레벨업 보상과 드롭 보상이 겹쳐도 하나씩 차례로 뜸
+void AMainPlayerCharacter::GrantAugmentReward()
+{
+	//죽은 뒤에 주운 건 무시
+	if (CombatStats && CombatStats->IsDead())
+	{
+		return;
+	}
+
+	PendingAugmentChoiceCount++;
+
+	//이미 선택 창이 떠 있으면 그걸 고른 뒤에 다음 선택지가 나감 AddExperience와 같은 규칙
+	if (CurrentAugmentChoices.Num() == 0)
+	{
+		DrawNextAugmentChoices();
+	}
+}
+
 //쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
 void AMainPlayerCharacter::DrawNextAugmentChoices()
 {
@@ -471,7 +490,7 @@ void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 			}
 			if (PlayerController->LookAction)
 			{
-				EnhancedInput->BindAction(PlayerController->LookAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::CameraLock);
+				EnhancedInput->BindAction(PlayerController->LookAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::Look);
 			}
 			if (PlayerController->SprintAction)
 			{
@@ -528,13 +547,12 @@ void AMainPlayerCharacter::StopJump(const FInputActionValue& value)
 	StopJumping();
 }
 
-void AMainPlayerCharacter::CameraLock(const FInputActionValue& value)
+void AMainPlayerCharacter::Look(const FInputActionValue& value)
 {
 	FVector2D LookInput = value.Get<FVector2D>();
 
 	AddControllerYawInput(LookInput.X);
 	AddControllerPitchInput(LookInput.Y);
-	//최대치 제한 생각해보기
 	//위아래 제한은 NotifyControllerChanged에서 카메라 매니저에 걸어둠 여기서는 입력만 넘김
 }
 

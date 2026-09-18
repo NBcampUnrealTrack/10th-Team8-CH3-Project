@@ -37,13 +37,21 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	bool OpenNextLevel();
 
-	//지금 레벨을 깼을 때 진행도를 올리고 로비로 돌아감 마지막 웨이브를 끝낸 쪽이 부를 것
+	//지금 레벨을 깼을 때 진행도를 올리고 로비로 돌아감 게임모드가 제한 시간 안에 다 잡았거나 보스를 잡았을 때 부름
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void CompleteCurrentLevel();
+
+	//제한 시간 안에 못 깼을 때 진행도는 그대로 두고 로비로 돌아감 이번 판에 얻은 증강도 저장하지 않음
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void FailCurrentLevel();
 
 	//L4까지 다 깨서 Endless가 열렸는지 로비 UI가 Endless 버튼을 켤지 정할 때 씀
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	bool IsEndlessUnlocked() const;
+
+	//지금 맵이 L1~L4 중 하나인지 로비나 메인 메뉴면 false 게임모드가 레벨 제한 시간을 걸지 정할 때 씀
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsInLevelMap() const;
 
 private:
 	//저장한 플레이어 증강 번호 얻은 순서대로 같은 번호가 여러 번이면 그만큼 중첩
