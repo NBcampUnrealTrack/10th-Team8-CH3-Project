@@ -43,6 +43,10 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* EquipRifleAction;
 
+	// 침대와 컴퓨터 상호작용 입력
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
+	UInputAction* InteractAction;
+
 	virtual void BeginPlay() override;
 
 };

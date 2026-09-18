@@ -1,5 +1,6 @@
 #include "MainPlayerCharacter.h"
 #include "MainPlayerController.h"
+#include "InteractableActorBase.h"
 #include "EnhancedInputComponent.h"
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
@@ -464,6 +465,11 @@ void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 			{
 				EnhancedInput->BindAction(PlayerController->EquipRifleAction, ETriggerEvent::Started, this, &AMainPlayerCharacter::EquipRifleInput);
 			}
+			if (PlayerController->InteractAction)
+			{
+				// E키를 누른 순간 상호작용
+				EnhancedInput->BindAction(PlayerController->InteractAction, ETriggerEvent::Started, this, &AMainPlayerCharacter::TryInteract);
+			}
 		}
 	}
 }
@@ -598,4 +604,43 @@ void AMainPlayerCharacter::CheatShowStatus()
 
 	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Pending rewards %d, Choices now: %s"),
 		PendingAugmentChoiceCount, ChoiceText.IsEmpty() ? TEXT("none") : *ChoiceText);
+}
+
+void AMainPlayerCharacter::TryInteract(const FInputActionValue& Value)
+{
+	// 카메라가 없으면 탐색 불가
+	if (!CameraComp)
+	{
+		return;
+	}
+	UWorld* World = GetWorld();
+	// 월드가 없으면 탐색 불가
+	if (!World)
+	{
+		return;
+	}
+	// 카메라 위치에서 탐색 시작
+	const FVector TraceStart = CameraComp->GetComponentLocation();
+	// 카메라 정면으로 거리만큼 탐색
+	const FVector TraceEnd = TraceStart + CameraComp->GetForwardVector() * InteractionDistance;
+	// 플레이어 자신은 탐색에서 제외
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+	FHitResult HitResult;
+	// 카메라 정면으로 Visibility Line Trace
+	const bool bHitActor = World->LineTraceSingleByChannel(HitResult, TraceStart, TraceEnd, ECC_Visibility, QueryParams);
+	// 감지된 액터가 없으면 종료
+	if (!bHitActor)
+	{
+		return;
+	}
+	// 상호작용 가능한 부모 타입인지 확인
+	AInteractableActorBase* InteractableActor = Cast<AInteractableActorBase>(HitResult.GetActor());
+	// 일반 액터라면 종료
+	if (!InteractableActor)
+	{
+		return;
+	}
+	// 상호작용 실행
+	InteractableActor->Interact(this);
 }
