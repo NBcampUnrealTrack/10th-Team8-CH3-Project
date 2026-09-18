@@ -503,6 +503,7 @@ void AMainPlayerCharacter::CameraLock(const FInputActionValue& value)
 
 	AddControllerYawInput(LookInput.X);
 	AddControllerPitchInput(LookInput.Y);
+	//최대치 제한 생각해보기
 }
 
 void AMainPlayerCharacter::StartSprint(const FInputActionValue& value)
