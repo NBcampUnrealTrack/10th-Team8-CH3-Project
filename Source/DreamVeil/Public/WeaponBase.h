@@ -4,6 +4,9 @@
 #include "Components/StaticMeshComponent.h"
 #include "WeaponBase.generated.h"
 
+class UNiagaraSystem;
+class USoundBase;
+
 UENUM(BlueprintType)
 enum class EWeaponSlot : uint8
 {
@@ -81,7 +84,30 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Debug")
 	bool bDrawDebugTrace = true;
 
+	//총구 불꽃 이펙트 쏠 때마다 총구 소켓에 붙여서 재생 비워두면 불꽃 없이 쏨
+	//소켓에 붙이는 이유 연사 중에 캐릭터가 움직여도 불꽃이 총구를 따라가게 하려고
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
+	TObjectPtr<UNiagaraSystem> MuzzleFlashEffect;
+
+	//발사음 총구 위치에서 재생 비워두면 소리 없이 쏨
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
+	TObjectPtr<USoundBase> FireSound;
+
+	//벽 바닥 물건처럼 폰이 아닌 곳에 맞았을 때 튀는 파편 이펙트
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
+	TObjectPtr<UNiagaraSystem> ImpactEffect;
+
+	//몬스터처럼 폰에 맞았을 때 튀는 피 이펙트
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
+	TObjectPtr<UNiagaraSystem> BloodEffect;
+
 private:
 	//마지막으로 쏜 시각 게임 시작 직후 첫 발이 바로 나가도록 아주 옛날 시각으로 시작
 	float LastFireTime = -100.0f;
+
+	//총구 불꽃과 발사음을 재생
+	void PlayMuzzleEffects(const FVector& MuzzleLocation);
+
+	//맞은 곳에 이펙트를 재생 폰이면 피 아니면 파편
+	void PlayImpactEffect(const FHitResult& Hit);
 };

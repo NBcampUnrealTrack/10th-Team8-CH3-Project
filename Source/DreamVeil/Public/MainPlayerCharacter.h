@@ -158,6 +158,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Augment")
 	bool SelectAugmentChoice(EAugmentID AugmentID);
 
+	//증강 선택 보상을 하나 줌 레벨업 한 번과 같은 효과
+	//몬스터가 떨군 증강 아이템을 주웠을 때 아이템 쪽에서 부를 것 죽은 상태면 무시
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	void GrantAugmentReward();
+
 	// 테스트용 치트 콘솔(~)을 열고 함수 이름과 값을 입력해서 부름
 	// 몬스터 보상 상점 UI가 아직 없어서 레벨업 무기 사망 흐름을 확인하는 용도
 
@@ -186,14 +191,20 @@ protected:
 	float NoramalSpeed;
 	float SprintSpeedMultiplier;
 
+	//달리기 입력을 누르고 있는지 달리는 동안에는 총을 쏘지 않음
+	bool bIsSprinting = false;
+
 	virtual void BeginPlay() override;
 	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
+	//컨트롤러가 붙을 때 카메라 위아래 각도 제한을 검
+	virtual void NotifyControllerChanged() override;
+
 	void MovePlayer(const FInputActionValue& value);
 	void StartJump(const FInputActionValue& value);
 	void StopJump(const FInputActionValue& value);
-	void CameraLock(const FInputActionValue& value);
+	void Look(const FInputActionValue& value);
 	void StartSprint(const FInputActionValue& value);
 	void StopSprint(const FInputActionValue& value);
 

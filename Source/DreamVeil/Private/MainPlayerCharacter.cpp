@@ -13,6 +13,12 @@
 #include "RifleWeapon.h"
 #include "WeaponBase.h"
 #include "AugmentTypes.h"
+#include "Camera/PlayerCameraManager.h"
+
+//카메라가 위아래로 돌 수 있는 최대 각도
+//엔진 기본은 거의 90도라서 끝까지 내리면 카메라가 캐릭터 바로 위로 가고 조금만 움직여도 방향이 휙 뒤집힘
+const float CAMERA_PITCH_MIN = -50.0f;
+const float CAMERA_PITCH_MAX = 50.0f;
 
 
 AMainPlayerCharacter::AMainPlayerCharacter()
@@ -73,6 +79,24 @@ void AMainPlayerCharacter::BeginPlay()
 	{
 		DreamVeilGameInstance->RestorePlayerAugments(DispatchTable);
 	}
+}
+
+//컨트롤러가 붙을 때 카메라 위아래 각도 제한을 검
+//각도 제한은 컨트롤러의 카메라 매니저가 매 프레임 적용함 캐릭터가 따로 자르면 엔진 제한과 겹치므로 값만 바꿔줌
+//BeginPlay 대신 여기서 하는 이유 캐릭터가 먼저 스폰되고 컨트롤러가 나중에 붙으면 BeginPlay 시점엔 컨트롤러가 없을 수 있음
+void AMainPlayerCharacter::NotifyControllerChanged()
+{
+	Super::NotifyControllerChanged();
+
+	APlayerController* PlayerController = Cast<APlayerController>(GetController());
+
+	if (!PlayerController || !PlayerController->PlayerCameraManager)
+	{
+		return;
+	}
+
+	PlayerController->PlayerCameraManager->ViewPitchMin = CAMERA_PITCH_MIN;
+	PlayerController->PlayerCameraManager->ViewPitchMax = CAMERA_PITCH_MAX;
 }
 
 //받은 데미지를 증강 라이브러리로 넘김 방어력 체력 흡혈 가시 갑옷 처리
@@ -250,6 +274,13 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 		return;
 	}
 
+	//달리는 중에는 쏘지 않음 달리기를 멈추면 누르고 있던 소총은 다음 프레임부터 다시 나감
+	//단발 권총은 달리는 동안 누른 입력이 버려지므로 달리기를 멈춘 뒤 다시 눌러야 함
+	if (bIsSprinting)
+	{
+		return;
+	}
+
 	//연사 간격이 안 지났으면 조준 계산도 하지 않고 나감
 	//소총을 누르고 있으면 매 프레임 여기로 오는데 대부분은 간격에 막히므로 카메라 트레이스를 아낌
 	if (!CurrentWeapon->CanFire())
@@ -391,6 +422,25 @@ bool AMainPlayerCharacter::SelectAugmentChoice(EAugmentID AugmentID)
 	return true;
 }
 
+//증강 선택 보상을 하나 줌
+//레벨업과 같은 대기열(PendingAugmentChoiceCount)에 넣어서 레벨업 보상과 드롭 보상이 겹쳐도 하나씩 차례로 뜸
+void AMainPlayerCharacter::GrantAugmentReward()
+{
+	//죽은 뒤에 주운 건 무시
+	if (CombatStats && CombatStats->IsDead())
+	{
+		return;
+	}
+
+	PendingAugmentChoiceCount++;
+
+	//이미 선택 창이 떠 있으면 그걸 고른 뒤에 다음 선택지가 나감 AddExperience와 같은 규칙
+	if (CurrentAugmentChoices.Num() == 0)
+	{
+		DrawNextAugmentChoices();
+	}
+}
+
 //쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
 void AMainPlayerCharacter::DrawNextAugmentChoices()
 {
@@ -441,7 +491,7 @@ void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInpu
 			}
 			if (PlayerController->LookAction)
 			{
-				EnhancedInput->BindAction(PlayerController->LookAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::CameraLock);
+				EnhancedInput->BindAction(PlayerController->LookAction, ETriggerEvent::Triggered, this, &AMainPlayerCharacter::Look);
 			}
 			if (PlayerController->SprintAction)
 			{
@@ -503,16 +553,20 @@ void AMainPlayerCharacter::StopJump(const FInputActionValue& value)
 	StopJumping();
 }
 
-void AMainPlayerCharacter::CameraLock(const FInputActionValue& value)
+void AMainPlayerCharacter::Look(const FInputActionValue& value)
 {
 	FVector2D LookInput = value.Get<FVector2D>();
 
 	AddControllerYawInput(LookInput.X);
 	AddControllerPitchInput(LookInput.Y);
+	//위아래 제한은 NotifyControllerChanged에서 카메라 매니저에 걸어둠 여기서는 입력만 넘김
 }
 
 void AMainPlayerCharacter::StartSprint(const FInputActionValue& value)
 {
+	//달리는 동안 FireCurrentWeapon에서 발사를 막음
+	bIsSprinting = true;
+
 	if (GetCharacterMovement())
 	{
 		GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
@@ -521,6 +575,8 @@ void AMainPlayerCharacter::StartSprint(const FInputActionValue& value)
 
 void AMainPlayerCharacter::StopSprint(const FInputActionValue& value)
 {
+	bIsSprinting = false;
+
 	if (GetCharacterMovement())
 	{
 		GetCharacterMovement()->MaxWalkSpeed = NoramalSpeed;
