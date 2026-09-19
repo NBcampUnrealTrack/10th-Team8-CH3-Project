@@ -26,8 +26,8 @@ const float CAMERA_PITCH_MIN = -50.0f;
 const float CAMERA_PITCH_MAX = 50.0f;
 
 //스태미나 수치 런앤히트 템포 기준 약 4초 뛰고 1초 쉰 뒤 4초에 걸쳐 다시 참
-//최대 스태미나
-const float MAX_STAMINA = 100.0f;
+//시작할 때 최대 스태미나 스태미나 증가 증강을 얻으면 MaxStamina가 여기서부터 늘어남
+const float BASE_MAX_STAMINA = 100.0f;
 //실제로 뛰는 동안 1초에 줄어드는 양
 const float SPRINT_STAMINA_COST_PER_SECOND = 25.0f;
 //쉬는 동안 1초에 차는 양
@@ -77,7 +77,9 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 	GetCharacterMovement()->MaxWalkSpeed = NoramalSpeed;
 
 	//스태미나는 가득 찬 상태로 시작
-	CurrentStamina = MAX_STAMINA;
+	//레벨을 넘기면 캐릭터가 새로 만들어져 기본값으로 돌아가고 BeginPlay의 증강 복원이 스태미나 증가를 다시 적용함
+	MaxStamina = BASE_MAX_STAMINA;
+	CurrentStamina = MaxStamina;
 }
 
 
@@ -303,9 +305,10 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 		return;
 	}
 
-	//달리는 중에는 쏘지 않음 달리기를 멈추면 누르고 있던 소총은 다음 프레임부터 다시 나감
+	//실제로 뛰는 중에는 쏘지 않음 달리기를 멈추면 누르고 있던 소총은 다음 프레임부터 다시 나감
 	//단발 권총은 달리는 동안 누른 입력이 버려지므로 달리기를 멈춘 뒤 다시 눌러야 함
-	if (bIsSprinting)
+	//Shift만 누르고 제자리에 서 있으면 뛰는 게 아니므로 쏠 수 있음 스태미나 소모와 같은 기준(IsSprintMoving)을 씀
+	if (IsSprintMoving())
 	{
 		return;
 	}
@@ -611,7 +614,7 @@ void AMainPlayerCharacter::StopSprint(const FInputActionValue& value)
 //달리기 상태를 바꾸고 이동 속도를 맞춤
 void AMainPlayerCharacter::SetSprinting(bool bNewSprinting)
 {
-	//달리는 동안 FireCurrentWeapon에서 발사를 막음
+	//이 값이 켜진 채 실제로 움직이면 FireCurrentWeapon에서 발사를 막음 (IsSprintMoving)
 	bIsSprinting = bNewSprinting;
 
 	if (GetCharacterMovement())
@@ -632,7 +635,7 @@ void AMainPlayerCharacter::UpdateStamina()
 	const float CurrentTime = GetWorld()->GetTimeSeconds();
 
 	//달리기 키를 누르고 실제로 움직이고 있을 때만 줄임 제자리에서 Shift만 누르고 있으면 안 줄어듦
-	if (bIsSprinting && GetVelocity().SizeSquared2D() > KINDA_SMALL_NUMBER)
+	if (IsSprintMoving())
 	{
 		LastStaminaUseTime = CurrentTime;
 		SetCurrentStamina(CurrentStamina - SPRINT_STAMINA_COST_PER_SECOND * STAMINA_UPDATE_INTERVAL);
@@ -655,7 +658,7 @@ void AMainPlayerCharacter::UpdateStamina()
 	SetCurrentStamina(CurrentStamina + STAMINA_REGEN_PER_SECOND * STAMINA_UPDATE_INTERVAL);
 
 	//가득 찼고 달리지도 않으면 더 할 일이 없으니 타이머를 멈춤 다음 달리기 때 SetSprinting이 다시 켬
-	if (CurrentStamina >= MAX_STAMINA && !bIsSprinting)
+	if (CurrentStamina >= MaxStamina && !bIsSprinting)
 	{
 		GetWorldTimerManager().ClearTimer(StaminaTimerHandle);
 	}
@@ -664,7 +667,7 @@ void AMainPlayerCharacter::UpdateStamina()
 //스태미나 값을 0과 최대치 사이로 바꾸고 UI에 알림
 void AMainPlayerCharacter::SetCurrentStamina(float NewStamina)
 {
-	const float ClampedStamina = FMath::Clamp(NewStamina, 0.0f, MAX_STAMINA);
+	const float ClampedStamina = FMath::Clamp(NewStamina, 0.0f, MaxStamina);
 
 	//값이 그대로면 UI에 알릴 필요 없음 가득 찬 채로 타이머가 돌 때 이벤트가 쏟아지지 않게
 	if (FMath::IsNearlyEqual(ClampedStamina, CurrentStamina))
@@ -674,7 +677,16 @@ void AMainPlayerCharacter::SetCurrentStamina(float NewStamina)
 
 	CurrentStamina = ClampedStamina;
 
-	OnStaminaChanged.Broadcast(CurrentStamina, MAX_STAMINA);
+	OnStaminaChanged.Broadcast(CurrentStamina, MaxStamina);
+}
+
+//달리기 키를 누른 채 실제로 움직이고 있는지
+//스태미나 소모(UpdateStamina)와 발사 금지(FireCurrentWeapon)가 같은 기준을 쓰도록 한 곳에 둠
+//SizeSquared2D는 위아래(Z)를 뺀 수평 속도의 길이를 제곱한 값 0보다 큰지만 보면 되므로 제곱근 계산을 아낌
+//수평만 보므로 제자리 점프는 뛰는 게 아니고 달리다 점프하면 공중에서도 뛰는 것으로 침
+bool AMainPlayerCharacter::IsSprintMoving() const
+{
+	return bIsSprinting && GetVelocity().SizeSquared2D() > KINDA_SMALL_NUMBER;
 }
 
 //현재 스태미나
@@ -686,7 +698,18 @@ float AMainPlayerCharacter::GetCurrentStamina() const
 //최대 스태미나
 float AMainPlayerCharacter::GetMaxStamina() const
 {
-	return MAX_STAMINA;
+	return MaxStamina;
+}
+
+//최대 스태미나를 늘리고 늘어난 만큼 채움 스태미나 증가 증강이 부름
+//체력 증가 증강과 같은 규칙 최대치만 늘리면 게이지 비율이 갑자기 줄어 보여서 같이 채워줌
+void AMainPlayerCharacter::IncreaseMaxStamina(float Amount)
+{
+	MaxStamina += Amount;
+
+	//SetCurrentStamina가 새 최대치로 자르고 UI에 현재값과 새 최대치를 같이 알림
+	//가득 찬 상태에서 얻어도 현재값이 늘어나므로 알림이 빠지지 않음
+	SetCurrentStamina(CurrentStamina + Amount);
 }
 
 // 테스트용 치트 콘솔(~)에서 부름 몬스터 보상 상점 UI가 붙으면 지워도 됨

@@ -24,6 +24,7 @@ void UDispatchTableComponent::RegisterSkillClasses()
     SkillClassTable.Add(EAugmentID::AttackUp, UAttackUpSkill::StaticClass());
     SkillClassTable.Add(EAugmentID::DefenceUp, UDefenceUpSkill::StaticClass());
     SkillClassTable.Add(EAugmentID::HealthUp, UHealthUpSkill::StaticClass());
+    SkillClassTable.Add(EAugmentID::StaminaUp, UStaminaUpSkill::StaticClass());
     SkillClassTable.Add(EAugmentID::Berserker, UBerserkerSkill::StaticClass());
     SkillClassTable.Add(EAugmentID::LastFortress, ULastFortressSkill::StaticClass());
     SkillClassTable.Add(EAugmentID::ThornArmor, UThornArmorSkill::StaticClass());
@@ -136,6 +137,8 @@ FText UDispatchTableComponent::GetAugmentDisplayName(EAugmentID AugmentID)
         return NSLOCTEXT("Augment", "DefenceUpName", "방어력 증가");
     case EAugmentID::HealthUp:
         return NSLOCTEXT("Augment", "HealthUpName", "최대 체력 증가");
+    case EAugmentID::StaminaUp:
+        return NSLOCTEXT("Augment", "StaminaUpName", "최대 스태미나 증가");
     case EAugmentID::Berserker:
         return NSLOCTEXT("Augment", "BerserkerName", "광전사");
     case EAugmentID::LastFortress:
@@ -174,6 +177,10 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
         return FText::Format(
             NSLOCTEXT("Augment", "HealthUpDesc", "최대 체력이 {0} 늘어나고 그만큼 회복합니다. 여러 번 얻을 수 있습니다."),
             FText::AsNumber(HEALTH_UP_AMOUNT));
+    case EAugmentID::StaminaUp:
+        return FText::Format(
+            NSLOCTEXT("Augment", "StaminaUpDesc", "최대 스태미나가 {0} 늘어나고 그만큼 채워집니다. 여러 번 얻을 수 있습니다."),
+            FText::AsNumber(STAMINA_UP_AMOUNT));
     case EAugmentID::Berserker:
         return FText::Format(
             NSLOCTEXT("Augment", "BerserkerDesc", "체력이 {0}% 이하일 때 공격력이 {1}배가 됩니다."),

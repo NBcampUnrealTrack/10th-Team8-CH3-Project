@@ -138,6 +138,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Stamina")
 	float GetMaxStamina() const;
 
+	//최대 스태미나를 늘리고 늘어난 만큼 채움 스태미나 증가 증강(UStaminaUpSkill)이 부름
+	void IncreaseMaxStamina(float Amount);
+
 	// 레벨
 
 	//경험치 변화 이벤트
@@ -292,6 +295,9 @@ private:
 	//현재 스태미나 뛰는 동안 줄고 멈추면 잠깐 쉬었다가 다시 참
 	float CurrentStamina;
 
+	//최대 스태미나 기본값에서 시작해 스태미나 증가 증강을 얻을 때마다 늘어남
+	float MaxStamina;
+
 	//마지막으로 스태미나를 쓴 시각 이 뒤로 회복 대기 시간이 지나야 다시 차기 시작함
 	//게임 시작 직후 바로 회복할 수 있게 아주 옛날 시각으로 시작
 	float LastStaminaUseTime = -100.0f;
@@ -316,6 +322,9 @@ private:
 
 	//스태미나 값을 0과 최대치 사이로 바꾸고 UI에 알림
 	void SetCurrentStamina(float NewStamina);
+
+	//달리기 키를 누른 채 실제로 움직이고 있는지 스태미나 소모와 발사 금지가 같이 씀
+	bool IsSprintMoving() const;
 
 	//스탯 컴포넌트의 사망 이벤트를 받음
 	UFUNCTION()

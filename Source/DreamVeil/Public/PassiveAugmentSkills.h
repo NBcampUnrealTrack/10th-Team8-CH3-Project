@@ -37,6 +37,17 @@ public:
 	virtual void Apply() override;
 };
 
+//스태미나 증가 얻을 때마다 최대 스태미나가 늘고 늘어난 만큼 채움
+//스태미나는 플레이어만 가진 값이라 스탯 컴포넌트가 아니라 플레이어 캐릭터에게 올려달라고 함
+UCLASS()
+class DREAMVEIL_API UStaminaUpSkill : public UAugmentSkillBase
+{
+	GENERATED_BODY()
+
+public:
+	virtual void Apply() override;
+};
+
 //광전사 체력이 일정 비율 이하면 공격력 배율 적용
 UCLASS()
 class DREAMVEIL_API UBerserkerSkill : public UAugmentSkillBase

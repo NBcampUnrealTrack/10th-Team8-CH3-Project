@@ -10,6 +10,8 @@ enum class EAugmentID : uint8
 	AttackUp,
 	DefenceUp,
 	HealthUp,
+	//최대 스태미나 증가 스태미나는 플레이어만 쓰므로 스탯 컴포넌트가 아니라 플레이어 캐릭터 값을 올림
+	StaminaUp,
 	Berserker,
 	ThornArmor,
 	Vampire,
@@ -44,6 +46,9 @@ const float DEFENCE_POWER_UP_AMOUNT = 3.0f;
 
 //최대 체력 증가량
 const float HEALTH_UP_AMOUNT = 20.0f;
+
+//최대 스태미나 증가량 기본 최대치 100 기준 한 번에 약 1초 더 뛸 수 있음
+const float STAMINA_UP_AMOUNT = 25.0f;
 
 //재생력 회복량
 const float REGENERATION_HEAL_AMOUNT = 5.0f;

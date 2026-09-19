@@ -2,6 +2,7 @@
 
 #include "AugmentTypes.h"
 #include "CombatStatsComponent.h"
+#include "MainPlayerCharacter.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -45,6 +46,20 @@ void UHealthUpSkill::Apply()
     //바로 뒤 Heal이 현재 체력을 바꾸면서 이벤트를 보내 다시 판정하게 됨 Heal을 빼거나 순서를 바꾸지 말 것
     Stats->SetMaxHealth(Stats->GetMaxHealth() + HEALTH_UP_AMOUNT);
     Stats->Heal(HEALTH_UP_AMOUNT);
+}
+
+//스태미나 증가
+void UStaminaUpSkill::Apply()
+{
+    //스태미나는 플레이어 캐릭터에만 있음 몬스터가 이 증강을 얻는 일은 없지만 혹시 몰라 플레이어가 아니면 무시
+    AMainPlayerCharacter* Player = Cast<AMainPlayerCharacter>(GetOwnerActor());
+
+    if (!Player)
+    {
+        return;
+    }
+
+    Player->IncreaseMaxStamina(STAMINA_UP_AMOUNT);
 }
 
 //광전사 얻은 즉시 현재 체력으로 판단

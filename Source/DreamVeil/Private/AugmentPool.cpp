@@ -15,6 +15,9 @@ void FAugmentPool::BuildDefault()
     Augments.Add(FAugmentData(EAugmentID::DefenceUp, EAugmentCategory::Passive, 20.0f, true));
     Augments.Add(FAugmentData(EAugmentID::HealthUp, EAugmentCategory::Passive, 20.0f, true));
 
+    //스태미나 증가도 먹을 때마다 더해지므로 반복 획득 허용 달리기 보조라서 공방체보다 덜 나오게 확률을 낮춤
+    Augments.Add(FAugmentData(EAugmentID::StaminaUp, EAugmentCategory::Passive, 12.0f, true));
+
     //두 번째 획득부터 효과가 없는 증강은 반복 획득 금지
     Augments.Add(FAugmentData(EAugmentID::Berserker, EAugmentCategory::Passive, 8.0f, false));
     Augments.Add(FAugmentData(EAugmentID::LastFortress, EAugmentCategory::Passive, 8.0f, false));
