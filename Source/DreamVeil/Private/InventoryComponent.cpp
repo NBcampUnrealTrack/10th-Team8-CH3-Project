@@ -25,8 +25,10 @@ const int32 ENHANCE_COST_BY_TIER[] = { 10, 20, 35, 50, 80 };
 //강화 성공 확률 목표 단계 순서 +1 +2 +3 +4 +5 올라갈수록 빡세짐
 const float ENHANCE_SUCCESS_CHANCE[] = { 0.9f, 0.7f, 0.5f, 0.3f, 0.15f };
 
-//강화에 실패했을 때 파츠가 부서질 확률 목표 단계 순서 +2까지는 실패해도 안 부서짐
-const float ENHANCE_DESTROY_CHANCE[] = { 0.0f, 0.0f, 0.05f, 0.1f, 0.15f };
+//강화에 실패했을 때 파츠가 부서질 확률 목표 단계 순서 +1부터 부서질 수 있음
+//실패한 뒤에 한 번 더 굴리므로 한 번 시도할 때 실제로 부서질 확률은 (1 - 성공 확률) x 이 값
+//+1 0.5% +2 2.4% +3 6% +4 12.6% +5 21.3%
+const float ENHANCE_DESTROY_CHANCE[] = { 0.05f, 0.08f, 0.12f, 0.18f, 0.25f };
 
 //몬스터가 파츠를 떨굴 확률 보스는 무조건 보스 파츠를 떨굼
 const float NORMAL_PART_DROP_CHANCE = 0.02f;
