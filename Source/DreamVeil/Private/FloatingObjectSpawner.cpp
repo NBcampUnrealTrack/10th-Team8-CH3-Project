@@ -97,4 +97,3 @@ void AFloatingObjectSpawner::BeginPlay()
     Super::BeginPlay();
     SpawnObjects();
 }
-//.
