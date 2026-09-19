@@ -2,17 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Components/StaticMeshComponent.h"
+//EWeaponSlot와 파츠 정의는 WeaponTypes.h로 옮김 이 헤더를 include하면 같이 쓸 수 있음
+#include "WeaponTypes.h"
 #include "WeaponBase.generated.h"
 
 class UNiagaraSystem;
 class USoundBase;
-
-UENUM(BlueprintType)
-enum class EWeaponSlot : uint8
-{
-	Pistol,
-	Rifle
-};
 
 //플레이어 손 소켓에 붙는 무기 컴포넌트 이 클래스 그대로가 기본 무기인 권총
 //다른 무기는 이 클래스를 물려받아 수치만 바꿈 소총은 URifleWeapon
@@ -53,6 +48,20 @@ public:
 	//무기는 값만 알려주고 실제로 거르는 건 쏘는 쪽 입력 함수 플레이어는 AMainPlayerCharacter::FireWeaponHeld
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	bool IsAutomatic() const;
+
+	// 파츠
+
+	//이 총에 끼울 수 있는 칸 기본은 모든 총 공용 3칸(총구 탄창 조준기)
+	//권총은 이 클래스를 그대로 써서 공용 3칸만 가지고 소총은 override해서 전용 2칸을 더함
+	UFUNCTION(BlueprintPure, Category = "Weapon|Part")
+	virtual TArray<EWeaponPartSlot> GetPartSlots() const;
+
+	//끼운 파츠를 통째로 바꿈 인벤토리가 장착 강화 파괴 복원 때마다 부름
+	void SetEquippedParts(const TArray<FWeaponPart>& NewParts);
+
+	//파츠까지 반영한 실제 발사 간격 CanFire가 이 값으로 연사 간격을 잼
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	float GetFireInterval() const;
 
 protected:
 	//기본값은 권총 수치 데미지는 높고 연사력은 낮음
@@ -104,6 +113,10 @@ protected:
 private:
 	//마지막으로 쏜 시각 게임 시작 직후 첫 발이 바로 나가도록 아주 옛날 시각으로 시작
 	float LastFireTime = -100.0f;
+
+	//지금 끼운 파츠 인벤토리가 넘겨줌 PIE 중에 Details에서 확인할 수 있게 보이게만 함
+	UPROPERTY(VisibleInstanceOnly, Category = "Weapon|Part")
+	TArray<FWeaponPart> EquippedParts;
 
 	//총구 불꽃과 발사음을 재생
 	void PlayMuzzleEffects(const FVector& MuzzleLocation);

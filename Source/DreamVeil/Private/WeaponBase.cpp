@@ -20,7 +20,8 @@ UWeaponBase::UWeaponBase()
 
 bool UWeaponBase::CanFire() const
 {
-	return (GetWorld()->GetTimeSeconds() - LastFireTime) >= FireInterval;
+	//파츠로 빨라진 발사 간격을 기준으로 잼
+	return (GetWorld()->GetTimeSeconds() - LastFireTime) >= GetFireInterval();
 }
 
 FVector UWeaponBase::GetMuzzleLocation() const
@@ -52,7 +53,15 @@ bool UWeaponBase::IsAutomatic() const
 //공격력 증가 광전사 같은 증강은 공격력 쪽에 반영되고 여기서 같이 들어감
 float UWeaponBase::GetFinalDamage() const
 {
-	return Damage + UAugmentDamageLibrary::GetOutgoingDamage(GetOwner());
+	//파츠 공격력도 같은 이유로 곱하지 않고 더함
+	float PartDamage = 0.0f;
+
+	for (const FWeaponPart& Part : EquippedParts)
+	{
+		PartDamage += CalculatePartDamageBonus(Part);
+	}
+
+	return Damage + PartDamage + UAugmentDamageLibrary::GetOutgoingDamage(GetOwner());
 }
 
 void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirection)
@@ -129,4 +138,32 @@ void UWeaponBase::PlayImpactEffect(const FHitResult& Hit)
 
 	//맞은 면의 바깥 방향(법선)을 이펙트의 앞(X축)으로 삼아서 표면 밖으로 튀게 함
 	UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, EffectToPlay, Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
+}
+
+//이 총에 끼울 수 있는 칸
+TArray<EWeaponPartSlot> UWeaponBase::GetPartSlots() const
+{
+	//모든 총이 같이 쓰는 공용 3칸 소총은 이걸 받아서 전용 칸을 더함
+	return { EWeaponPartSlot::Muzzle, EWeaponPartSlot::Magazine, EWeaponPartSlot::Sight };
+}
+
+//끼운 파츠를 통째로 바꿈
+void UWeaponBase::SetEquippedParts(const TArray<FWeaponPart>& NewParts)
+{
+	//수치는 쏠 때마다 이 목록에서 다시 계산하므로 여기서는 목록만 바꿔둠
+	EquippedParts = NewParts;
+}
+
+//파츠까지 반영한 실제 발사 간격
+float UWeaponBase::GetFireInterval() const
+{
+	float FireRateBonus = 0.0f;
+
+	for (const FWeaponPart& Part : EquippedParts)
+	{
+		FireRateBonus += CalculatePartFireRateBonus(Part);
+	}
+
+	//연사력 파츠를 많이 끼워도 줄이는 비율에 상한을 둬서 발사 간격이 0에 가까워지지 않게 함
+	return FireInterval * (1.0f - FMath::Min(FireRateBonus, MAX_PART_FIRE_RATE_BONUS));
 }

@@ -8,6 +8,7 @@ class USpringArmComponent;
 class UCameraComponent;
 class UCombatStatsComponent;
 class UDispatchTableComponent;
+class UInventoryComponent;
 class UWeaponBase;
 enum class EWeaponSlot : uint8;
 enum class EAugmentID : uint8;
@@ -42,6 +43,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
 	const TArray<EAugmentID>&, Choices
 );
 
+//스태미나가 바뀌었을 때 현재 스태미나와 최대 스태미나 스태미나 게이지 UI용
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FOnPlayerStaminaChanged,
+	float, CurrentStamina,
+	float, MaxStamina
+);
+
 UCLASS()
 class DREAMVEIL_API AMainPlayerCharacter : public ACharacter
 {
@@ -64,6 +72,10 @@ public:
 	//증강 컴포넌트 보상 증강 뽑기와 적용
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Augment")
 	TObjectPtr<UDispatchTableComponent> DispatchTable;
+
+	//인벤토리 컴포넌트 무기 파츠와 꿈의 조각 상점 강화 장착
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
+	TObjectPtr<UInventoryComponent> Inventory;
 
 	//1번 무기 권총 처음부터 가지고 있음 붙일 소켓은 블루프린트 Details의 Parent Socket에서 바꿈
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
@@ -102,11 +114,29 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	UWeaponBase* GetCurrentWeapon() const;
 
+	//슬롯에 해당하는 무기 컴포넌트
+	//인벤토리가 파츠를 어느 무기에 넘길지 찾을 때도 써서 private에서 public으로 옮김
+	UWeaponBase* GetWeaponInSlot(EWeaponSlot Slot) const;
+
 	// 사망
 
 	//플레이어가 죽었을 때 이벤트 게임 오버 처리와 UI는 이걸 받는 쪽(GameState)이 함
 	UPROPERTY(BlueprintAssignable, Category = "Stats")
 	FOnPlayerDied OnPlayerDied;
+
+	// 스태미나
+
+	//스태미나 변화 이벤트 스태미나 게이지 UI가 받을 것
+	UPROPERTY(BlueprintAssignable, Category = "Stamina")
+	FOnPlayerStaminaChanged OnStaminaChanged;
+
+	//현재 스태미나 UI를 처음 띄울 때 한 번 읽는 용도
+	UFUNCTION(BlueprintPure, Category = "Stamina")
+	float GetCurrentStamina() const;
+
+	//최대 스태미나 게이지 비율을 계산할 때 씀
+	UFUNCTION(BlueprintPure, Category = "Stamina")
+	float GetMaxStamina() const;
 
 	// 레벨
 
@@ -259,8 +289,15 @@ private:
 	//아직 띄우지 못한 레벨업 보상 수 선택지를 고르는 동안 또 레벨이 오르면 쌓임
 	int32 PendingAugmentChoiceCount = 0;
 
-	//슬롯에 해당하는 무기 컴포넌트
-	UWeaponBase* GetWeaponInSlot(EWeaponSlot Slot) const;
+	//현재 스태미나 뛰는 동안 줄고 멈추면 잠깐 쉬었다가 다시 참
+	float CurrentStamina;
+
+	//마지막으로 스태미나를 쓴 시각 이 뒤로 회복 대기 시간이 지나야 다시 차기 시작함
+	//게임 시작 직후 바로 회복할 수 있게 아주 옛날 시각으로 시작
+	float LastStaminaUseTime = -100.0f;
+
+	//스태미나를 줄이거나 채우는 반복 타이머 스태미나가 변하는 동안만 돌고 가득 차면 멈춤
+	FTimerHandle StaminaTimerHandle;
 
 	//들고 있는 무기만 보이고 나머지는 숨김
 	void UpdateWeaponVisibility();
@@ -270,6 +307,15 @@ private:
 
 	//쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
 	void DrawNextAugmentChoices();
+
+	//달리기 상태를 바꾸고 이동 속도를 맞춤 달리기 입력과 스태미나 소진이 같이 씀
+	void SetSprinting(bool bNewSprinting);
+
+	//스태미나 타이머가 돌 때마다 불림 달리면 줄이고 쉬면 채움
+	void UpdateStamina();
+
+	//스태미나 값을 0과 최대치 사이로 바꾸고 UI에 알림
+	void SetCurrentStamina(float NewStamina);
 
 	//스탯 컴포넌트의 사망 이벤트를 받음
 	UFUNCTION()

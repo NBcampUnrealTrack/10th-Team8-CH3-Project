@@ -11,17 +11,33 @@
 #include "AugmentDamageLibrary.h"
 #include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
+#include "InventoryComponent.h"
 #include "DreamVeilGameInstance.h"
 #include "Engine/DamageEvents.h"
 #include "RifleWeapon.h"
 #include "WeaponBase.h"
 #include "AugmentTypes.h"
 #include "Camera/PlayerCameraManager.h"
+#include "TimerManager.h"
 
 //카메라가 위아래로 돌 수 있는 최대 각도
 //엔진 기본은 거의 90도라서 끝까지 내리면 카메라가 캐릭터 바로 위로 가고 조금만 움직여도 방향이 휙 뒤집힘
 const float CAMERA_PITCH_MIN = -50.0f;
 const float CAMERA_PITCH_MAX = 50.0f;
+
+//스태미나 수치 런앤히트 템포 기준 약 4초 뛰고 1초 쉰 뒤 4초에 걸쳐 다시 참
+//최대 스태미나
+const float MAX_STAMINA = 100.0f;
+//실제로 뛰는 동안 1초에 줄어드는 양
+const float SPRINT_STAMINA_COST_PER_SECOND = 25.0f;
+//쉬는 동안 1초에 차는 양
+const float STAMINA_REGEN_PER_SECOND = 25.0f;
+//마지막으로 뛴 뒤 회복이 시작되기까지 기다리는 시간 초 짧게 끊어 달리기를 반복해서 스태미나를 아끼는 걸 막음
+const float STAMINA_REGEN_DELAY = 1.0f;
+//달리기를 새로 시작하려면 최소 이만큼은 있어야 함 0 근처에서 달리기가 켜졌다 꺼졌다 반복하는 걸 막음
+const float MIN_STAMINA_TO_SPRINT = 20.0f;
+//스태미나 갱신 간격 초 매 프레임 Tick 대신 스태미나가 변할 때만 도는 타이머를 씀
+const float STAMINA_UPDATE_INTERVAL = 0.05f;
 
 
 AMainPlayerCharacter::AMainPlayerCharacter()
@@ -40,6 +56,7 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 
 	CombatStats = CreateDefaultSubobject<UCombatStatsComponent>(TEXT("CombatStats"));
 	DispatchTable = CreateDefaultSubobject<UDispatchTableComponent>(TEXT("DispatchTable"));
+	Inventory = CreateDefaultSubobject<UInventoryComponent>(TEXT("Inventory"));
 
 	//스켈레톤에 무기 소켓이 아직 없어서 오른손 뼈에 붙임 소켓을 만들면 블루프린트 Parent Socket을 바꿀 것
 	//기본 무기 권총은 UWeaponBase 그대로 씀
@@ -58,6 +75,9 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 	SprintSpeed = NoramalSpeed * SprintSpeedMultiplier;
 
 	GetCharacterMovement()->MaxWalkSpeed = NoramalSpeed;
+
+	//스태미나는 가득 찬 상태로 시작
+	CurrentStamina = MAX_STAMINA;
 }
 
 
@@ -81,6 +101,9 @@ void AMainPlayerCharacter::BeginPlay()
 	if (UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
 	{
 		DreamVeilGameInstance->RestorePlayerAugments(DispatchTable);
+
+		//파츠와 꿈의 조각도 복원 무기가 이미 만들어진 뒤라 끼운 파츠가 바로 무기 수치에 들어감
+		DreamVeilGameInstance->RestorePlayerInventory(Inventory);
 	}
 }
 
@@ -137,6 +160,9 @@ void AMainPlayerCharacter::HandleDead()
 	if (UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
 	{
 		DreamVeilGameInstance->ClearPlayerAugments();
+
+		//인벤토리는 난이도에 따라 유지 이번 판 것만 잃음 전부 초기화 중 하나
+		DreamVeilGameInstance->ApplyDeathPenalty(Inventory);
 	}
 
 	//게임 오버 전달과 UI 갱신은 이 이벤트를 받는 쪽이 함
@@ -567,23 +593,100 @@ void AMainPlayerCharacter::Look(const FInputActionValue& value)
 
 void AMainPlayerCharacter::StartSprint(const FInputActionValue& value)
 {
-	//달리는 동안 FireCurrentWeapon에서 발사를 막음
-	bIsSprinting = true;
-
-	if (GetCharacterMovement())
+	//스태미나가 거의 없으면 달리기를 시작하지 않음
+	//다 쓴 뒤 키를 계속 누르고 있어도 다시 달리려면 조금 회복한 뒤 키를 다시 눌러야 함
+	if (CurrentStamina < MIN_STAMINA_TO_SPRINT)
 	{
-		GetCharacterMovement()->MaxWalkSpeed = SprintSpeed;
+		return;
 	}
+
+	SetSprinting(true);
 }
 
 void AMainPlayerCharacter::StopSprint(const FInputActionValue& value)
 {
-	bIsSprinting = false;
+	SetSprinting(false);
+}
+
+//달리기 상태를 바꾸고 이동 속도를 맞춤
+void AMainPlayerCharacter::SetSprinting(bool bNewSprinting)
+{
+	//달리는 동안 FireCurrentWeapon에서 발사를 막음
+	bIsSprinting = bNewSprinting;
 
 	if (GetCharacterMovement())
 	{
-		GetCharacterMovement()->MaxWalkSpeed = NoramalSpeed;
+		GetCharacterMovement()->MaxWalkSpeed = bIsSprinting ? SprintSpeed : NoramalSpeed;
 	}
+
+	//달리기를 시작하면 줄이기 시작하고 멈추면 회복을 시작해야 하므로 타이머가 쉬고 있으면 깨움
+	if (!GetWorldTimerManager().IsTimerActive(StaminaTimerHandle))
+	{
+		GetWorldTimerManager().SetTimer(StaminaTimerHandle, this, &AMainPlayerCharacter::UpdateStamina, STAMINA_UPDATE_INTERVAL, true);
+	}
+}
+
+//스태미나 타이머가 돌 때마다 불림
+void AMainPlayerCharacter::UpdateStamina()
+{
+	const float CurrentTime = GetWorld()->GetTimeSeconds();
+
+	//달리기 키를 누르고 실제로 움직이고 있을 때만 줄임 제자리에서 Shift만 누르고 있으면 안 줄어듦
+	if (bIsSprinting && GetVelocity().SizeSquared2D() > KINDA_SMALL_NUMBER)
+	{
+		LastStaminaUseTime = CurrentTime;
+		SetCurrentStamina(CurrentStamina - SPRINT_STAMINA_COST_PER_SECOND * STAMINA_UPDATE_INTERVAL);
+
+		//다 쓰면 키를 누르고 있어도 강제로 걷게 함 이 순간부터 다시 총을 쏠 수 있음
+		if (CurrentStamina <= 0.0f)
+		{
+			SetSprinting(false);
+		}
+
+		return;
+	}
+
+	//뛰다 멈춘 직후에는 잠깐 쉬었다가 참
+	if (CurrentTime - LastStaminaUseTime < STAMINA_REGEN_DELAY)
+	{
+		return;
+	}
+
+	SetCurrentStamina(CurrentStamina + STAMINA_REGEN_PER_SECOND * STAMINA_UPDATE_INTERVAL);
+
+	//가득 찼고 달리지도 않으면 더 할 일이 없으니 타이머를 멈춤 다음 달리기 때 SetSprinting이 다시 켬
+	if (CurrentStamina >= MAX_STAMINA && !bIsSprinting)
+	{
+		GetWorldTimerManager().ClearTimer(StaminaTimerHandle);
+	}
+}
+
+//스태미나 값을 0과 최대치 사이로 바꾸고 UI에 알림
+void AMainPlayerCharacter::SetCurrentStamina(float NewStamina)
+{
+	const float ClampedStamina = FMath::Clamp(NewStamina, 0.0f, MAX_STAMINA);
+
+	//값이 그대로면 UI에 알릴 필요 없음 가득 찬 채로 타이머가 돌 때 이벤트가 쏟아지지 않게
+	if (FMath::IsNearlyEqual(ClampedStamina, CurrentStamina))
+	{
+		return;
+	}
+
+	CurrentStamina = ClampedStamina;
+
+	OnStaminaChanged.Broadcast(CurrentStamina, MAX_STAMINA);
+}
+
+//현재 스태미나
+float AMainPlayerCharacter::GetCurrentStamina() const
+{
+	return CurrentStamina;
+}
+
+//최대 스태미나
+float AMainPlayerCharacter::GetMaxStamina() const
+{
+	return MAX_STAMINA;
 }
 
 // 테스트용 치트 콘솔(~)에서 부름 몬스터 보상 상점 UI가 붙으면 지워도 됨

@@ -5,6 +5,7 @@
 
 #include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
+#include "InventoryComponent.h"
 #include "GameFramework/Actor.h"
 #include "GameFramework/Controller.h"
 #include "GameFramework/Pawn.h"
@@ -77,6 +78,21 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
     if (FinalDamage <= 0.0f)
     {
         return 0.0f;
+    }
+
+    //이번 데미지로 죽었으면 잡은 쪽에게 처치 보상(꿈의 조각 확률 파츠)
+    //이미 죽어 있던 대상은 위에서 0이 돌아와 여기까지 못 오므로 여기서 죽어 있으면 이번 한 방에 죽은 것
+    //독이나 가시 갑옷 반사로 죽어도 보상이 나가야 해서 아래 조기 반환들보다 먼저 확인
+    if (DamagedStats->IsDead())
+    {
+        AActor* Killer = FindAttacker(EventInstigator, DamageCauser);
+        UInventoryComponent* KillerInventory = Killer ? Killer->FindComponentByClass<UInventoryComponent>() : nullptr;
+
+        //인벤토리가 있는 쪽(플레이어)이 잡았을 때만 보상 몬스터끼리 죽인 경우는 없음
+        if (KillerInventory)
+        {
+            KillerInventory->ReceiveKillRewards(DamagedActor);
+        }
     }
 
     //반사로 들어온 데미지는 다시 반사하지 않고 상대를 회복시키지도 않음

@@ -23,6 +23,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void NotifyAllMonstersSpawned();
 
+	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
+	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠
+	static bool IsBossMonster(const AActor* Actor);
+
 protected:
 	//레벨 제한 시간 초 이 안에 다 잡아야 클리어 넘기면 실패 블루프린트 게임모드에서 바꿀 수 있음
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")

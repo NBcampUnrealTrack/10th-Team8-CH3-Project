@@ -70,7 +70,7 @@ void AMainGameModeBase::RegisterMonster(AMonsterBase* Monster)
 
 	//보스는 죽는 순간 따로 클리어 처리 L4는 보스를 잡아야 Endless가 열림
 	//살아있는 수에서도 빠져야 하므로 위의 HandleMonsterDead 구독은 그대로 둠
-	if (Monster->ActorHasTag(BOSS_TAG))
+	if (IsBossMonster(Monster))
 	{
 		MonsterStats->OnDead.AddDynamic(this, &AMainGameModeBase::HandleBossDead);
 	}
@@ -181,4 +181,10 @@ void AMainGameModeBase::FailLevel()
 	}
 
 	DreamVeilGameInstance->FailCurrentLevel();
+}
+
+//보스 몬스터인지
+bool AMainGameModeBase::IsBossMonster(const AActor* Actor)
+{
+	return Actor && Actor->ActorHasTag(BOSS_TAG);
 }

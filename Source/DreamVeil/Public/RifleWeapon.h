@@ -13,4 +13,8 @@ class DREAMVEIL_API URifleWeapon : public UWeaponBase
 public:
 
 	URifleWeapon();
+
+	//공용 3칸에 소총 전용 2칸(개머리판 앞손잡이)을 더해 5칸
+	//부모가 UFUNCTION으로 열어둔 함수라 override 쪽에는 UFUNCTION을 다시 붙이지 않음
+	virtual TArray<EWeaponPartSlot> GetPartSlots() const override;
 };
