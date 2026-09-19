@@ -13,11 +13,14 @@
 //구매 가격 보스 파츠는 상점에서 팔지 않지만 되팔 때 가격 계산에 씀
 const int32 PART_PRICE_BY_TIER[] = { 30, 60, 100, 150, 250 };
 
-//되팔 때 구매가의 몇 퍼센트를 돌려주는지
+//되팔 때 구매가의 몇 퍼센트를 돌려주는지 강화 단계와 상관없이 등급 가격으로만 정함
 const float PART_SELL_RATIO = 0.3f;
 
-//강화 한 단계마다 판매가가 비싸지는 비율 +2 파츠는 강화 안 한 것의 2배로 팔림
-const float PART_SELL_ENHANCE_BONUS = 0.5f;
+//소총 구매 가격 임시값
+const int32 RIFLE_PRICE = 200;
+
+//소총을 팔기 시작하는 레벨 L2를 깨서 L3가 열리면 로비 상점에서 살 수 있음
+const int32 RIFLE_UNLOCK_LEVEL = 3;
 
 //강화 기본 비용 목표 단계를 곱해서 씀 Level1 파츠를 +3으로 올리려면 10 x 3 = 30
 const int32 ENHANCE_COST_BY_TIER[] = { 10, 20, 35, 50, 80 };
@@ -346,9 +349,54 @@ int32 UInventoryComponent::GetBuyPrice(EWeaponPartTier Tier)
 //되팔 때 받는 꿈의 조각
 int32 UInventoryComponent::GetSellPrice(const FWeaponPart& Part)
 {
-	const float BasePrice = PART_PRICE_BY_TIER[static_cast<int32>(Part.Tier)] * PART_SELL_RATIO;
+	//강화해도 판매가는 그대로 강화에 쓴 꿈의 조각은 돌려받지 못함
+	return FMath::RoundToInt(PART_PRICE_BY_TIER[static_cast<int32>(Part.Tier)] * PART_SELL_RATIO);
+}
 
-	return FMath::RoundToInt(BasePrice * (1.0f + PART_SELL_ENHANCE_BONUS * Part.EnhanceLevel));
+//무기를 삼
+bool UInventoryComponent::BuyWeapon(EWeaponSlot Weapon)
+{
+	//이미 가졌거나 아직 해금 전이거나 팔지 않는 무기면 꿈의 조각을 쓰기 전에 거름
+	if (!IsWeaponForSale(Weapon))
+	{
+		return false;
+	}
+
+	AMainPlayerCharacter* OwnerPlayer = Cast<AMainPlayerCharacter>(GetOwner());
+
+	if (!OwnerPlayer || !SpendDreamShards(GetWeaponPrice(Weapon)))
+	{
+		return false;
+	}
+
+	//얻기만 하고 바로 들지는 않음 숫자 2로 바꿔 듦
+	OwnerPlayer->AcquireWeapon(Weapon);
+
+	//이제 이 총의 파츠도 사고 끼울 수 있어서 소켓 상점 UI가 목록을 다시 그려야 함
+	OnInventoryChanged.Broadcast();
+
+	return true;
+}
+
+//상점에서 이 무기를 팔고 있는지
+bool UInventoryComponent::IsWeaponForSale(EWeaponSlot Weapon) const
+{
+	//지금 파는 무기는 소총뿐 권총은 처음부터 가지고 있음
+	//이미 가진 무기면 FindWeapon이 무기를 찾아서 다시 팔지 않음
+	if (Weapon != EWeaponSlot::Rifle || FindWeapon(Weapon))
+	{
+		return false;
+	}
+
+	UDreamVeilGameInstance* DreamVeilGameInstance = GetOwner() ? GetOwner()->GetGameInstance<UDreamVeilGameInstance>() : nullptr;
+
+	return DreamVeilGameInstance && DreamVeilGameInstance->IsLevelUnlocked(RIFLE_UNLOCK_LEVEL);
+}
+
+//무기 구매 가격 팔지 않는 무기는 0
+int32 UInventoryComponent::GetWeaponPrice(EWeaponSlot Weapon)
+{
+	return Weapon == EWeaponSlot::Rifle ? RIFLE_PRICE : 0;
 }
 
 //이 파츠가 올려주는 공격력
@@ -408,7 +456,9 @@ FWeaponPart UInventoryComponent::MakeRandomPart(EWeaponPartTier Tier) const
 {
 	FWeaponPart NewPart;
 	NewPart.Tier = Tier;
-	NewPart.Weapon = FMath::RandBool() ? EWeaponSlot::Pistol : EWeaponSlot::Rifle;
+
+	//가진 총의 파츠만 나옴 소총을 사기 전에는 권총 파츠만 나오고 산 뒤로는 반반
+	NewPart.Weapon = (FindWeapon(EWeaponSlot::Rifle) && FMath::RandBool()) ? EWeaponSlot::Rifle : EWeaponSlot::Pistol;
 
 	//칸은 그 총이 가진 칸 중에서만 고름 권총 파츠가 개머리판으로 나오지 않게
 	//무기를 못 찾으면 기본값인 총구로 둠 총구는 모든 총이 가진 공용 칸이라 끼울 수 있음
@@ -439,10 +489,17 @@ EWeaponPartTier UInventoryComponent::GetCurrentLevelTier() const
 	return static_cast<EWeaponPartTier>(TierIndex);
 }
 
-//인벤토리 주인인 플레이어의 무기
+//인벤토리 주인인 플레이어가 가진 무기
 UWeaponBase* UInventoryComponent::FindWeapon(EWeaponSlot Weapon) const
 {
 	AMainPlayerCharacter* OwnerPlayer = Cast<AMainPlayerCharacter>(GetOwner());
 
-	return OwnerPlayer ? OwnerPlayer->GetWeaponInSlot(Weapon) : nullptr;
+	//소총 컴포넌트는 사기 전에도 숨겨진 채로 있어서 가졌는지 따로 확인함
+	//여기서 한 번 거르면 파츠 드롭 구매 장착이 전부 가진 총 기준으로 맞춰짐
+	if (!OwnerPlayer || !OwnerPlayer->HasWeapon(Weapon))
+	{
+		return nullptr;
+	}
+
+	return OwnerPlayer->GetWeaponInSlot(Weapon);
 }

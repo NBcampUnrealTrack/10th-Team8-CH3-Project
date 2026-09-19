@@ -158,16 +158,8 @@ void AMainPlayerCharacter::HandleDead()
 	CurrentAugmentChoices.Empty();
 	PendingAugmentChoiceCount = 0;
 
-	//이번 판 증강 기록을 비움 게임 오버 뒤 레벨을 다시 로드해도 이전 판 증강이 남지 않게
-	if (UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
-	{
-		DreamVeilGameInstance->ClearPlayerAugments();
-
-		//인벤토리는 난이도에 따라 유지 이번 판 것만 잃음 전부 초기화 중 하나
-		DreamVeilGameInstance->ApplyDeathPenalty(Inventory);
-	}
-
 	//게임 오버 전달과 UI 갱신은 이 이벤트를 받는 쪽이 함
+	//증강 인벤토리를 얼마나 남길지는 게임 오버 UI가 GameInstance의 ContinueAfterDeath를 부를 때 난이도로 정해짐 플레이어는 죽었다고 알리기만 함
 	OnPlayerDied.Broadcast();
 }
 
@@ -186,6 +178,13 @@ void AMainPlayerCharacter::AcquireWeapon(EWeaponSlot Slot)
 bool AMainPlayerCharacter::HasWeapon(EWeaponSlot Slot) const
 {
 	return AcquiredWeaponSlots.Contains(Slot);
+}
+
+//가지고 있는 무기 전부
+//AcquiredWeaponSlots는 Transient라 새 레벨에서 캐릭터가 새로 만들어지면 권총만 남음 그래서 떠나기 전에 GameInstance가 이걸로 저장함
+const TArray<EWeaponSlot>& AMainPlayerCharacter::GetAcquiredWeaponSlots() const
+{
+	return AcquiredWeaponSlots;
 }
 
 //무기를 바꿔 듦

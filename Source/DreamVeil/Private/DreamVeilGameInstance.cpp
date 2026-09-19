@@ -2,6 +2,7 @@
 
 #include "DispatchTableComponent.h"
 #include "InventoryComponent.h"
+#include "MainPlayerCharacter.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
@@ -102,21 +103,37 @@ void UDreamVeilGameInstance::CompleteCurrentLevel()
     UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
 }
 
-//제한 시간 안에 못 깼을 때
+//제한 시간 안에 못 깼거나 쉬움 보통에서 죽었을 때
+//죽는 것도 실패의 한 종류라 규칙을 따로 두지 않고 여기 하나로 처리함
 void UDreamVeilGameInstance::FailCurrentLevel()
 {
-    //증강을 저장하지 않고 떠나서 로비의 플레이어는 이 레벨에 들어오기 전 증강으로 복원됨
-    //실패해도 증강을 남기면 쉬운 레벨을 일부러 시간 초과시키면서 증강만 모을 수 있어서 버림
+    //보통과 어려움은 저장하지 않고 떠나서 로비의 플레이어는 이 레벨에 들어오기 전 상태로 복원됨
+    //실패해도 얻은 걸 남기면 쉬운 레벨을 일부러 시간 초과시키면서 증강과 파츠만 모을 수 있어서 버림
     //진행도(ClearedLevelCount)도 그대로라 로비에서 게임 시작을 누르면 같은 레벨을 다시 도전함
 
-    //인벤토리는 쉬움 난이도에서만 이번 판에 얻은 것까지 저장 보통과 어려움은 들어오기 전 상태로 돌아감
+    //쉬움은 이번 판에 얻은 증강 인벤토리 무기까지 전부 저장 쉬움은 모으기 편하게 하려는 난이도라 위 꼼수를 막지 않음
     if (Difficulty == EGameDifficulty::Easy)
     {
-        APawn* PlayerPawn = FindCurrentPlayerPawn();
-        SavePlayerInventory(PlayerPawn ? PlayerPawn->FindComponentByClass<UInventoryComponent>() : nullptr);
+        SaveCurrentPlayerProgress();
     }
 
     UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
+}
+
+//플레이어가 죽은 뒤 이어서 진행
+void UDreamVeilGameInstance::ContinueAfterDeath()
+{
+    //어려움은 죽으면 끝 새 게임이 진행도 증강 인벤토리 무기를 전부 비우고 로비부터 다시 시작함
+    //메인 메뉴 맵이 생기면 메인 메뉴로 보내고 거기서 게임 시작을 누르게 바꿀 것
+    if (Difficulty == EGameDifficulty::Hard)
+    {
+        StartNewGame();
+        return;
+    }
+
+    //쉬움 보통은 시간 초과와 똑같이 로비로 감 로비에서 파츠를 사고 강화하거나 바로 다시 도전할지 고름
+    //쉬움은 여기서 전부 저장되고 보통은 레벨에 들어오기 전 상태로 돌아감
+    FailCurrentLevel();
 }
 
 //L4까지 다 깨서 Endless가 열렸는지
@@ -207,6 +224,13 @@ void UDreamVeilGameInstance::SavePlayerInventory(UInventoryComponent* PlayerInve
 
     SavedParts = PlayerInventory->GetParts();
     SavedDreamShards = PlayerInventory->GetDreamShards();
+
+    //상점에서 산 소총도 새 레벨에서는 캐릭터가 새로 만들어져 사라지므로 파츠와 같이 저장
+    //난이도 규칙도 파츠와 똑같이 받음 보통에서 죽으면 그 레벨에서 산 무기는 없음
+    if (const AMainPlayerCharacter* OwnerPlayer = Cast<AMainPlayerCharacter>(PlayerInventory->GetOwner()))
+    {
+        SavedWeaponSlots = OwnerPlayer->GetAcquiredWeaponSlots();
+    }
 }
 
 //저장한 인벤토리를 새 레벨의 플레이어에게 복원
@@ -215,6 +239,15 @@ void UDreamVeilGameInstance::RestorePlayerInventory(UInventoryComponent* PlayerI
     if (!PlayerInventory)
     {
         return;
+    }
+
+    //무기를 먼저 돌려줌 인벤토리는 가진 총에만 파츠를 끼우므로 순서가 바뀌면 소총 파츠가 소총에 반영되지 않음
+    if (AMainPlayerCharacter* OwnerPlayer = Cast<AMainPlayerCharacter>(PlayerInventory->GetOwner()))
+    {
+        for (EWeaponSlot WeaponSlot : SavedWeaponSlots)
+        {
+            OwnerPlayer->AcquireWeapon(WeaponSlot);
+        }
     }
 
     //첫 레벨이면 저장본이 비어 있어서 빈 인벤토리로 시작함
@@ -226,26 +259,5 @@ void UDreamVeilGameInstance::ClearPlayerInventory()
 {
     SavedParts.Empty();
     SavedDreamShards = 0;
-}
-
-//플레이어가 죽었을 때 난이도에 맞춰 인벤토리 저장본을 정리
-//죽은 뒤에는 레벨을 다시 로드하므로 새 플레이어는 여기서 정리된 저장본으로 복원됨
-void UDreamVeilGameInstance::ApplyDeathPenalty(UInventoryComponent* PlayerInventory)
-{
-    switch (Difficulty)
-    {
-    case EGameDifficulty::Easy:
-        //죽기 직전까지 얻은 것을 저장해서 다시 로드해도 그대로 남게 함
-        SavePlayerInventory(PlayerInventory);
-        break;
-
-    case EGameDifficulty::Normal:
-        //아무것도 안 함 저장본이 레벨에 들어오기 전 상태라 다시 로드하면 이번 판에 얻은 것만 사라짐
-        break;
-
-    case EGameDifficulty::Hard:
-        //파츠와 꿈의 조각 전부 초기화
-        ClearPlayerInventory();
-        break;
-    }
+    SavedWeaponSlots.Empty();
 }

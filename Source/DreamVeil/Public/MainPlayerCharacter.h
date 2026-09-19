@@ -102,6 +102,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	bool HasWeapon(EWeaponSlot Slot) const;
 
+	//가지고 있는 무기 전부 레벨을 넘길 때 GameInstance가 저장했다가 새 레벨의 플레이어에게 다시 줌
+	const TArray<EWeaponSlot>& GetAcquiredWeaponSlots() const;
+
 	//무기를 바꿔 듦 가지고 있지 않은 무기면 실패
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool EquipWeapon(EWeaponSlot Slot);

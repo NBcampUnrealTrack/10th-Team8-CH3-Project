@@ -7,6 +7,7 @@
 
 class UInputMappingContext;
 class UInputAction;
+class UUserWidget;
 
 UCLASS()
 class DREAMVEIL_API AMainPlayerController : public APlayerController
@@ -47,6 +48,19 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
 	UInputAction* InteractAction;
 
+	//게임 오버 화면 위젯 블루프린트 BP_MainPlayerController의 Class Defaults에서 WBP_GameOver를 넣을 것
+	//비워두면 죽어도 화면이 안 뜸
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> GameOverWidgetClass;
+
 	virtual void BeginPlay() override;
 
+protected:
+	//조종할 폰이 정해질 때 불림 플레이어 캐릭터면 사망 이벤트를 구독함
+	virtual void OnPossess(APawn* InPawn) override;
+
+private:
+	//플레이어가 죽었을 때 게임 오버 화면을 띄우고 마우스로 버튼을 누를 수 있게 함
+	UFUNCTION()
+	void ShowGameOver();
 };

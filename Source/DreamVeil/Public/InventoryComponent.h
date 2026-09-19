@@ -133,9 +133,21 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	static int32 GetBuyPrice(EWeaponPartTier Tier);
 
-	//되팔 때 받는 꿈의 조각 강화할수록 비싸게 팔림
+	//되팔 때 받는 꿈의 조각 등급 가격의 일정 비율 강화 단계와 상관없음
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	static int32 GetSellPrice(const FWeaponPart& Part);
+
+	//꿈의 조각으로 무기를 삼 지금은 소총만 팔고 L3가 열려야 살 수 있음 이미 가진 무기면 실패
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	bool BuyWeapon(EWeaponSlot Weapon);
+
+	//상점에서 이 무기를 팔고 있는지 UI가 무기 구매 버튼을 켤지 정할 때 씀
+	UFUNCTION(BlueprintPure, Category = "Inventory")
+	bool IsWeaponForSale(EWeaponSlot Weapon) const;
+
+	//무기 구매 가격 팔지 않는 무기는 0
+	UFUNCTION(BlueprintPure, Category = "Inventory")
+	static int32 GetWeaponPrice(EWeaponSlot Weapon);
 
 	// 파츠 수치 UI 표시용
 
@@ -167,12 +179,12 @@ private:
 	//끼운 파츠를 총마다 모아서 무기에게 넘김 장착 강화 파괴 복원 뒤에 부름
 	void ApplyPartsToWeapons();
 
-	//등급만 정하고 총과 칸은 랜덤인 파츠를 만듦 몬스터 드롭용
+	//등급만 정하고 총과 칸은 랜덤인 파츠를 만듦 몬스터 드롭용 가진 총의 파츠만 나옴
 	FWeaponPart MakeRandomPart(EWeaponPartTier Tier) const;
 
 	//지금 레벨에 맞는 드롭 등급 L2면 Level2 레벨 맵이 아니면 Level1
 	EWeaponPartTier GetCurrentLevelTier() const;
 
-	//인벤토리 주인인 플레이어의 무기
+	//인벤토리 주인인 플레이어가 가진 무기 아직 얻지 못한 무기(사기 전 소총)면 nullptr
 	UWeaponBase* FindWeapon(EWeaponSlot Weapon) const;
 };
