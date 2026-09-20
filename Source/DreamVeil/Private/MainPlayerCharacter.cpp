@@ -88,16 +88,22 @@ void AMainPlayerCharacter::BeginPlay()
 	//컴포넌트 BeginPlay가 여기서 돌아서 빠지면 증강이 적용되지 않음
 	Super::BeginPlay();
 
-	//로비에서는 싸우지 않으므로 무기를 숨기고 사격도 막음 무기 숨김은 바로 아래 UpdateWeaponVisibility가 함
-	//맵마다 폰을 따로 지정하지 않고 캐릭터가 스스로 정함 게임모드나 World Settings를 건드릴 필요가 없음
-	if (const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
-	{
-		bCombatEnabled = !DreamVeilGameInstance->IsInLobby();
-	}
-
 	//기본 무기 권총은 처음부터 가지고 들고 시작
 	AcquiredWeaponSlots.AddUnique(EWeaponSlot::Pistol);
 	CurrentWeaponSlot = EWeaponSlot::Pistol;
+
+	//로비에서는 싸우지 않으므로 맨손으로 바꿔서 시작
+	//권총을 가진 기록(AcquiredWeaponSlots)은 그대로 두어서 레벨로 갈 때 다시 들 수 있음
+	//맵마다 폰을 따로 지정하지 않고 캐릭터가 스스로 정함 게임모드나 World Settings를 건드릴 필요가 없음
+	//이 한 줄이 무기 숨김 사격 금지 무기 교체 금지 맨손 애니메이션을 한꺼번에 정함
+	if (const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
+	{
+		if (DreamVeilGameInstance->IsInLobby())
+		{
+			CurrentWeaponSlot = EWeaponSlot::Nothing;
+		}
+	}
+
 	UpdateWeaponVisibility();
 
 	//죽으면 입력을 막고 GameState 쪽에 알림
@@ -197,12 +203,14 @@ const TArray<EWeaponSlot>& AMainPlayerCharacter::GetAcquiredWeaponSlots() const
 //무기를 바꿔 듦
 bool AMainPlayerCharacter::EquipWeapon(EWeaponSlot Slot)
 {
-	//로비용 캐릭터는 무기를 들지 않음 숫자 1 2를 눌러도 바뀌지 않게 여기서 막음
-	if (!bCombatEnabled)
+	//맨손 상태(로비)에서는 무기를 꺼내지 않음 숫자 1 2를 눌러도 바뀌지 않게 여기서 막음
+	//들고 있는 칸이 Nothing인지만 보면 되어서 싸울 수 있는지를 따로 들고 있을 필요가 없음
+	if (CurrentWeaponSlot == EWeaponSlot::Nothing)
 	{
 		return false;
 	}
 
+	//Nothing은 무기가 아니라 상태라서 이걸로 바꿔 드는 것도 막음 GetWeaponInSlot이 nullptr을 돌려줘서 아래에서 걸림
 	if (!HasWeapon(Slot) || !GetWeaponInSlot(Slot))
 	{
 		return false;
@@ -252,18 +260,16 @@ UWeaponBase* AMainPlayerCharacter::GetWeaponInSlot(EWeaponSlot Slot) const
 //들고 있는 무기만 보이고 나머지는 숨김
 void AMainPlayerCharacter::UpdateWeaponVisibility()
 {
-	//로비용 캐릭터는 둘 다 숨김 들고 있는 무기 칸은 그대로 두어서 레벨로 갈 때 쓰던 무기가 유지됨
-	const bool bHidePistol = !bCombatEnabled || CurrentWeaponSlot != EWeaponSlot::Pistol;
-	const bool bHideRifle = !bCombatEnabled || CurrentWeaponSlot != EWeaponSlot::Rifle;
-
+	//들고 있는 칸이 Nothing이면 어느 쪽과도 맞지 않아서 둘 다 숨겨짐
+	//로비에서 맨손으로 보이는 처리가 따로 없이 이 규칙 하나로 끝남
 	if (PistolWeapon)
 	{
-		PistolWeapon->SetHiddenInGame(bHidePistol);
+		PistolWeapon->SetHiddenInGame(CurrentWeaponSlot != EWeaponSlot::Pistol);
 	}
 
 	if (RifleWeapon)
 	{
-		RifleWeapon->SetHiddenInGame(bHideRifle);
+		RifleWeapon->SetHiddenInGame(CurrentWeaponSlot != EWeaponSlot::Rifle);
 	}
 }
 
@@ -308,12 +314,8 @@ void AMainPlayerCharacter::FireWeaponHeld(const FInputActionValue& value)
 //그래서 카메라 방식이 바뀌면 이 함수만 고치고 무기가 늘어나면 무기 클래스만 만들면 됨
 void AMainPlayerCharacter::FireCurrentWeapon()
 {
-	//로비용 캐릭터는 무기를 숨기고 있어서 쏘면 안 됨 안 막으면 보이지 않는 총이 소리와 이펙트를 냄
-	if (!bCombatEnabled)
-	{
-		return;
-	}
-
+	//맨손 상태(로비)면 GetCurrentWeapon이 nullptr이라 바로 아래에서 돌아감
+	//보이지 않는 총이 소리와 이펙트를 내는 일을 따로 막을 필요가 없음
 	UWeaponBase* CurrentWeapon = GetCurrentWeapon();
 
 	if (!CurrentWeapon || !CameraComp)
@@ -799,7 +801,7 @@ void AMainPlayerCharacter::CheatShowStatus()
 
 	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Level %d, Exp %.0f / %.0f, Weapon %s, Rifle owned %s"),
 		PlayerLevel, CurrentExperience, GetRequiredExperience(),
-		CurrentWeaponSlot == EWeaponSlot::Pistol ? TEXT("Pistol") : TEXT("Rifle"),
+		*UEnum::GetValueAsString(CurrentWeaponSlot),
 		HasWeapon(EWeaponSlot::Rifle) ? TEXT("true") : TEXT("false"));
 
 	if (CombatStats)

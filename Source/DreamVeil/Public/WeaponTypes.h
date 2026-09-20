@@ -9,7 +9,13 @@ UENUM(BlueprintType)
 enum class EWeaponSlot : uint8
 {
 	Pistol,
-	Rifle
+	Rifle,
+	//아무 무기도 들지 않은 맨손 상태 로비처럼 싸우지 않는 곳에서 씀
+	//싸울 수 있는지를 bool로 따로 두지 않고 들고 있는 무기 칸 자체를 이 값으로 두는 이유
+	//무기 숨기기 사격 막기 무기 교체 막기 맨손 애니메이션이 전부 이 값 하나로 정해져서 상태가 둘로 갈라지지 않음
+	//애님 블루프린트의 Blend Poses (EWeaponSlot) 노드에 이 값의 핀을 만들지 않으면 Default Pose(맨손 Idle)가 재생됨
+	//맨 뒤에 둔 이유 앞에 끼우면 Pistol Rifle의 번호가 밀려서 이미 저장된 에셋의 값이 어긋남
+	Nothing
 };
 
 //파츠를 끼우는 칸

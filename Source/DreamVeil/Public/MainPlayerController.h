@@ -53,6 +53,20 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UUserWidget> GameOverWidgetClass;
 
+	//항상 떠 있는 화면 체력 스태미나 꿈의 조각 표시용 WBP_HUD를 넣을 것
+	//레벨이 시작될 때 자동으로 뜨고 메뉴 위젯과 달리 입력 모드를 바꾸지 않음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> HUDWidgetClass;
+
+	//메뉴 위젯을 띄우고 마우스로 누를 수 있게 함 침대 컴퓨터 게임 오버가 전부 이걸 씀
+	//이미 열린 메뉴가 있으면 닫고 새로 엶 두 개가 겹쳐서 마우스가 먹통이 되는 걸 막음
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	UUserWidget* OpenMenuWidget(TSubclassOf<UUserWidget> MenuWidgetClass);
+
+	//열려 있는 메뉴 위젯을 닫고 게임 입력으로 되돌림 위젯의 닫기 버튼이 부를 것
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	void CloseMenuWidget();
+
 	virtual void BeginPlay() override;
 
 protected:
@@ -63,4 +77,8 @@ private:
 	//플레이어가 죽었을 때 게임 오버 화면을 띄우고 마우스로 버튼을 누를 수 있게 함
 	UFUNCTION()
 	void ShowGameOver();
+
+	//지금 열려 있는 메뉴 위젯 닫을 때 필요해서 들고 있음 없으면 nullptr
+	UPROPERTY(Transient)
+	TObjectPtr<UUserWidget> MenuWidgetInstance;
 };
