@@ -105,6 +105,12 @@ public:
 	//가지고 있는 무기 전부 레벨을 넘길 때 GameInstance가 저장했다가 새 레벨의 플레이어에게 다시 줌
 	const TArray<EWeaponSlot>& GetAcquiredWeaponSlots() const;
 
+	//싸우는 레벨인지 로비용 캐릭터 블루프린트에서 이걸 끄면 무기를 숨기고 사격과 무기 교체를 막음
+	//총을 든 애니메이션이 캡슐 밖으로 나가서 총이 벽을 뚫고 보이던 문제를 로비에서 피하려고 둔 스위치
+	//인벤토리와 스탯은 그대로라 로비에서 상점과 강화를 쓸 수 있음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon")
+	bool bCombatEnabled = true;
+
 	//무기를 바꿔 듦 가지고 있지 않은 무기면 실패
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool EquipWeapon(EWeaponSlot Slot);

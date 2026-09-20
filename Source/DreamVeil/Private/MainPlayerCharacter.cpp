@@ -190,6 +190,12 @@ const TArray<EWeaponSlot>& AMainPlayerCharacter::GetAcquiredWeaponSlots() const
 //무기를 바꿔 듦
 bool AMainPlayerCharacter::EquipWeapon(EWeaponSlot Slot)
 {
+	//로비용 캐릭터는 무기를 들지 않음 숫자 1 2를 눌러도 바뀌지 않게 여기서 막음
+	if (!bCombatEnabled)
+	{
+		return false;
+	}
+
 	if (!HasWeapon(Slot) || !GetWeaponInSlot(Slot))
 	{
 		return false;
@@ -239,14 +245,18 @@ UWeaponBase* AMainPlayerCharacter::GetWeaponInSlot(EWeaponSlot Slot) const
 //들고 있는 무기만 보이고 나머지는 숨김
 void AMainPlayerCharacter::UpdateWeaponVisibility()
 {
+	//로비용 캐릭터는 둘 다 숨김 들고 있는 무기 칸은 그대로 두어서 레벨로 갈 때 쓰던 무기가 유지됨
+	const bool bHidePistol = !bCombatEnabled || CurrentWeaponSlot != EWeaponSlot::Pistol;
+	const bool bHideRifle = !bCombatEnabled || CurrentWeaponSlot != EWeaponSlot::Rifle;
+
 	if (PistolWeapon)
 	{
-		PistolWeapon->SetHiddenInGame(CurrentWeaponSlot != EWeaponSlot::Pistol);
+		PistolWeapon->SetHiddenInGame(bHidePistol);
 	}
 
 	if (RifleWeapon)
 	{
-		RifleWeapon->SetHiddenInGame(CurrentWeaponSlot != EWeaponSlot::Rifle);
+		RifleWeapon->SetHiddenInGame(bHideRifle);
 	}
 }
 
@@ -291,6 +301,12 @@ void AMainPlayerCharacter::FireWeaponHeld(const FInputActionValue& value)
 //그래서 카메라 방식이 바뀌면 이 함수만 고치고 무기가 늘어나면 무기 클래스만 만들면 됨
 void AMainPlayerCharacter::FireCurrentWeapon()
 {
+	//로비용 캐릭터는 무기를 숨기고 있어서 쏘면 안 됨 안 막으면 보이지 않는 총이 소리와 이펙트를 냄
+	if (!bCombatEnabled)
+	{
+		return;
+	}
+
 	UWeaponBase* CurrentWeapon = GetCurrentWeapon();
 
 	if (!CurrentWeapon || !CameraComp)
