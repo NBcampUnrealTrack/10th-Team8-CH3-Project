@@ -11,6 +11,10 @@
 //로비 맵 경로 메인 메뉴에서 들어오고 레벨을 깰 때마다 돌아오는 곳
 const TCHAR* const LOBBY_MAP_PATH = TEXT("/Game/Maps/Level/Lobby");
 
+//메인 메뉴 맵 경로 게임을 켜면 처음 뜨고 어려움에서 죽었을 때 돌아오는 곳
+//레벨 맵이 아니므로 Maps/Level 폴더 밖에 둠 레벨 번호를 세는 LEVEL_MAP_PATHS와 섞이지 않게 하려는 것
+const TCHAR* const MAIN_MENU_MAP_PATH = TEXT("/Game/Maps/MainMenu");
+
 //진행 순서대로 늘어놓은 레벨 맵 경로 0번이 L1
 //짧은 이름 대신 전체 경로를 쓰는 이유 이름만 쓰면 같은 이름의 맵이 생겼을 때 엉뚱한 맵이 열릴 수 있음
 const TCHAR* const LEVEL_MAP_PATHS[] =
@@ -23,6 +27,14 @@ const TCHAR* const LEVEL_MAP_PATHS[] =
 
 //레벨 개수 배열 길이에서 계산하므로 맵을 추가해도 여기는 안 고쳐도 되고 이 개수를 다 깨면 Endless가 열림
 const int32 LEVEL_COUNT = static_cast<int32>(UE_ARRAY_COUNT(LEVEL_MAP_PATHS));
+
+//난이도가 몬스터 스폰 곡선 경사(AMonsterSpawnVolume::DifficultyCurve)에 거는 배율 순서는 쉬움 보통 어려움
+//그 값은 작을수록 초반부터 가파르게 어려워지므로 쉬움은 1보다 크게 어려움은 1보다 작게 둠
+//여기 숫자만 바꾸면 난이도별 체감이 조절됨
+const float SPAWN_CURVE_SCALE_BY_DIFFICULTY[] = { 1.6f, 1.0f, 0.5f };
+
+//난이도 수와 표의 칸 수가 어긋나면 컴파일 단계에서 바로 알 수 있게 막음
+static_assert(static_cast<int32>(UE_ARRAY_COUNT(SPAWN_CURVE_SCALE_BY_DIFFICULTY)) == static_cast<int32>(EGameDifficulty::Hard) + 1, "SPAWN_CURVE_SCALE_BY_DIFFICULTY needs one value per difficulty");
 
 //플레이어의 증강 기록을 저장
 void UDreamVeilGameInstance::SavePlayerAugments(UDispatchTableComponent* PlayerDispatchTable)
@@ -61,14 +73,30 @@ void UDreamVeilGameInstance::ClearPlayerAugments()
 //메인 메뉴에서 새 게임 시작
 void UDreamVeilGameInstance::StartNewGame()
 {
-    //이전 판 진행도와 증강 인벤토리가 새 판에 남지 않게 비움
-    ClearedLevelCount = 0;
-    ClearPlayerAugments();
-    ClearPlayerInventory();
+    ClearRunProgress();
 
     //메인 메뉴에는 증강을 가진 플레이어가 없으니 저장하지 않고 바로 이동
     //여기서 저장하면 방금 비운 기록 위에 메뉴 화면 폰의 기록이 덮일 수 있음
     UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
+}
+
+//메인 메뉴로 나감
+void UDreamVeilGameInstance::OpenMainMenu()
+{
+    //메뉴로 나가면 하던 판은 끝난 것이라 진행도와 얻은 것을 비움
+    //안 비우면 메뉴에서 새 게임을 누르기 전까지 이전 판 기록이 남아 있게 됨
+    ClearRunProgress();
+
+    UGameplayStatics::OpenLevel(this, MAIN_MENU_MAP_PATH);
+}
+
+//한 판의 진행도와 얻은 것을 전부 비움
+//새 게임과 어려움 사망이 똑같이 해야 하는 일이라 한곳에 모음 한쪽만 고쳐서 어긋나는 걸 막으려는 것
+void UDreamVeilGameInstance::ClearRunProgress()
+{
+    ClearedLevelCount = 0;
+    ClearPlayerAugments();
+    ClearPlayerInventory();
 }
 
 //로비에서 게임 시작
@@ -123,11 +151,12 @@ void UDreamVeilGameInstance::FailCurrentLevel()
 //플레이어가 죽은 뒤 이어서 진행
 void UDreamVeilGameInstance::ContinueAfterDeath()
 {
-    //어려움은 죽으면 끝 새 게임이 진행도 증강 인벤토리 무기를 전부 비우고 로비부터 다시 시작함
-    //메인 메뉴 맵이 생기면 메인 메뉴로 보내고 거기서 게임 시작을 누르게 바꿀 것
+    //어려움은 죽으면 끝 진행도 증강 인벤토리 무기를 전부 잃고 메인 메뉴로 쫓겨남
+    //로비가 아니라 메뉴로 보내는 이유 로비로 보내면 바로 다시 들어갈 수 있어서 죽은 대가가 약해짐
+    //다시 하려면 메뉴에서 난이도를 고르고 게임 시작을 눌러야 함
     if (Difficulty == EGameDifficulty::Hard)
     {
-        StartNewGame();
+        OpenMainMenu();
         return;
     }
 
@@ -218,6 +247,13 @@ void UDreamVeilGameInstance::SetDifficulty(EGameDifficulty NewDifficulty)
 EGameDifficulty UDreamVeilGameInstance::GetDifficulty() const
 {
     return Difficulty;
+}
+
+//난이도가 몬스터 스폰 곡선 경사에 거는 배율
+//enum 값을 그대로 표의 번호로 쓰므로 난이도를 추가하면 위 표에도 값을 하나 더해야 함(static_assert가 잡아줌)
+float UDreamVeilGameInstance::GetSpawnCurveScale() const
+{
+    return SPAWN_CURVE_SCALE_BY_DIFFICULTY[static_cast<int32>(Difficulty)];
 }
 
 //플레이어 인벤토리를 저장

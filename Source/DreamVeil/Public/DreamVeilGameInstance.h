@@ -50,6 +50,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void StartNewGame();
 
+	//메인 메뉴로 나감 하던 판은 끝난 것이라 진행도와 얻은 것을 전부 비움
+	//어려움에서 죽었을 때 쓰고 로비의 나가기 버튼도 이걸 부르면 됨
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void OpenMainMenu();
+
 	//로비에서 게임 시작 아직 안 깬 다음 레벨로 이동 L4까지 다 깼으면 열 레벨이 없어서 false
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	bool OpenNextLevel();
@@ -63,7 +68,7 @@ public:
 	void FailCurrentLevel();
 
 	//플레이어가 죽은 뒤 이어서 진행 게임 오버 UI의 확인 버튼이 부를 것
-	//쉬움 보통은 시간 초과와 똑같이 로비로(FailCurrentLevel) 어려움은 새 게임으로 처음부터
+	//쉬움 보통은 시간 초과와 똑같이 로비로(FailCurrentLevel) 어려움은 전부 잃고 메인 메뉴로(OpenMainMenu)
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void ContinueAfterDeath();
 
@@ -97,6 +102,12 @@ public:
 	//지금 난이도
 	UFUNCTION(BlueprintPure, Category = "Difficulty")
 	EGameDifficulty GetDifficulty() const;
+
+	//난이도가 몬스터 스폰 곡선 경사에 거는 배율 쉬움은 1보다 크고 어려움은 1보다 작음
+	//스폰 볼륨의 DifficultyCurve에 곱해져서 엘리트 몬스터가 언제부터 많아지는지를 난이도가 정함
+	//스폰율의 최소 최대는 건드리지 않아서 스폰 볼륨에 잡아둔 값의 뜻이 그대로 유지됨
+	UFUNCTION(BlueprintPure, Category = "Difficulty")
+	float GetSpawnCurveScale() const;
 
 	// 인벤토리 저장
 
@@ -133,6 +144,9 @@ private:
 	//저장한 보유 무기 파츠와 같은 규칙으로 저장하고 비움 권총은 플레이어가 항상 가지고 시작해서 사실상 소총 기록
 	UPROPERTY(Transient)
 	TArray<EWeaponSlot> SavedWeaponSlots;
+
+	//한 판의 진행도와 얻은 것을 전부 비움 새 게임과 어려움 사망이 같이 씀
+	void ClearRunProgress();
 
 	//지금 조종 중인 플레이어의 증강 기록과 인벤토리를 저장 맵을 떠나기 직전에 부름
 	void SaveCurrentPlayerProgress();

@@ -98,6 +98,33 @@ Event Construct  →  InitPlayer  (커스텀 이벤트)
 - Cast 실패 쪽을 안 만들면 "가끔 HUD가 비어 있음" 같은 잡기 어려운 버그가 납니다.
 - `Delay`는 커스텀 **이벤트**에서만 쓸 수 있습니다 (함수 안에서는 못 씀). `InitPlayer`는 함수가 아니라 **Custom Event**로 만드세요.
 
+#### Function과 Custom Event 중 뭘로 만드나
+
+| | **Function** (`My Blueprint → Functions → +`) | **Custom Event** (그래프에 `Add Custom Event`) |
+|---|---|---|
+| `Delay` 같은 지연 노드 | **못 씀** | 씀 |
+| 값 돌려주기 | 됨 | 안 됨 |
+| 다른 **함수 안에서** 호출 | 됨 | **안 됨** |
+
+| **로컬 변수** 만들기 | **됨** | **안 됨** (멤버 변수를 써야 함) |
+
+- 기다릴 게 없고 / 다른 함수 안에서 불러야 하고 / 로컬 변수가 필요하면 → **Function**
+  (`SetButtonHighlight`, `RefreshDifficulty`, `RefreshAll`, `RefreshWeaponPanels`, `RefreshDetail`)
+- `Delay`로 재시도하거나 **이벤트 구독의 받는 쪽**이면 → **Custom Event**
+  (`InitPlayer`, `HandleInventoryChanged`, `HandlePartClicked`, `BindEvents`)
+
+> 이 문서에서 `[Function]` / `[Custom Event]` 라고 앞에 붙여둔 그대로 만드시면 됩니다.
+>
+> 흔한 구조는 **Custom Event가 받아서 Function을 부르는** 것입니다.
+> `Bind Event to On Inventory Changed` → `HandleInventoryChanged`(Custom Event) → `RefreshAll`(Function)
+
+#### 로컬 변수 만드는 법
+
+**함수 그래프를 연 상태**에서만 왼쪽 `My Blueprint` 패널에 **`Local Variables`** 섹션이 나타납니다.
+`+` → 이름 입력 → 타입 고르기 → 그래프로 드래그하면 `Get` / `Set` 중에 고를 수 있습니다.
+
+Event Graph나 Custom Event에는 이 섹션이 아예 없습니다. 거기서 값을 잠깐 담아둬야 하면 일반(멤버) 변수를 쓰거나, 그 부분을 Function으로 빼세요.
+
 ### 3-3. 이벤트(Event Dispatcher) 구독하는 법
 
 C++ 쪽 이벤트는 전부 `BlueprintAssignable`이라 블루프린트에서 바로 받을 수 있습니다.
@@ -162,6 +189,20 @@ C++ 쪽 이벤트는 전부 `BlueprintAssignable`이라 블루프린트에서 �
 | `Appearance` | `Color and Opacity` | 글자색 |
 | `Wrapping` | **`Auto Wrap Text`** | 긴 **설명문**만 체크. **버튼 라벨은 반드시 끄기** (아래 참고) |
 | 맨 위 | **`Is Variable`** | 그래프에서 `Set Text` 할 거면 체크 |
+
+**그래프에서 글자 바꾸는 노드 고르는 법**: 정식 이름은 **`SetText (Text)`** 입니다.
+빈 공간에서 검색하면 비슷한 게 잔뜩 나오니, **`Get Text_...` 의 파란 핀을 끌어다 놓고** 검색하세요.
+노드 부제목이 **`Target is Text`** 면 맞게 고른 것입니다.
+
+| 이런 부제목이면 | 정체 |
+|---|---|
+| **`Target is Text`** | **정답** (`UTextBlock`의 표시 이름이 `Text`라서 `Text Block`이 아님) |
+| `Target is Editable Text Box` / `Multi-Line Editable Text` | 입력칸용. 아님 |
+| `Target is Rich Text Block` | 서식 텍스트. 우리는 안 씀 |
+| `Set Text Transform Policy` / `Overflow Policy` | 이름만 비슷한 다른 기능 |
+
+> 헷갈리는 점: **Palette에서는 `Text`**, **변수 타입 목록에서는 `Text Block`**, **노드 부제목은 `Target is Text`** 입니다.
+> 셋 다 같은 `UTextBlock`입니다.
 
 #### `Button`
 **버튼 자체에는 글자 속성이 없습니다.** Button은 **자식 하나를 담는 껍데기**라, 안에 **`Text`를 자식으로 끌어넣어야** 글자가 나옵니다.
@@ -421,9 +462,10 @@ Get Game Instance → Cast To DreamVeilGameInstance → Continue After Death
 ```
 
 - `Continue After Death`가 난이도를 보고 알아서 처리합니다
-  - 쉬움: 이번 판에 얻은 것까지 들고 로비로
-  - 보통: 레벨 들어가기 전 상태로 로비로
-  - 어려움: 새 게임 (L1부터)
+  - 쉬움: 이번 판에 얻은 것까지 들고 **로비로**
+  - 보통: 레벨 들어가기 전 상태로 **로비로**
+  - 어려움: 전부 잃고 **메인 메뉴로** (`OpenMainMenu`)
+- 그래서 `Text_Info`에 어려움일 때는 "메뉴로 돌아갑니다" 같은 안내를 넣으면 덜 당황합니다
 - `Text_Info` 채우기: `Get Game Instance → Cast → Get Difficulty` → `Switch on EGameDifficulty` → 난이도별 문구
 
 ---
@@ -696,8 +738,12 @@ Inventory Component 클래스의 static 함수 두 개를 그냥 쓸 수 있습�
 
 #### RefreshAll — 다시 그리기 (6-1의 해결책)
 
+> **`RefreshAll`은 Custom Event가 아니라 `Function`으로 만드세요.** 안에서 로컬 변수(`SavedOffset`)를 쓰는데,
+> 로컬 변수는 함수 그래프에서만 만들 수 있습니다. 기다리는 노드가 없어서 Function으로 문제없습니다.
+> 이벤트를 받는 `HandleInventoryChanged`(Custom Event)가 이 함수를 부르는 구조입니다.
+
 ```
-[Custom Event] RefreshAll
+[Function] RefreshAll
   -- 1. 스크롤 위치 기억 -----------------------------
   SB_PartList → Get Scroll Offset → 로컬 변수 SavedOffset
 
@@ -881,7 +927,7 @@ Horizontal Box
 [Function] RefreshDetail
   SelectedPartIndex < 0
     → VB_Detail Set Visibility = Collapsed, 끝
-  Inventory → Get Parts → Get (a copy) [SelectedPartIndex] → 로컬 Part
+  Inventory → Get Parts → Get (a copy) [SelectedPartIndex] → 로컬 변수 Part (타입 WeaponPart)
   Text_SelectedPart ← MakePartTitle(Part)
 
   (판매 탭)  Text_Price ← "판매가 {Get Sell Price(Part)}"
@@ -1041,6 +1087,31 @@ VerticalBox_Content
 
 부모는 `WBP_MenuBase`가 **아닙니다** (`User Widget`). 메인 메뉴에는 플레이어도 인벤토리도 없어서 `WBP_MenuBase`가 부르는 컨트롤러 함수가 없습니다.
 
+#### 먼저: 메인 메뉴 **레벨**이 없습니다 (직접 만드셔야 함)
+
+지금 맵은 `LV_1`~`LV_4`, `Lobby`, `TestLevel` 뿐이고 `Game Default Map`이 `Lobby`라 실행하면 바로 로비로 들어갑니다.
+
+| 순서 | 할 것 |
+|---|---|
+| 1 | `Content/Maps` 에 **`Empty Level`** 로 `MainMenu` 생성 (`Maps/Level/` 폴더 **밖**에 두는 걸 권장) |
+| 2 | **World Settings → `GameMode Override` = `GameModeBase`** (엔진 기본) |
+| 3 | `Project Settings → Maps & Modes → Game Default Map` = `MainMenu` |
+| 4 | 레벨 블루프린트에서 위젯 띄우기 (아래) |
+| 5 | 배경은 위젯 맨 아래에 `Image`를 전체 앵커로 깔기 |
+
+> **2번을 빠뜨리면 메인 메뉴에 HUD가 뜹니다.** 프로젝트 기본 게임모드를 쓰면
+> `AMainPlayerController::BeginPlay`가 `HUDWidgetClass`를 띄우고 플레이어 캐릭터도 스폰됩니다.
+> 엔진 기본 `GameModeBase`를 쓰면 `DefaultPawn` + 기본 `PlayerController`만 생기고,
+> 입력 모드를 UI Only로 잠그므로 움직이지도 보이지도 않습니다.
+
+> ⚠️ **맵 경로와 이름이 C++과 정확히 맞아야 합니다.**
+> `DreamVeilGameInstance.cpp`의 `MAIN_MENU_MAP_PATH`가 **`/Game/Maps/MainMenu`** 로 되어 있습니다.
+> 즉 맵은 `Content/Maps/MainMenu.umap` 이어야 합니다. 다른 데 만들면 어려움에서 죽었을 때 화면이 안 넘어갑니다.
+
+> C++은 이미 준비돼 있습니다.
+> - `StartNewGame()` — 진행도·증강·인벤토리를 비우고 **로비**를 엶 (메뉴의 "시작" 버튼)
+> - `OpenMainMenu()` — 똑같이 비우고 **메인 메뉴**를 엶 (어려움에서 죽었을 때 자동으로 불림)
+
 버튼 안의 `Text`까지 전부 펼친 트리입니다. **버튼마다 `Text` 자식이 하나씩 들어갑니다.**
 
 ```
@@ -1080,10 +1151,75 @@ VerticalBox_Content
 
 > 난이도 버튼 3개는 `Button_Easy` 하나만 만들고 **우클릭 → `Duplicate`** 두 번 하세요. 자식 Text까지 복사됩니다.
 
+#### 함수 ① `SetButtonHighlight` — 버튼 3개에 같은 색 로직을 세 번 쓰지 않으려고
+
+`My Blueprint → Functions → +` → 이름 `SetButtonHighlight`
+함수를 선택하고 Details → `Inputs` 에서 `+` 로 입력 2개를 만듭니다.
+
+| 입력 이름 | 타입 |
+|---|---|
+| `TargetButton` | `Button` → **Object Reference** |
+| `bSelected` | Boolean |
+
 ```
-[Button_Easy / Normal / Hard → On Clicked]
-  Get Game Instance → Cast To DreamVeilGameInstance → Set Difficulty (해당 난이도)
-  → RefreshDifficulty      (고른 버튼만 색 강조 + Text_DiffInfo 채우기)
+TargetButton → Set Background Color
+   In Background Color ← Select 노드
+        Index (Boolean) = bSelected
+        True  = 노랑  (R 1.0, G 0.8, B 0.2, A 1.0)
+        False = 회색  (R 0.35, G 0.35, B 0.35, A 1.0)
+```
+
+연결 순서:
+1. `TargetButton` 핀을 끌어 **`Set Background Color`** 검색
+2. 빈 곳에 **`Select`** 를 놓고 `Index` 핀에 `bSelected` 연결 → `Option` 핀이 `True`/`False`로 바뀜
+3. **`Select`의 `Return Value`를 먼저 `In Background Color`에 연결**
+4. **그 다음에** `True` / `False` 핀에 색을 넣기
+
+> 3번을 먼저 해야 합니다. `Select`는 처음엔 타입이 안 정해진 회색 핀이라, 연결하기 전에는 색 고르는 칸이 안 나옵니다.
+
+> `Set Background Color`는 버튼 배경에 **색을 곱하는** 것입니다. 버튼 Style의 기본 tint가 흰색이면 그대로 그 색이 됩니다.
+
+#### 함수 ② `RefreshDifficulty`
+
+```
+[Function] RefreshDifficulty
+
+  -- 1. 지금 난이도 읽기 ---------------------------
+  Get Game Instance → Cast To DreamVeilGameInstance
+      → (As DreamVeil Game Instance) → Get Difficulty
+      → SET Current        (로컬 변수, 타입 EGameDifficulty)
+
+  -- 2. 고른 버튼만 노랗게 -------------------------
+  SetButtonHighlight ( Button_Easy   , Current == Easy   )
+  SetButtonHighlight ( Button_Normal , Current == Normal )
+  SetButtonHighlight ( Button_Hard   , Current == Hard   )
+
+  -- 3. 설명 글자 ----------------------------------
+  Switch on EGameDifficulty ( Get Current )     ← Selection 핀에 꼭 연결할 것
+    Easy   → Text_DiffInfo → Set Text  "죽어도 얻은 것을 전부 들고 로비로 돌아간다 / 정예 몬스터가 조금 나온다"
+    Normal → Text_DiffInfo → Set Text  "죽으면 이번 판에서 얻은 것을 잃고 로비로 돌아간다 / 정예 몬스터가 보통으로 나온다"
+    Hard   → Text_DiffInfo → Set Text  "죽으면 끝. L1부터 다시 시작한다 / 정예 몬스터가 많이 나온다"
+```
+
+> **`Switch` 노드의 `Selection` 옆에 드롭다운이 보이면 아무것도 연결 안 된 것입니다.** 연결되면 드롭다운이 사라집니다.
+> 연결을 빠뜨리면 난이도와 상관없이 항상 첫 번째(Easy) 문구만 나옵니다.
+
+> 난이도는 죽음 규칙뿐 아니라 **정예 몬스터 스폰 속도**도 바꿉니다
+> (`UDreamVeilGameInstance::GetSpawnCurveScale` → `AMonsterSpawnVolume::GetEliteRate`).
+> 쉬움 ×1.6 (늦게 나옴) / 보통 ×1.0 / 어려움 ×0.5 (빨리 나옴).
+
+> `Current == Easy` 만드는 법: `Get Current` 핀을 끌어다 놓고 **`==`** 를 검색하면 비교 노드가 나옵니다. 오른쪽 핀 드롭다운에서 `Easy` 선택.
+>
+> **로컬 변수를 꼭 써야 하는 건 아닙니다.** `Get Difficulty`는 Pure 함수라 출력 핀 하나에서 선을 4개 뽑아도 똑같이 동작합니다.
+> 여기서 변수로 담은 이유는 값을 4군데(버튼 비교 3 + Switch 1)에 쓰는데, 선 4개가 뻗으면 그래프가 지저분해져서입니다.
+
+#### 이벤트 연결
+
+```
+[Button_Easy → On Clicked]
+  Get Game Instance → Cast To DreamVeilGameInstance → Set Difficulty (New Difficulty = Easy)
+  → RefreshDifficulty          ← 순서 중요. Set 먼저, Refresh 나중
+      (Normal / Hard도 똑같이, 넘기는 값만 바꿔서)
 
 [Button_Start → On Clicked]
   Get Game Instance → Cast To DreamVeilGameInstance → Start New Game
@@ -1093,8 +1229,22 @@ VerticalBox_Content
   Quit Game
 
 [Event Construct]
-  → RefreshDifficulty      (지금 난이도를 Get Difficulty로 읽어서 표시)
+  → RefreshDifficulty          ← 빠뜨리면 메뉴를 처음 열 때 버튼이 셋 다 회색이고 설명도 빔
 ```
+
+> **줄이고 싶으면 (선택)**: `Cast To DreamVeilGameInstance`가 버튼마다 반복됩니다.
+> `ApplyDifficulty (NewDifficulty: EGameDifficulty)` 함수 하나로 묶으면 버튼 이벤트가 한 노드로 짧아집니다.
+> ```
+> [Function] ApplyDifficulty (NewDifficulty)
+>   Get Game Instance → Cast To DreamVeilGameInstance → Set Difficulty (NewDifficulty)
+>   → RefreshDifficulty
+> ```
+> 나중에 "난이도 고를 때 소리 내기" 같은 게 붙으면 한 군데만 고치면 됩니다.
+
+> **여기는 3-2의 재시도 패턴이 필요 없습니다.** 재시도는 `Get Player Character`가 아직 없을 수 있어서 넣은 건데,
+> 메인 메뉴는 **GameInstance**를 읽고 GameInstance는 게임이 켜져 있는 한 항상 있습니다.
+>
+> `Get Difficulty`의 기본값은 **`Normal`** 이라(`DreamVeilGameInstance.h`) 메뉴를 처음 열면 "보통"이 켜진 채로 시작합니다. 정상입니다.
 
 메인 메뉴 레벨의 **레벨 블루프린트** `Event BeginPlay`에서:
 ```
@@ -1271,7 +1421,7 @@ Create Widget (Class: WBP_MainMenu, Owning Player: Get Player Controller 0)
 `Get Augment Display Name (ID)` / `Get Augment Description (ID)` (둘 다 static) / `Has Acquired Augment (ID)` / `Get Augment History`
 
 ### `UDreamVeilGameInstance` — `Get Game Instance` → `Cast To DreamVeilGameInstance`
-`Start New Game` / `Open Next Level` / `Complete Current Level` / `Fail Current Level` / `Continue After Death`
+`Start New Game` / `Open Main Menu` / `Open Next Level` / `Complete Current Level` / `Fail Current Level` / `Continue After Death`
 `Is Endless Unlocked` / `Is In Level Map` / `Is In Lobby` / `Get Current Level Number` / `Is Level Unlocked (n)`
 `Set Difficulty` / `Get Difficulty`
 

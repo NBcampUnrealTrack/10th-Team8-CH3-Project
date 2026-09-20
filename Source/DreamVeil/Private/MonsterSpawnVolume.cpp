@@ -5,6 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 
 #include "MainPlayerCharacter.h"
+#include "DreamVeilGameInstance.h"
 
 AMonsterSpawnVolume::AMonsterSpawnVolume()
 {
@@ -73,7 +74,16 @@ float AMonsterSpawnVolume::GetEliteRate()
 		1.0f
 	);
 	
-	LevelAlpha = FMath::Pow(LevelAlpha, DifficultyCurve);
+	// 게임 난이도가 이 경사를 눕히거나 세움. 쉬움이면 엘리트가 늦게 나오고 어려움이면 빨리 나옴
+	// 최소 최대 스폰율은 그대로 둬서 위에 잡아둔 값의 뜻이 바뀌지 않음
+	float CurveExponent = DifficultyCurve;
+
+	if (const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
+	{
+		CurveExponent *= DreamVeilGameInstance->GetSpawnCurveScale();
+	}
+
+	LevelAlpha = FMath::Pow(LevelAlpha, CurveExponent);
 
 	return FMath::Lerp(EliteMonsterMinRate, EliteMonsterMaxRate, LevelAlpha);
 }
