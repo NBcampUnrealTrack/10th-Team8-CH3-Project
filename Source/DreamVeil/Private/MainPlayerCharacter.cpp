@@ -381,6 +381,9 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 
 	//여기부터는 무기 담당 총구 위치와 방향만 넘기면 나머지는 무기가 처리
 	CurrentWeapon->Fire(MuzzleLocation, FireDirection);
+
+	//반동 :사격후 카메라를 위로 올림
+	AddControllerPitchInput(-1.5f);
 }
 
 //현재 플레이어 레벨
