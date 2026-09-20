@@ -35,6 +35,16 @@ void AMainPlayerController::BeginPlay()
             }
         }
     }
+
+    //체력 스태미나 꿈의 조각을 보여주는 화면은 레벨이 시작될 때 바로 띄움
+    //메뉴와 달리 입력 모드를 바꾸지 않아서 띄운 채로 움직이고 쏠 수 있음
+    if (HUDWidgetClass)
+    {
+        if (UUserWidget* HUDWidget = CreateWidget<UUserWidget>(this, HUDWidgetClass))
+        {
+            HUDWidget->AddToViewport();
+        }
+    }
 }
 
 //조종할 폰이 정해질 때
@@ -54,26 +64,53 @@ void AMainPlayerController::OnPossess(APawn* InPawn)
 //플레이어가 죽었을 때
 void AMainPlayerController::ShowGameOver()
 {
+    //게임 오버도 메뉴 위젯과 띄우는 방법이 같아서 같은 함수를 씀
+    OpenMenuWidget(GameOverWidgetClass);
+}
+
+//메뉴 위젯을 띄움
+UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> MenuWidgetClass)
+{
     //위젯을 안 넣었으면 띄울 게 없음
-    if (!GameOverWidgetClass)
+    if (!MenuWidgetClass)
     {
-        return;
+        return nullptr;
     }
 
-    UUserWidget* GameOverWidget = CreateWidget<UUserWidget>(this, GameOverWidgetClass);
+    //침대를 보다가 컴퓨터를 누르는 것처럼 메뉴가 겹치면 먼저 것을 닫음
+    CloseMenuWidget();
 
-    if (!GameOverWidget)
+    MenuWidgetInstance = CreateWidget<UUserWidget>(this, MenuWidgetClass);
+
+    if (!MenuWidgetInstance)
     {
-        return;
+        return nullptr;
     }
 
-    //따로 변수에 들고 있지 않음 버튼을 누르면 레벨이 바뀌면서 위젯도 같이 사라짐
-    GameOverWidget->AddToViewport();
+    MenuWidgetInstance->AddToViewport();
 
     //버튼을 마우스로 누를 수 있게 UI 전용 입력으로 바꾸고 커서를 보여줌
     FInputModeUIOnly InputMode;
-    InputMode.SetWidgetToFocus(GameOverWidget->TakeWidget());
+    InputMode.SetWidgetToFocus(MenuWidgetInstance->TakeWidget());
     SetInputMode(InputMode);
 
     bShowMouseCursor = true;
+
+    //위젯 쪽에서 값을 채우거나 이벤트를 연결할 수 있게 돌려줌
+    return MenuWidgetInstance;
+}
+
+//열려 있는 메뉴 위젯을 닫음
+void AMainPlayerController::CloseMenuWidget()
+{
+    if (MenuWidgetInstance)
+    {
+        MenuWidgetInstance->RemoveFromParent();
+        MenuWidgetInstance = nullptr;
+    }
+
+    //메뉴를 닫으면 다시 캐릭터를 조작해야 하므로 게임 입력으로 되돌림
+    SetInputMode(FInputModeGameOnly());
+
+    bShowMouseCursor = false;
 }
