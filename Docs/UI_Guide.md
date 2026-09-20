@@ -788,7 +788,8 @@ Button_Quit                 → Quit Game
 | 메뉴 닫았는데 조작이 안 됨 | 입력 모드가 UI Only로 남음 | `Close Menu Widget`을 부르게 함 (레벨을 옮겨도 BeginPlay가 되돌려 줌) |
 | 장착 버튼을 눌러도 아무 일 없음 | 소총 미보유 / 그 총에 없는 칸 | `Equip Part` 반환값을 확인해 안내 문구 띄우기 |
 | 다시 그릴 때마다 스크롤이 위로 튐 | 당연함 | `Get/Set Scroll Offset` (6-7) |
-| 로비에서 총이 보임 | `bCombatEnabled`가 안 꺼짐 | 로비 맵 이름이 GameInstance의 `LOBBY_MAP_PATH`와 같은지 확인 |
+| 로비에서 총이 보임 | 무기 칸이 `Nothing`으로 안 바뀜 | 로비 맵 이름이 GameInstance의 `LOBBY_MAP_PATH`와 같은지 확인 |
+| 로비에서 총 든 자세로 서 있음 | 애님 BP가 `Nothing`을 처리 안 함 | `Blend Poses (EWeaponSlot)`의 `Nothing Pose` 핀에 맨손 Idle 연결 |
 
 ---
 
@@ -863,8 +864,7 @@ Button_Quit                 → Quit Game
 | `CombatStats` | 변수 | 체력·공격력·방어력 |
 | `DispatchTable` | 변수 | 증강 |
 | `PistolWeapon` / `RifleWeapon` | 변수 | 무기 컴포넌트 (수치 읽기용) |
-| `bCombatEnabled` | 변수(읽기) | 로비면 false |
-| `Get Current Weapon` / `Get Current Weapon Slot` | Pure | 지금 든 무기 |
+| `Get Current Weapon` / `Get Current Weapon Slot` | Pure | 지금 든 무기. 로비에서는 맨손이라 `Nothing` / `None` |
 | `Has Weapon (Slot)` | Pure | 소총 보유 여부 |
 | `Equip Weapon (Slot)` | Call | 무기 바꿔 들기 |
 | `Get Current Stamina` / `Get Max Stamina` | Pure | |
@@ -918,3 +918,8 @@ Class Defaults: `Game Over Widget Class`, `HUD Widget Class`
 
 ### 구조체 `FWeaponPart` — `Break WeaponPart`
 `Weapon` (권총/소총) · `Slot` (총구/탄창/조준기/개머리판/앞손잡이) · `Tier` (1~4/보스) · `EnhanceLevel` (0~5) · `bEquipped`
+
+### enum `EWeaponSlot`
+`Pistol` · `Rifle` · `Nothing`(맨손, 로비 전용 상태)
+`Nothing`은 무기가 아니라 **상태**입니다. 파츠에는 절대 쓰지 마세요.
+UI에서 무기 이름을 뽑을 때(`WeaponToText`) `Nothing`이 들어오면 빈 글자를 돌려주면 됩니다.

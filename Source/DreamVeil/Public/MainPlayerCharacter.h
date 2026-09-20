@@ -105,18 +105,12 @@ public:
 	//가지고 있는 무기 전부 레벨을 넘길 때 GameInstance가 저장했다가 새 레벨의 플레이어에게 다시 줌
 	const TArray<EWeaponSlot>& GetAcquiredWeaponSlots() const;
 
-	//싸우는 곳인지 로비면 BeginPlay에서 꺼져서 무기를 숨기고 사격과 무기 교체를 막음
-	//총을 든 애니메이션이 캡슐 밖으로 나가서 총이 벽을 뚫고 보이던 문제를 로비에서 피하려는 값
-	//맵마다 폰을 따로 지정하지 않고 캐릭터가 스스로 정함 로비용 캐릭터 블루프린트를 따로 만들 필요가 없음
-	//애님 블루프린트가 이 값을 읽어서 무기를 안 든 자세로 분기할 수 있게 BlueprintReadOnly로 둠
-	UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category = "Weapon")
-	bool bCombatEnabled = true;
-
 	//무기를 바꿔 듦 가지고 있지 않은 무기면 실패
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
 	bool EquipWeapon(EWeaponSlot Slot);
 
-	//지금 들고 있는 무기 슬롯
+	//지금 들고 있는 무기 슬롯 로비처럼 싸우지 않는 곳이면 맨손을 뜻하는 Nothing
+	//애님 블루프린트가 이 값으로 자세를 고름 Nothing이면 Blend Poses의 Default Pose(맨손 Idle)가 재생됨
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	EWeaponSlot GetCurrentWeaponSlot() const;
 
@@ -272,7 +266,7 @@ protected:
 	float RequiredExperienceGrowth = 50.0f;
 
 private:
-	//지금 들고 있는 무기 슬롯 생성자에서 권총으로 시작
+	//지금 들고 있는 무기 슬롯 생성자에서 권총으로 시작하고 로비면 BeginPlay에서 Nothing이 됨
 	EWeaponSlot CurrentWeaponSlot;
 
 	//가지고 있는 무기 슬롯 권총은 BeginPlay에서 넣음
