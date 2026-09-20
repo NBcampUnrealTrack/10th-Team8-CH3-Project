@@ -88,6 +88,13 @@ void AMainPlayerCharacter::BeginPlay()
 	//컴포넌트 BeginPlay가 여기서 돌아서 빠지면 증강이 적용되지 않음
 	Super::BeginPlay();
 
+	//로비에서는 싸우지 않으므로 무기를 숨기고 사격도 막음 무기 숨김은 바로 아래 UpdateWeaponVisibility가 함
+	//맵마다 폰을 따로 지정하지 않고 캐릭터가 스스로 정함 게임모드나 World Settings를 건드릴 필요가 없음
+	if (const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
+	{
+		bCombatEnabled = !DreamVeilGameInstance->IsInLobby();
+	}
+
 	//기본 무기 권총은 처음부터 가지고 들고 시작
 	AcquiredWeaponSlots.AddUnique(EWeaponSlot::Pistol);
 	CurrentWeaponSlot = EWeaponSlot::Pistol;

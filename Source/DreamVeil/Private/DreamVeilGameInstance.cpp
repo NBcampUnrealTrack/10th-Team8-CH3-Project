@@ -194,6 +194,13 @@ int32 UDreamVeilGameInstance::GetCurrentLevelNumber() const
     return 0;
 }
 
+//지금 맵이 로비인지
+bool UDreamVeilGameInstance::IsInLobby() const
+{
+    //레벨 번호를 찾을 때와 같은 방식 PIE 접두사를 뗀 맵 이름과 로비 맵 이름을 비교함
+    return UGameplayStatics::GetCurrentLevelName(this, true) == FPackageName::GetShortName(LOBBY_MAP_PATH);
+}
+
 //그 레벨에 들어갈 수 있는지
 bool UDreamVeilGameInstance::IsLevelUnlocked(int32 LevelNumber) const
 {

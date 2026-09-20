@@ -79,6 +79,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Level")
 	int32 GetCurrentLevelNumber() const;
 
+	//지금 맵이 로비인지 싸우지 않는 곳이라 플레이어가 무기를 숨길지 정할 때 씀
+	//레벨 맵이 아닌지(IsInLevelMap)로 판단하지 않는 이유 테스트 맵에서도 무기가 사라지면 사격을 시험할 수 없음
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsInLobby() const;
+
 	//그 레벨에 들어갈 수 있는지 L1은 처음부터 열려 있고 하나 깰 때마다 다음 레벨이 열림 상점 등급 해금에도 씀
 	UFUNCTION(BlueprintPure, Category = "Level")
 	bool IsLevelUnlocked(int32 LevelNumber) const;
