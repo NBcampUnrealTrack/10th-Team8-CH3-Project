@@ -56,6 +56,8 @@
 
 저장 위치: `Content/UI/` 폴더를 새로 만들어서 다 넣으세요.
 
+**팀 공통 규칙: 모든 위젯은 Designer 해상도 `1920 x 1080` / `Fill Screen`에서 만듭니다.** 이유와 설정법은 3-6.
+
 만드는 순서는 11장 체크리스트를 따르세요. **1 → 3 → 4 → 5 → 6 순서가 중요합니다** (뒤로 갈수록 앞 걸 재사용함).
 
 ---
@@ -111,7 +113,7 @@ C++ 쪽 이벤트는 전부 `BlueprintAssignable`이라 블루프린트에서 �
 
 | 접두사 | 용도 | 예 |
 |---|---|---|
-| `Text_` | Text Block | `Text_DreamShards` |
+| `Text_` | Text | `Text_DreamShards` |
 | `Bar_` | Progress Bar | `Bar_Health` |
 | `Button_` | Button | `Button_Close` |
 | `VB_` / `HB_` | Vertical/Horizontal Box | `VB_PistolSockets` |
@@ -119,6 +121,211 @@ C++ 쪽 이벤트는 전부 `BlueprintAssignable`이라 블루프린트에서 �
 | `Panel_` | Border/Overlay 묶음 | `Panel_Rifle` |
 
 **그래프에서 이름으로 다뤄야 하는 위젯은 Details에서 `Is Variable` 체크를 꼭 켜세요.** (안 켜면 변수로 안 나옵니다)
+
+### 3-4-1. Palette에서 뭘 끌어와야 하는지 (전체 표)
+
+이 문서에 나오는 이름과 Palette에 보이는 이름이 다른 게 있어서 정리합니다.
+
+| 문서의 이름 | **Palette에서 검색할 것** | 분류 |
+|---|---|---|
+| 모든 `Text_...` | **`Text`** | Common |
+| 모든 `Button_...` | **`Button`** | Common |
+| `Bar_Health`, `Bar_Stamina`, `Bar_Experience` | **`Progress Bar`** | Common |
+| `Image` (조각 아이콘 등) | **`Image`** | Common |
+| `Border_Dim`, `Border_Window` | **`Border`** | Common |
+| `VB_...`, `VerticalBox_...` | **`Vertical Box`** | Panel |
+| `HB_...`, `HorizontalBox_...` | **`Horizontal Box`** | Panel |
+| `SB_PartList`, `SB_SellList` | **`Scroll Box`** | Panel |
+| `SizeBox_Window` | **`Size Box`** | Panel |
+| `Overlay_Rifle` | **`Overlay`** | Panel |
+| `WidgetSwitcher_Tabs` | **`Widget Switcher`** | Panel |
+| 루트 | **`Canvas Panel`** | Panel |
+| `Spacer` | **`Spacer`** | Primitive |
+
+#### ⚠️ `Text` 와 `Text Box` 는 완전히 다른 위젯입니다
+
+| Palette 이름 | 실제 클래스 | 하는 일 |
+|---|---|---|
+| **`Text`** | `UTextBlock` | **글자를 보여주기만** 함 → **이 문서의 `Text_...`는 전부 이것** |
+| `Text Box` | `UEditableTextBox` | 사용자가 **타이핑하는 입력칸** (하얀 칸 + 커서) |
+
+이름이 비슷해서 `Text Box`를 끌어오기 쉬운데, 그러면 로그인 폼 같은 입력창이 나옵니다.
+우리 UI에는 입력칸이 하나도 없습니다. **전부 `Text`** 입니다.
+
+### 3-4-2. 위젯별로 건드릴 항목
+
+#### `Text`
+| Details 위치 | 항목 | 설명 |
+|---|---|---|
+| `Content` | **`Text`** | 보여줄 글자 |
+| `Appearance → Font` | **`Size`** | 제목 32 / 본문 18 / 작은 글 14 정도 |
+| `Appearance` | `Color and Opacity` | 글자색 |
+| `Wrapping` | **`Auto Wrap Text`** | 긴 **설명문**만 체크. **버튼 라벨은 반드시 끄기** (아래 참고) |
+| 맨 위 | **`Is Variable`** | 그래프에서 `Set Text` 할 거면 체크 |
+
+#### `Button`
+**버튼 자체에는 글자 속성이 없습니다.** Button은 **자식 하나를 담는 껍데기**라, 안에 **`Text`를 자식으로 끌어넣어야** 글자가 나옵니다.
+```
+Button_Start
+└ Text   (Content → Text = "시작")
+```
+
+> **이 문서의 표기 주의**: 아래 위젯 트리에서 `Button_Start   "시작"` 처럼 적힌 건
+> **"이 버튼의 라벨이 시작"** 이라는 메모지 속성이 아닙니다. 실제로는 항상 `Text` 자식을 하나 넣어야 합니다.
+
+만드는 순서:
+1. Palette `Button` → Hierarchy의 부모 위로 드래그 → `F2`로 이름 바꾸기
+2. Palette `Text` → **Hierarchy 창에서** 그 Button 위로 드래그
+   (Designer 화면에 떨구면 엉뚱한 부모로 들어가기 쉽습니다)
+3. 그 Text 선택 → `Content → Text` 에 글자 입력
+
+- **정렬은 안 건드려도 됩니다.** Button 안쪽은 기본이 Center / Center 입니다.
+- 비슷한 버튼이 여러 개면 하나만 완성하고 Hierarchy에서 **우클릭 → `Duplicate`**. **자식 Text까지 같이 복사**되니 이름과 글자만 바꾸면 됩니다.
+- Text를 Button 위에 못 떨구면 그 Button이 **이미 자식을 갖고 있는 것**입니다 (Button은 자식 1개만).
+- `Appearance → Style` → `Normal` / `Hovered` / `Pressed` 색을 각각 지정
+- Details 맨 아래 **`Events` → `On Clicked`** 옆 `+` 를 누르면 그래프에 노드가 생김
+- **`Is Variable`은 Button에만** 체크하면 됩니다 (색을 바꾸거나 켜고 끌 때). 안의 Text는 글자가 안 바뀌면 체크할 필요 없습니다.
+
+##### 버튼 글자가 찌부되거나 잘릴 때
+
+| 어떻게 보이나 | 범인 | 고치는 법 |
+|---|---|---|
+| **세로로 납작** | 부모 `Size Box`의 `Height Override` | **체크 해제** (폭만 고정, 높이는 내용에 맡김) |
+| **가로로 잘림** | Slot `Size = Fill` 이 글자보다 좁게 나눔 | 폰트를 18로 줄이거나 / Slot `Size`를 `Auto`로 / 창 폭을 넓히기 |
+| **한 글자씩 줄바꿈** ("어려"/"움") | Text의 `Auto Wrap Text` 켜짐 | **끄기.** 버튼 라벨은 절대 켜면 안 됨 |
+
+`Fill 1.0`은 **"글자가 얼마나 필요하든 무조건 똑같이 나눠 가져라"** 는 뜻입니다.
+버튼 3개를 폭 420 창에 Fill로 넣으면 하나당 약 125px뿐이라, 폰트 24pt면 세 글자가 안 들어갑니다.
+폭을 가지런히 하고 싶으면 `Fill`을 두고 **폰트를 줄이는 쪽**이 낫고, 글자 길이에 맞추고 싶으면 `Auto` + `Slot Padding Left/Right 8` 을 쓰세요.
+
+#### `Progress Bar`
+| 항목 | 값 |
+|---|---|
+| `Progress → Percent` | 0.0 ~ 1.0. 디자인할 때 0.7쯤 넣어두면 보기 편함 |
+| `Style → Background Image → Tint` | 빈 부분 색 (어두운 회색) |
+| `Style → Fill Image → Tint` | 채워진 부분 색 (체력 빨강 / 스태미나 노랑) |
+| `Is Variable` | **체크** (`Set Percent` 해야 함) |
+
+#### `Border`
+- `Appearance → Brush Color` — 색 + **Alpha** (뒤 화면 어둡게 = 검정 Alpha 0.6)
+- `Content → Padding` — 안쪽 여백
+- 자식을 **하나만** 가질 수 있습니다. 여러 개 넣으려면 안에 Vertical Box를 하나 두세요.
+
+### 3-5. 위젯 만들기 / 배치 기본기 (모든 위젯에 공통, 한 번만 익히면 됨)
+
+#### 새 Widget Blueprint 만들 때 창이 두 번 뜹니다
+1. `Pick Parent Class for New Widget Blueprint`
+   - 보통 위젯: `User Widget`
+   - 메뉴 위젯(`WBP_Computer`/`WBP_Bed`/`WBP_GameOver`/`WBP_AugmentChoice`): `All Classes` 펼쳐서 **`WBP_MenuBase`** 검색
+2. `Pick Root Widget for New Widget Blueprint` → **`Canvas Panel`**
+
+> 이미 만든 위젯의 부모를 바꾸려면: `Graph` 모드 → 툴바 **`Class Settings`** → Details → `Class Options` → **`Parent Class`**
+>
+> **부모 위젯(`WBP_MenuBase`)의 Designer는 비워두세요.** 자식이 자기 Root Widget을 가지면 자식 트리만 쓰이고 부모에 그려둔 건 안 나옵니다. 부모는 Event Graph만 씁니다.
+
+#### Canvas Panel 위의 위젯은 앵커(Anchor)로 자리를 잡습니다
+
+Canvas Panel의 자식은 **Anchor(기준점) + Position(그 기준점에서 얼마나) + Size**로 배치됩니다.
+앵커를 안 잡으면 해상도가 바뀔 때 위젯이 엉뚱한 데로 갑니다.
+
+Details 맨 위 **`Anchors`** 드롭다운에서 프리셋을 고릅니다.
+
+| 하고 싶은 것 | 앵커 프리셋 | 그 다음 |
+|---|---|---|
+| 화면 전체 덮기 (배경, 큰 패널) | 오른쪽 아래 **큰 네모** (Fill) | `Offset Left/Top/Right/Bottom` 을 전부 **0** |
+| 화면 정가운데 (메뉴창) | 가운데 점 | `Alignment` = **0.5, 0.5** / `Position` = 0, 0 / 크기 지정 |
+| 왼쪽 위 (체력바) | 왼쪽 위 | `Alignment` = 0, 0 |
+| 오른쪽 아래 (닫기 버튼) | 오른쪽 아래 | `Alignment` = **1, 1** |
+| 하단 왼쪽 (꿈의 조각) | 왼쪽 아래 | `Alignment` = **0, 1** |
+
+> **꿀팁**: 앵커 프리셋을 고를 때 **`Ctrl`을 누른 채 클릭**하면 Position까지, **`Shift`를 누른 채 클릭**하면 Alignment까지 같이 맞춰줍니다. 둘 다 원하면 `Ctrl+Shift`.
+
+#### 크기를 고정하고 싶을 때
+Canvas Panel에 직접 크기를 적는 대신 **`Size Box`** 를 하나 끼우고 `Width Override` / `Height Override`를 주면, 그 안의 Vertical Box가 알아서 그 크기 안에 들어갑니다. 버튼 개수가 바뀌어도 창 크기가 안 흔들립니다.
+
+#### `Spacer` 쓰는 법 (이 문서에 자주 나옴)
+
+Palette에서 `Spacer` 검색 (`Primitive` 분류) → **Vertical Box / Horizontal Box 안으로** 드래그.
+
+> **Canvas Panel에 직접 넣으면 아무 효과 없습니다.** Canvas는 절대 좌표라 밀어낼 게 없습니다.
+> **그리고 기본 `Size`가 (1, 1)이라 그냥 넣으면 1픽셀 틈이라 안 보입니다. 숫자를 꼭 바꾸세요.**
+
+**모드 1 — 고정 간격** (문서에 `Spacer (Size Y 20)` 이라고 쓴 것)
+
+| 어디 | 값 |
+|---|---|
+| `Slot (… Box Slot)` → `Size` | **`Auto`** (기본값 그대로) |
+| `Appearance` → **`Size`** | 세로 박스면 **Y**에 20 / 가로 박스면 **X**에 20 |
+
+세로 박스는 Y만, 가로 박스는 X만 의미 있습니다. 반대쪽 숫자는 티가 안 납니다.
+
+**모드 2 — 밀어내기** (문서에 `Spacer (Fill)` 이라고 쓴 것)
+
+| 어디 | 값 |
+|---|---|
+| `Slot` → `Size` | **`Fill`**, 값 1.0 |
+| `Appearance` → `Size` | 안 건드려도 됨 (Fill이면 무시됨) |
+
+```
+Horizontal Box
+├ Text_Title      ← 왼쪽에 붙음
+├ Spacer (Fill)   ← 남는 공간을 전부 먹음
+└ Text_Effect     ← 오른쪽 끝으로 밀려남
+```
+
+> **Spacer가 꼭 필요한 건 모드 2뿐입니다.** 단순히 위아래로 띄우고 싶은 거라면
+> 그 위젯을 고르고 `Slot → Padding → Top 20` 을 주는 게 더 간단합니다.
+
+### 3-6. 기준 해상도는 **1920 x 1080** — 모든 위젯을 여기서 만드세요
+
+#### 왜 1080인가 (제일 커서가 아닙니다)
+
+엔진 기본 DPI 설정(`BaseEngine.ini`, 우리 프로젝트는 안 건드림)이 이렇습니다.
+
+```
+UIScaleRule  = ShortestSide          ← 화면 "세로"만 보고 배율을 정함
+UIScaleCurve = (480, 0.444) (720, 0.666) (1080, 1.0) (8640, 8.0)
+```
+
+| 화면 세로 | UI 배율 | 뜻 |
+|---|---|---|
+| 720 | 0.666배 | 1080에서 만든 게 알아서 작아짐 |
+| **1080** | **1.0배** | **기준점. 여기서 디자인** |
+| 2160 (4K) | 약 2.0배 | 알아서 커짐 |
+
+**엔진이 해상도에 맞춰 알아서 키우고 줄입니다.** 그래서 "제일 큰 해상도로 만들어야 안 깨진다"가 아니라, **배율이 정확히 1.0인 1080에서 만들어야** 내가 적는 숫자(`Width 480`)가 그대로 기준 숫자가 됩니다.
+
+- 4K에서 디자인하면 배율이 2.0이라 같은 크기를 만들려고 숫자를 절반으로 적게 됩니다. 폰트 크기도 헷갈리고, 팀원 모니터가 1080p면 서로 다른 숫자를 보게 됩니다.
+- 720p에서 디자인하면 반대로 숫자가 다 작아져서 4K에서 뭉개져 보입니다.
+
+> **진짜로 깨지는 원인은 해상도가 아니라 화면 비율(가로:세로)입니다.**
+> DPI는 세로만 보기 때문에 21:9 울트라와이드에서는 가로만 넓어집니다.
+> 이건 해상도를 크게 잡아도 해결되지 않고 **앵커(3-5)로만** 해결됩니다.
+
+#### 설정하는 법
+
+1. 위젯 에디터에서 **`Designer`** 탭
+2. 디자인 화면 **오른쪽 위 해상도 드롭다운** 클릭
+3. `Monitors` 아래 **`1920 x 1080`** 선택 (없으면 `Custom`에 직접 1920 / 1080 입력)
+4. 바로 옆 크기 모드가 **`Fill Screen`** 인지 확인 — 화면을 꽉 채우는 위젯(HUD·인벤토리·메뉴)은 전부 이게 맞습니다
+
+> 이 설정은 **에디터 미리보기 전용**이라 게임 실행에는 아무 영향이 없습니다.
+> 위젯을 새로 만들 때마다 확인하세요.
+
+#### 다 만든 뒤 확인 순서
+
+드롭다운을 바꿔가며 네 번 봅니다.
+
+| 해상도 | 봐야 할 것 |
+|---|---|
+| 1920 x 1080 | 기준. 여기서 디자인 |
+| 1280 x 720 | 글자만 작아지고 **배치는 똑같아야** 함 |
+| 2560 x 1080 (21:9) | 가운데 창이 가운데 있는지, 구석 위젯이 구석에 붙어 있는지 |
+| 3840 x 2160 (4K) | 1080과 **똑같이** 보여야 함 |
+
+- 720에서 글자만 작아지면 정상입니다 (DPI가 하는 일).
+- 720에서 **배치가 달라 보이면 앵커 문제**입니다. 3-5 표로 돌아가세요.
+- 21:9에서 창이 왼쪽으로 쏠리면 `Alignment`가 0,0인 겁니다 → 0.5, 0.5로.
 
 ---
 
@@ -190,14 +397,21 @@ Canvas Panel
 
 ### 5-2. `WBP_GameOver`
 
+배치는 **8-0의 "가운데 창" 틀**을 그대로 씁니다 (`SizeBox_Window` 480 x 280).
+
 ```
-Canvas Panel
-└ Border (전체, 검정 60%)
-  └ Vertical Box (가운데)
-    ├ Text_Title     "꿈에서 깨어났다"
-    ├ Text_Info      난이도별 안내
-    └ Button_Continue  "계속"
+Canvas Panel (루트)
+├ Border_Dim            Anchors 전체 / Offset 0,0,0,0 / 검정 Alpha 0.6
+└ SizeBox_Window        Anchors 가운데 / Alignment 0.5,0.5 / Position 0,0 / 480 x 280
+  └ Border_Window
+    └ VerticalBox_Content
+      ├ Text_Title             "꿈에서 깨어났다"
+      ├ Text_Info              난이도별 안내
+      ├ Spacer                 (Size Y 20)
+      └ Button_Continue
+        └ Text                 "계속"
 ```
+`Text_Info`만 `Is Variable` 체크 (난이도별 문구를 채워야 해서).
 
 `Button_Continue` → `On Clicked`:
 
@@ -446,6 +660,10 @@ Inventory Component 클래스의 static 함수 두 개를 그냥 쓸 수 있습�
 
 > Map 변수 만드는 법: 변수를 만들고 타입 오른쪽의 작은 아이콘(배열/세트/맵)을 눌러 **Map**을 고르면
 > 키 타입과 값 타입을 둘 다 고를 수 있습니다.
+>
+> 값 타입은 타입 목록에서 `TextBlock`으로 검색해 **`Text Block` → `Object Reference`** 를 고르세요.
+> Palette에서 끌어올 때는 `Text`지만 **변수 타입 목록에서는 클래스 이름인 `Text Block`** 으로 나옵니다.
+> 글자 값인 `Text`(FText)와는 다른 것입니다.
 
 #### 초기화
 ```
@@ -710,21 +928,90 @@ Horizontal Box
 
 ---
 
-## 8. 나머지 위젯 (짧게)
+## 8. 나머지 위젯
+
+### 8-0. 이 세 개는 배치가 거의 같습니다 — "가운데 창" 틀
+
+`WBP_Bed`, `WBP_AugmentChoice`, `WBP_MainMenu` 전부 **화면 가운데에 창 하나** 모양입니다.
+아래 틀을 한 번 만들어 놓고 안의 내용만 바꾸면 됩니다.
+
+```
+Canvas Panel (루트)
+├ Border_Dim              ← 뒤 화면을 어둡게
+│   Anchors  : 전체 (오른쪽 아래 큰 네모)
+│   Offset   : Left/Top/Right/Bottom 전부 0
+│   Brush Color : 검정, Alpha 0.6
+└ SizeBox_Window          ← 창 크기를 여기서 고정
+    Anchors   : 가운데
+    Alignment : 0.5 , 0.5
+    Position  : 0 , 0
+    Width Override / Height Override : 아래 표 참고
+    └ Border_Window       (창 배경색·테두리)
+      └ VerticalBox_Content   (Padding 20)
+        ├ Text_Title
+        ├ ... 내용 ...
+        └ HorizontalBox_Buttons   (버튼들을 가로로)
+```
+
+| 위젯 | Width Override | Height Override |
+|---|---|---|
+| `WBP_Bed` | 480 | **끄기** |
+| `WBP_AugmentChoice` | 900 | **끄기** |
+| `WBP_MainMenu` | 420 | **끄기** |
+
+> **`Height Override`는 체크 해제하세요 (폭만 고정).**
+> 높이까지 고정하면 안에 든 게 그 높이를 넘을 때 Slate가 **전부 눌러서 욱여넣어** 글자가 납작해집니다.
+> 폭만 고정하면 높이는 내용에 맞춰 알아서 늘어나서, 버튼을 하나 더 넣어도 안 깨집니다.
+
+- `Border_Dim`을 먼저 넣고 그 **다음에** `SizeBox_Window`를 넣으세요. Canvas Panel은 나중에 넣은 게 위에 그려집니다.
+- **버튼마다 `Text` 자식을 하나씩 넣어야 글자가 나옵니다** (3-4-2). 아래 트리에서 `Button_Go "들어가기"` 처럼 적힌 건 라벨 메모입니다.
+- 버튼 사이를 띄우려면 `Spacer`를 넣고 `Size` X를 주세요.
 
 ### 8-1. `WBP_Bed` (부모: WBP_MenuBase)
+
 ```
-Text_Info   "자고 일어나면 다음 꿈으로 들어간다"
-Button_Go   "들어가기"
-  → Get Game Instance → Cast To DreamVeilGameInstance → Open Next Level
-     (반환값 false = 더 깰 레벨이 없음 → "모든 꿈을 깼다" 문구)
-Button_Cancel → Close Menu Widget
+VerticalBox_Content
+├ Text_Title              "잠들기"
+├ Text_Info               "자고 일어나면 다음 꿈으로 들어간다"
+├ Spacer                  (Size Y 20)
+└ HorizontalBox_Buttons
+  ├ Button_Go    (Slot Size: Fill 1.0)
+  │ └ Text                "들어가기"
+  └ Button_Cancel (Slot Size: Fill 1.0)
+    └ Text                "아직"
+```
+`Text_Info`만 `Is Variable` 체크하면 됩니다 (문구를 바꿔 넣어야 해서).
+
+```
+[Button_Go → On Clicked]
+  Get Game Instance → Cast To DreamVeilGameInstance → Open Next Level
+    반환값 true  → (레벨이 바뀌므로 할 일 없음)
+    반환값 false → Text_Info ← "모든 꿈을 깼다"   (더 깰 레벨이 없음)
+
+[Button_Cancel → On Clicked]
+  Get Owning Player → Cast To MainPlayerController → Close Menu Widget
 ```
 `BP_BedActor`의 `On Bed Interacted` → `Open Menu Widget (WBP_Bed)`
 
-여유가 되면 `Get Current Level Number`, `Is Endless Unlocked`로 "다음: L3" 같은 안내를 덧붙이세요.
+여유가 되면 `Get Current Level Number`, `Is Endless Unlocked`로 "다음: L3" 같은 안내를 `Text_Info`에 덧붙이세요.
 
 ### 8-2. `WBP_AugmentChoice` (부모: WBP_MenuBase)
+
+```
+VerticalBox_Content
+├ Text_Title              "증강을 고르세요"
+├ Text_Remaining          "남은 선택 2회"   (Get Pending Augment Choice Count)
+└ HorizontalBox_Choices   ← 여기에 선택지 3개를 가로로
+  ├ Button_Choice0
+  │ └ Vertical Box
+  │   ├ Text_Name0
+  │   └ Text_Desc0   (Auto Wrap Text 체크)
+  ├ Button_Choice1  (같은 구성)
+  └ Button_Choice2  (같은 구성)
+```
+- 버튼 3개는 각각 `Size` = **Fill 1.0** 으로 주면 폭을 똑같이 나눠 가집니다.
+- 선택지가 3개 미만으로 올 수도 있으니, 남는 버튼은 `Set Visibility = Collapsed` 하세요.
+
 
 띄우는 곳은 `BP_MainPlayerController`입니다.
 ```
@@ -751,13 +1038,71 @@ Button_Cancel → Close Menu Widget
 ```
 
 ### 8-3. `WBP_MainMenu`
+
+부모는 `WBP_MenuBase`가 **아닙니다** (`User Widget`). 메인 메뉴에는 플레이어도 인벤토리도 없어서 `WBP_MenuBase`가 부르는 컨트롤러 함수가 없습니다.
+
+버튼 안의 `Text`까지 전부 펼친 트리입니다. **버튼마다 `Text` 자식이 하나씩 들어갑니다.**
+
 ```
-Button_Easy / Normal / Hard → Get Game Instance → Cast → Set Difficulty (난이도)
-Button_Start                → Start New Game     (진행도·증강·인벤토리 전부 초기화 후 로비로)
-Button_Quit                 → Quit Game
+VerticalBox_Content
+├ Text_Title                              "DreamVeil"
+├ Spacer                                  (Size Y 30)
+├ Text_DiffLabel                          "난이도"
+├ HorizontalBox_Difficulty
+│ ├ Button_Easy    (Slot Size: Fill 1.0)
+│ │ └ Text                                "쉬움"
+│ ├ Button_Normal  (Slot Size: Fill 1.0)
+│ │ └ Text                                "보통"
+│ └ Button_Hard    (Slot Size: Fill 1.0)
+│   └ Text                                "어려움"
+├ Text_DiffInfo                           고른 난이도 설명
+├ Spacer                                  (Size Y 30)
+├ Button_Start
+│ └ Text                                  "시작"
+└ Button_Quit
+  └ Text                                  "나가기"
 ```
-메인 메뉴 레벨의 레벨 블루프린트 `Event BeginPlay`에서:
-`Create Widget (WBP_MainMenu)` → `Add to Viewport` → `Set Input Mode UI Only` → `Set Show Mouse Cursor = true`
+
+| 위젯 | `Is Variable` | 왜 |
+|---|---|---|
+| `Button_Easy` / `Normal` / `Hard` | **체크** | 고른 난이도만 색을 강조할 거라서 |
+| `Text_DiffInfo` | **체크** | 난이도 설명을 바꿔 넣어야 함 |
+| 버튼 안의 `Text` 들 | 체크 안 함 | 글자가 절대 안 바뀜 |
+
+글자가 찌부되지 않는 조합 (폭 420 기준):
+
+| 위젯 | 설정 |
+|---|---|
+| `SizeBox_Window` | Width **420** / **`Height Override` 체크 해제** |
+| `Button_Easy/Normal/Hard` | Slot Size `Fill` 1.0 |
+| 버튼 안 `Text` 3개 | Font Size **18** / `Auto Wrap Text` **끄기** |
+| `Text_DiffInfo` | Font Size 14 / `Auto Wrap Text` **켜기** |
+
+> 난이도 버튼 3개는 `Button_Easy` 하나만 만들고 **우클릭 → `Duplicate`** 두 번 하세요. 자식 Text까지 복사됩니다.
+
+```
+[Button_Easy / Normal / Hard → On Clicked]
+  Get Game Instance → Cast To DreamVeilGameInstance → Set Difficulty (해당 난이도)
+  → RefreshDifficulty      (고른 버튼만 색 강조 + Text_DiffInfo 채우기)
+
+[Button_Start → On Clicked]
+  Get Game Instance → Cast To DreamVeilGameInstance → Start New Game
+  (진행도·증강·인벤토리를 전부 비우고 로비로 이동)
+
+[Button_Quit → On Clicked]
+  Quit Game
+
+[Event Construct]
+  → RefreshDifficulty      (지금 난이도를 Get Difficulty로 읽어서 표시)
+```
+
+메인 메뉴 레벨의 **레벨 블루프린트** `Event BeginPlay`에서:
+```
+Create Widget (Class: WBP_MainMenu, Owning Player: Get Player Controller 0)
+  → Add to Viewport
+  → Get Player Controller 0 → Set Input Mode UI Only (In Widget to Focus: 만든 위젯)
+  → Set Show Mouse Cursor = true
+```
 
 ---
 
@@ -788,6 +1133,23 @@ Button_Quit                 → Quit Game
 | 메뉴 닫았는데 조작이 안 됨 | 입력 모드가 UI Only로 남음 | `Close Menu Widget`을 부르게 함 (레벨을 옮겨도 BeginPlay가 되돌려 줌) |
 | 장착 버튼을 눌러도 아무 일 없음 | 소총 미보유 / 그 총에 없는 칸 | `Equip Part` 반환값을 확인해 안내 문구 띄우기 |
 | 다시 그릴 때마다 스크롤이 위로 튐 | 당연함 | `Get/Set Scroll Offset` (6-7) |
+| 해상도를 바꾸면 위젯이 엉뚱한 데로 감 | 앵커를 안 잡음 | 3-5의 앵커 표대로 지정 (`Ctrl+Shift` 누르고 프리셋 클릭) |
+| 다른 해상도에서 글자만 작아짐 | **정상** | DPI Scaling이 하는 일. 배치만 같으면 OK (3-6) |
+| 1080에서 만든 게 720에서 배치가 틀어짐 | 앵커 문제 (DPI 문제 아님) | 3-6의 확인 순서대로 네 해상도 다 보기 |
+| 21:9에서 창이 왼쪽으로 쏠림 | `Alignment`가 0,0 | 가운데 창은 `Alignment` 0.5, 0.5 |
+| Spacer를 넣었는데 안 벌어짐 | 기본 `Size`가 (1,1)이라 1픽셀 | `Appearance → Size`에 숫자 넣기 (세로 박스는 Y, 가로 박스는 X) |
+| Spacer의 Size를 키워도 그대로임 | Slot `Size`가 `Fill`이라 자기 Size가 무시됨 | 고정 간격이면 Slot `Size`를 `Auto`로 |
+| Canvas Panel에 넣은 Spacer가 무반응 | 정상 | Spacer는 Box 안에서만 동작 |
+| 글자 자리에 하얀 입력칸이 생김 | `Text Box`를 끌어옴 | 지우고 **`Text`** 로 다시 (3-4-1) |
+| 버튼에 글자가 안 나옴 | Button에는 글자 속성이 없음 | Button 안에 `Text`를 자식으로 넣기 |
+| 긴 설명이 한 줄로 삐져나감 | 줄바꿈 꺼짐 | Text → `Wrapping → Auto Wrap Text` 체크 |
+| 버튼 글자가 세로로 납작해짐 | `Size Box`의 `Height Override` | 체크 해제 (폭만 고정) |
+| 버튼 글자가 가로로 잘림 | Slot `Size = Fill`이 글자보다 좁음 | 폰트 18로 줄이거나 Slot `Size`를 `Auto`로 |
+| 버튼 글자가 두 줄로 접힘 | `Auto Wrap Text` 켜짐 | 버튼 라벨은 끄기 |
+| Border에 두 번째 위젯이 안 들어감 | Border는 자식 1개만 | 안에 Vertical Box를 하나 두고 거기에 넣기 |
+| 창이 화면 왼쪽 위에 붙어버림 | 앵커는 가운데인데 `Alignment`가 0,0 | `Alignment` = 0.5, 0.5 |
+| 배경이 버튼을 덮어서 클릭이 안 됨 | 배경을 나중에 넣음 | Canvas Panel은 나중 자식이 위에 그려짐 — 배경을 맨 위로 올리기 |
+| 자식 위젯에 부모 디자인이 안 보임 | 정상 | 자식이 자기 Root Widget을 가지면 부모 트리는 안 쓰임. 부모는 Graph만 (3-5) |
 | 로비에서 총이 보임 | 무기 칸이 `Nothing`으로 안 바뀜 | 로비 맵 이름이 GameInstance의 `LOBBY_MAP_PATH`와 같은지 확인 |
 | 로비에서 총 든 자세로 서 있음 | 애님 BP가 `Nothing`을 처리 안 함 | `Blend Poses (EWeaponSlot)`의 `Nothing Pose` 핀에 맨손 Idle 연결 |
 
@@ -798,6 +1160,7 @@ Button_Quit                 → Quit Game
 하루에 하나씩 해도 수요일 전에 끝납니다. 위에서부터 순서대로 하세요.
 
 - [ ] `Content/UI` 폴더 만들기
+- [ ] **위젯을 열 때마다: Designer 해상도를 `1920 x 1080` / `Fill Screen`으로 (3-6)**
 - [ ] **1일차 — 눈에 보이는 것부터**
   - [ ] `WBP_HUD` 배치 (체력바 / 스태미나바 / 꿈의 조각)
   - [ ] `WBP_HUD` 그래프 연결 (4-2 표)
