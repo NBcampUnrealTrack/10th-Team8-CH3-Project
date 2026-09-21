@@ -188,3 +188,34 @@ bool AMainGameModeBase::IsBossMonster(const AActor* Actor)
 {
 	return Actor && Actor->ActorHasTag(BOSS_TAG);
 }
+
+float AMainGameModeBase::GetLevelTimeRemaining() const
+{
+	// 타이머가 없으면 0
+	if (!LevelTimerHandle.IsValid())
+	{
+		return 0.0f;
+	}
+	// 현재 남은 시간
+	return GetWorldTimerManager().GetTimerRemaining(LevelTimerHandle);
+}
+float AMainGameModeBase::GetLevelTimeLimit() const
+{
+	// 전체 제한 시간
+	return LevelTimeLimit;
+}
+float AMainGameModeBase::GetLevelTimeProgress() const
+{
+	// 잘못된 값 방지
+	if (LevelTimeLimit <= 0.0f)
+	{
+		return 0.0f;
+	}
+	const float RemainingTime = GetLevelTimeRemaining();
+	// 시간이 줄수록 0 → 1
+	return FMath::Clamp(
+		1.0f - (RemainingTime / LevelTimeLimit),
+		0.0f,
+		1.0f
+	);
+}

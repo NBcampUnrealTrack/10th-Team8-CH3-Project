@@ -22,6 +22,15 @@ public:
 	//이 뒤로 살아있는 몬스터가 0이 되면 클리어 부르지 않으면 다 잡아도 클리어되지 않고 시간이 넘어가서 실패함
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void NotifyAllMonstersSpawned();
+	// 현재 남은 시간
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetLevelTimeRemaining() const;
+	// 전체 제한 시간
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetLevelTimeLimit() const;
+	// 잠식 진행률 (0 ~ 1)
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetLevelTimeProgress() const;
 
 	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
 	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠
