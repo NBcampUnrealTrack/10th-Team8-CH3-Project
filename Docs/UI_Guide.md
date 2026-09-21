@@ -1201,6 +1201,50 @@ Canvas Panel
 > C++의 `MAIN_MENU_MAP_PATH`가 **`/Game/Maps/MainMenu`** 라서 경로가 정확히 맞아야 합니다.
 > 안 맞으면 하드코어에서 쓰러졌을 때 화면이 안 넘어갑니다.
 
+#### ★ 이미 만들어둔 `WBP_MainMenu`를 이 구조로 바꾸는 법 (다시 안 만들어도 됩니다)
+
+지금 만들어둔 난이도 화면이 그대로 `[1]`번 장이 됩니다. 껍데기만 씌우는 작업입니다.
+
+**1단계 — 지금 있는 것을 통째로 감싸기**
+
+1. `WBP_MainMenu` 열기
+2. Hierarchy에서 지금 최상위에 있는 세로 박스(버튼들이 들어 있는 것)를 **우클릭 → `Wrap With...` → `Widget Switcher`**
+3. 새로 생긴 Widget Switcher 이름을 `F2`로 **`WidgetSwitcher_Menu`**
+4. 감싸진 기존 박스 이름을 **`VerticalBox_Difficulty`**
+
+> **`Wrap With`를 쓰면 안의 내용과 그래프 연결이 그대로 유지됩니다.** 다시 배선할 필요 없습니다.
+
+**2단계 — 첫 화면을 만들어 맨 위로**
+
+5. `WidgetSwitcher_Menu` 안에 `Vertical Box`를 드래그 → 이름 `VerticalBox_Main`
+6. Hierarchy에서 **`VerticalBox_Main`을 `VerticalBox_Difficulty` 위로 드래그**
+   → 이제 Main이 `[0]`, Difficulty가 `[1]` 입니다 (자식 순서 = 인덱스)
+7. Main 안에 아래 B의 버튼 4개를 넣습니다. **기존 `Button_Quit`은 여기로 옮기면 됩니다.**
+
+**3단계 — 난이도 화면에 버튼 2개 추가**
+
+8. `VerticalBox_Difficulty` 맨 아래에 `Button_StartRun`("시작")과 `Button_Back`("뒤로") 추가
+9. **기존 `Button_Start`에 걸려 있던 `Start New Game` 연결을 `Button_StartRun`으로 옮깁니다**
+
+> 이름이 헷갈리니 정리: 첫 화면의 `Button_Start`는 **페이지만 넘기고**,
+> 난이도 화면의 `Button_StartRun`이 **실제로 게임을 시작**합니다.
+
+**4단계 — 설명 화면**
+
+10. `WidgetSwitcher_Menu` 안에 `Vertical Box`를 하나 더 → `VerticalBox_Help` (자동으로 `[2]`)
+11. 안에 세 가지를 넣습니다 (자세한 트리는 아래 D)
+    ① `HorizontalBox_HelpTabs` — 탭 버튼 4개(게임/난이도/저장/조작), 버튼마다 Text 자식
+    ② `Size Box`(**Height Override 360**) → 그 안에 `WidgetSwitcher_Help` → 그 안에 `Scroll Box` 4개, 각각 Text 1개
+    ③ `Button_BackFromHelp` — "뒤로"
+12. 설명 글은 아래 H의 초안을 **Designer의 `Text` 칸에 직접** 붙여넣기
+
+**5단계 — 그래프**
+
+기존 `RefreshDifficulty` / `SetButtonHighlight`는 **손대지 않아도 됩니다.**
+아래 E에서 새로 추가할 것은 `RefreshContinueButton` 함수 하나와, 페이지를 넘기는 버튼 연결뿐입니다.
+`Event Construct` 맨 앞에 `Set Active Widget Index (0)`와 `RefreshContinueButton`을 끼워 넣으세요.
+
+
 #### A. 화면은 한 위젯 안에서 세 장으로 넘깁니다
 
 버튼을 누르면 **나머지가 사라지고 다음 장이 뜨는** 구조라, 위젯을 따로 만들지 않고 `Widget Switcher` 한 개로 페이지를 넘깁니다.
@@ -1270,7 +1314,8 @@ VerticalBox_Help
 │ ├ Button_HelpDiff   "난이도"
 │ ├ Button_HelpSave   "저장"
 │ └ Button_HelpKeys   "조작"
-├ WidgetSwitcher_Help
+├ SizeBox_HelpBody        Height Override 360  ← 없으면 스크롤이 안 되고 화면 밖으로 늘어남
+│ └ WidgetSwitcher_Help
 │ ├ [0] Scroll Box → Text_HelpGame
 │ ├ [1] Scroll Box → Text_HelpDiff
 │ ├ [2] Scroll Box → Text_HelpSave
@@ -1412,7 +1457,7 @@ Event BeginPlay
   쓰러지면 끝. 모든 진행과 저장이 사라지고 메인 메뉴로 돌아간다.
   정예 몬스터가 일찍부터 많이 나타난다.
 
-시간이 다 되어 실패한 경우는 세 난이도 모두 쓰러진 것과 같게 처리된다.
+시간이 다 된 경우 모두 꿈에서 깨어 로비 레벨로 돌아간다.
 ```
 
 **`[2] 저장`**
@@ -1433,6 +1478,7 @@ Event BeginPlay
 사격            마우스 왼쪽      (달리는 중에는 쏘지 않는다)
 상호작용        E               (침대 · 컴퓨터)
 인벤토리        I               (언제든 열 수 있고 게임은 멈추지 않는다)
+무기 교체 키 1,2  (1 권총 2 소총)
 ```
 
 > **무기 교체(1 / 2) 키는 아직 없습니다.** `IMC_playerController`에 `IA_EquipPistol` / `IA_EquipRifle`이
@@ -1448,7 +1494,7 @@ Event BeginPlay
 | **몬스터 남은 수** | HUD에 "남은 적 12" | `AMainGameModeBase`의 `AliveMonsterCount`가 private |
 | **히트마커 / 피격 방향** | 맞췄다는 피드백 | 없음 |
 | ~~**세이브**~~ | — | **구현 완료** (`UDreamVeilSaveGame` + GameInstance의 Save/Load 함수 5개). 로비 도착마다 자동 저장, 슬롯 1개 |
-| **무기 교체 입력** | 1/2번으로 권총·소총 바꿔 들기 | `IMC_playerController`에 `IA_EquipPistol`/`IA_EquipRifle`이 없음. **지금은 소총을 사도 못 바꿔 듦** |
+| **무기 교체 입력** | 1/2번으로 권총·소총 바꿔 들기 | **C++은 완성됨**(바인딩·핸들러 모두 있음). `IA_EquipPistol`/`IA_EquipRifle` 에셋을 만들어 IMC에 넣고 BP_MainPlayerController에 지정만 하면 됨 |
 | **몬스터 처치 경험치** | 레벨업 → 증강 선택 | `AddExperience`가 치트에서만 불림. 몬스터를 잡아도 경험치가 안 들어와서 **증강 UI가 실제 플레이로는 안 뜸** |
 | **몬스터 스폰** | 인벤토리·상점 테스트 | `AMonsterSpawnVolume::ExecuteSpawnActor` 분기가 비어 있음 (케디스님) |
 | **보스 증강 풀 분리** | 보스가 플레이어 전용 증강을 먹음 | 기획 확정 후 |
@@ -1525,7 +1571,9 @@ Event BeginPlay
   - [ ] `WBP_Bed`
   - [ ] `WBP_AugmentCard` → `WBP_AugmentChoice` (8-2 순서대로)
   - [ ] `WBP_MainMenu` — 3장짜리 Widget Switcher (첫 화면 / 난이도 / 설명)
-  - [ ] `IA_EquipPistol` `IA_EquipRifle` 만들어 IMC에 1·2키로 추가 (9장)
+  - [ ] `IA_EquipPistol` `IA_EquipRifle` 생성 (Digital bool) → `IMC_playerController`에 1·2키로 추가
+        → `BP_MainPlayerController` Class Defaults의 `Equip Pistol Action` / `Equip Rifle Action`에 지정
+        (C++은 이미 완성돼 있어 지정하는 순간 동작합니다)
 
 ---
 
