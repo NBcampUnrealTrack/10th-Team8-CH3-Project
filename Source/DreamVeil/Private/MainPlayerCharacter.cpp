@@ -119,6 +119,10 @@ void AMainPlayerCharacter::BeginPlay()
 
 		//파츠와 꿈의 조각도 복원 무기가 이미 만들어진 뒤라 끼운 파츠가 바로 무기 수치에 들어감
 		DreamVeilGameInstance->RestorePlayerInventory(Inventory);
+
+		//레벨과 경험치도 복원 이게 없으면 맵을 넘길 때마다 레벨이 1로 돌아가서
+		//HUD의 레벨 표시와 정예 몬스터 확률(GetEliteRate)이 매번 초기화됨
+		DreamVeilGameInstance->RestorePlayerLevel(this);
 	}
 }
 
@@ -439,6 +443,17 @@ void AMainPlayerCharacter::AddExperience(float Amount)
 	{
 		DrawNextAugmentChoices();
 	}
+}
+
+//저장해둔 레벨과 경험치를 되돌림
+void AMainPlayerCharacter::RestoreLevelProgress(int32 SavedLevel, float SavedExperience)
+{
+	//1보다 작은 값이 들어와도 레벨이 0이 되지 않게 막음
+	PlayerLevel = FMath::Max(SavedLevel, 1);
+	CurrentExperience = FMath::Max(SavedExperience, 0.0f);
+
+	//UI가 처음 뜰 때 옛 값을 보지 않게 바로 알림
+	OnExperienceChanged.Broadcast(CurrentExperience, GetRequiredExperience());
 }
 
 //지금 떠 있는 증강 선택지

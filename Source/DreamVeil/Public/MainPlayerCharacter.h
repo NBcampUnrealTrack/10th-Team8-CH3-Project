@@ -172,6 +172,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void AddExperience(float Amount);
 
+	//저장해둔 레벨과 경험치를 되돌림 GameInstance가 새 레벨의 플레이어에게 부름
+	//맵을 넘기면 캐릭터가 새로 만들어져 레벨이 1로 돌아가는데 이걸로 이어붙임
+	//증강 복원과 달리 레벨업 보상을 다시 주지 않음 보상은 이미 증강 기록으로 복원되기 때문
+	void RestoreLevelProgress(int32 SavedLevel, float SavedExperience);
+
 	// 레벨업 보상 증강 선택 UI가 씀
 
 	//고를 증강 선택지가 준비됐을 때 이벤트 UI는 이걸 받아서 선택 창을 띄울 것
