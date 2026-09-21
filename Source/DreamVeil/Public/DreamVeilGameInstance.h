@@ -8,7 +8,6 @@
 
 class UDispatchTableComponent;
 class UInventoryComponent;
-class AMainPlayerCharacter;
 class APawn;
 
 //난이도 죽거나 시간 초과로 실패했을 때 증강 파츠 꿈의 조각 소총을 얼마나 잃는지
@@ -110,30 +109,6 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Difficulty")
 	float GetSpawnCurveScale() const;
 
-	// 세이브 파일 게임을 껐다 켜도 남는 저장
-
-	//지금 진행 상황을 저장 파일에 씀 로비에 도착할 때마다 자동으로 불려서 따로 부를 일은 거의 없음
-	UFUNCTION(BlueprintCallable, Category = "Save")
-	bool SaveGameToSlot();
-
-	//저장 파일을 읽어 진행 상황을 되돌리고 로비로 이동 메인 메뉴의 이어하기 버튼이 부를 것
-	//저장이 없으면 아무것도 하지 않고 false
-	UFUNCTION(BlueprintCallable, Category = "Save")
-	bool LoadGameFromSlot();
-
-	//저장 파일이 있는지 메인 메뉴가 이어하기 버튼을 켤지 정할 때 씀
-	UFUNCTION(BlueprintPure, Category = "Save")
-	bool HasSavedGame() const;
-
-	//저장 파일 요약 예) L3 / 보통 / 09-21 02:14 이어하기 버튼 아래에 띄울 것
-	//저장이 없으면 빈 글자
-	UFUNCTION(BlueprintPure, Category = "Save")
-	FText GetSavedGameSummary() const;
-
-	//저장 파일을 지움 어려움에서 죽었을 때 불림 죽으면 끝이라는 규칙을 저장이 무르지 못하게 하려는 것
-	UFUNCTION(BlueprintCallable, Category = "Save")
-	void DeleteSavedGame();
-
 	// 인벤토리 저장
 
 	//플레이어 인벤토리를 저장 다음 레벨을 열기 직전에 부름 인벤토리 주인이 가진 무기(소총)도 같이 저장
@@ -143,11 +118,6 @@ public:
 	//저장한 인벤토리를 새 레벨의 플레이어에게 복원 플레이어 BeginPlay에서 부름 무기를 먼저 돌려준 뒤 파츠를 복원
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
 	void RestorePlayerInventory(UInventoryComponent* PlayerInventory);
-
-	//저장한 플레이어 레벨과 경험치를 새 레벨의 플레이어에게 복원 플레이어 BeginPlay에서 부름
-	//이게 없으면 맵을 넘길 때마다 캐릭터가 새로 만들어져서 레벨이 1로 돌아감
-	UFUNCTION(BlueprintCallable, Category = "Level")
-	void RestorePlayerLevel(AMainPlayerCharacter* PlayerCharacter);
 
 	//저장한 인벤토리와 무기를 비움 새 게임을 시작할 때
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
@@ -175,18 +145,8 @@ private:
 	UPROPERTY(Transient)
 	TArray<EWeaponSlot> SavedWeaponSlots;
 
-	//저장한 플레이어 레벨 맵을 넘겨도 유지되게 여기서 들고 있음 정예 몬스터 확률이 이 값을 봄
-	int32 SavedPlayerLevel = 1;
-
-	//저장한 경험치 레벨과 같은 이유로 같이 들고 있음
-	float SavedPlayerExperience = 0.0f;
-
 	//한 판의 진행도와 얻은 것을 전부 비움 새 게임과 어려움 사망이 같이 씀
 	void ClearRunProgress();
-
-	//지금 상태를 저장하고 로비를 엶 로비에 들어갈 때가 곧 자동 저장 시점이라 둘을 묶음
-	//새 게임 레벨 클리어 레벨 실패가 전부 이걸 씀 한 군데만 고치면 저장 시점이 바뀜
-	void OpenLobbyWithAutoSave();
 
 	//지금 조종 중인 플레이어의 증강 기록과 인벤토리를 저장 맵을 떠나기 직전에 부름
 	void SaveCurrentPlayerProgress();

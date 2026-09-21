@@ -3,18 +3,10 @@
 #include "DispatchTableComponent.h"
 #include "InventoryComponent.h"
 #include "MainPlayerCharacter.h"
-#include "DreamVeilSaveGame.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
-
-//저장 파일 이름 슬롯을 하나만 써서 이름도 하나로 고정함
-//슬롯을 여러 개로 늘리려면 이 값을 함수 인자로 바꾸고 UI가 고르게 하면 됨
-const TCHAR* const SAVE_SLOT_NAME = TEXT("DreamVeilSave");
-
-//저장 슬롯의 사용자 번호 한 명만 쓰므로 0 고정
-const int32 SAVE_USER_INDEX = 0;
 
 //로비 맵 경로 메인 메뉴에서 들어오고 레벨을 깰 때마다 돌아오는 곳
 const TCHAR* const LOBBY_MAP_PATH = TEXT("/Game/Maps/Level/Lobby");
@@ -83,10 +75,9 @@ void UDreamVeilGameInstance::StartNewGame()
 {
     ClearRunProgress();
 
-    //메인 메뉴에는 증강을 가진 플레이어가 없으니 폰에서 긁어오지 않고 바로 이동
-    //여기서 긁어오면 방금 비운 기록 위에 메뉴 화면 폰의 기록이 덮일 수 있음
-    //비운 상태 그대로 저장돼서 이어하기를 눌러도 새 판으로 시작함
-    OpenLobbyWithAutoSave();
+    //메인 메뉴에는 증강을 가진 플레이어가 없으니 저장하지 않고 바로 이동
+    //여기서 저장하면 방금 비운 기록 위에 메뉴 화면 폰의 기록이 덮일 수 있음
+    UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
 }
 
 //메인 메뉴로 나감
@@ -106,20 +97,6 @@ void UDreamVeilGameInstance::ClearRunProgress()
     ClearedLevelCount = 0;
     ClearPlayerAugments();
     ClearPlayerInventory();
-
-    //레벨과 경험치도 처음 상태로 안 비우면 새 게임을 눌러도 지난 판 레벨로 시작함
-    SavedPlayerLevel = 1;
-    SavedPlayerExperience = 0.0f;
-}
-
-//지금 상태를 저장하고 로비를 엶
-//로비에 들어가는 순간이 곧 한 판의 매듭이라 저장 시점을 여기 하나로 모음
-//레벨 안에서 저장하지 않는 이유 레벨 도중 상태로 되돌리면 실패 판정을 무를 수 있음
-void UDreamVeilGameInstance::OpenLobbyWithAutoSave()
-{
-    SaveGameToSlot();
-
-    UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
 }
 
 //로비에서 게임 시작
@@ -151,7 +128,7 @@ void UDreamVeilGameInstance::CompleteCurrentLevel()
     //실수로 두 번 불려도 레벨 개수를 넘지 않게 막음
     ClearedLevelCount = FMath::Min(ClearedLevelCount + 1, LEVEL_COUNT);
 
-    OpenLobbyWithAutoSave();
+    UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
 }
 
 //제한 시간 안에 못 깼거나 쉬움 보통에서 죽었을 때
@@ -168,7 +145,7 @@ void UDreamVeilGameInstance::FailCurrentLevel()
         SaveCurrentPlayerProgress();
     }
 
-    OpenLobbyWithAutoSave();
+    UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
 }
 
 //플레이어가 죽은 뒤 이어서 진행
@@ -179,9 +156,6 @@ void UDreamVeilGameInstance::ContinueAfterDeath()
     //다시 하려면 메뉴에서 난이도를 고르고 게임 시작을 눌러야 함
     if (Difficulty == EGameDifficulty::Hard)
     {
-        //저장 파일까지 지움 안 지우면 이어하기로 죽기 직전으로 돌아갈 수 있어서 죽으면 끝이라는 규칙이 무의미해짐
-        DeleteSavedGame();
-
         OpenMainMenu();
         return;
     }
@@ -212,128 +186,6 @@ void UDreamVeilGameInstance::SaveCurrentPlayerProgress()
 
     //인벤토리도 같은 규칙 컴포넌트가 없는 폰이면 기존 저장을 그대로 둠
     SavePlayerInventory(PlayerPawn->FindComponentByClass<UInventoryComponent>());
-
-    //레벨과 경험치도 같이 챙김 이게 없으면 맵을 넘길 때마다 레벨이 1로 돌아가고 정예 몬스터도 안 늘어남
-    if (const AMainPlayerCharacter* PlayerCharacter = Cast<AMainPlayerCharacter>(PlayerPawn))
-    {
-        SavedPlayerLevel = PlayerCharacter->GetPlayerLevel();
-        SavedPlayerExperience = PlayerCharacter->GetCurrentExperience();
-    }
-}
-
-//저장한 플레이어 레벨과 경험치를 새 레벨의 플레이어에게 복원
-void UDreamVeilGameInstance::RestorePlayerLevel(AMainPlayerCharacter* PlayerCharacter)
-{
-    if (!PlayerCharacter)
-    {
-        return;
-    }
-
-    PlayerCharacter->RestoreLevelProgress(SavedPlayerLevel, SavedPlayerExperience);
-}
-
-// 세이브 파일
-
-//지금 진행 상황을 저장 파일에 씀
-bool UDreamVeilGameInstance::SaveGameToSlot()
-{
-    UDreamVeilSaveGame* SaveData = Cast<UDreamVeilSaveGame>(UGameplayStatics::CreateSaveGameObject(UDreamVeilSaveGame::StaticClass()));
-
-    if (!SaveData)
-    {
-        return false;
-    }
-
-    //폰에서 긁어오지 않고 GameInstance가 들고 있는 값을 그대로 옮김
-    //이 값들은 로비로 떠나기 직전에 SaveCurrentPlayerProgress가 이미 최신으로 맞춰둠
-    //여기서 폰을 다시 읽으면 난이도 규칙(보통은 이번 판에 얻은 걸 버림)이 깨짐
-    SaveData->ClearedLevelCount = ClearedLevelCount;
-    SaveData->Difficulty = Difficulty;
-    SaveData->AugmentHistory = SavedPlayerAugmentHistory;
-    SaveData->Parts = SavedParts;
-    SaveData->DreamShards = SavedDreamShards;
-    SaveData->WeaponSlots = SavedWeaponSlots;
-    SaveData->PlayerLevel = SavedPlayerLevel;
-    SaveData->CurrentExperience = SavedPlayerExperience;
-    SaveData->SaveTime = FDateTime::Now();
-
-    return UGameplayStatics::SaveGameToSlot(SaveData, SAVE_SLOT_NAME, SAVE_USER_INDEX);
-}
-
-//저장 파일을 읽어 진행 상황을 되돌리고 로비로 이동
-bool UDreamVeilGameInstance::LoadGameFromSlot()
-{
-    UDreamVeilSaveGame* SaveData = Cast<UDreamVeilSaveGame>(UGameplayStatics::LoadGameFromSlot(SAVE_SLOT_NAME, SAVE_USER_INDEX));
-
-    if (!SaveData)
-    {
-        return false;
-    }
-
-    ClearedLevelCount = SaveData->ClearedLevelCount;
-    Difficulty = SaveData->Difficulty;
-    SavedPlayerAugmentHistory = SaveData->AugmentHistory;
-    SavedParts = SaveData->Parts;
-    SavedDreamShards = SaveData->DreamShards;
-    SavedWeaponSlots = SaveData->WeaponSlots;
-    SavedPlayerLevel = SaveData->PlayerLevel;
-    SavedPlayerExperience = SaveData->CurrentExperience;
-
-    //되돌린 값을 그대로 다시 저장하면 저장 시각만 바뀌므로 여기서는 저장하지 않고 로비만 엶
-    UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
-
-    return true;
-}
-
-//저장 파일이 있는지
-bool UDreamVeilGameInstance::HasSavedGame() const
-{
-    return UGameplayStatics::DoesSaveGameExist(SAVE_SLOT_NAME, SAVE_USER_INDEX);
-}
-
-//저장 파일 요약
-FText UDreamVeilGameInstance::GetSavedGameSummary() const
-{
-    const UDreamVeilSaveGame* SaveData = Cast<UDreamVeilSaveGame>(UGameplayStatics::LoadGameFromSlot(SAVE_SLOT_NAME, SAVE_USER_INDEX));
-
-    if (!SaveData)
-    {
-        return FText::GetEmpty();
-    }
-
-    //깬 레벨 수 + 1이 다음에 들어갈 레벨 L4까지 다 깼으면 Endless
-    const FText LevelText = SaveData->ClearedLevelCount >= LEVEL_COUNT
-        ? NSLOCTEXT("Save", "SummaryEndless", "Endless")
-        : FText::Format(NSLOCTEXT("Save", "SummaryLevel", "L{0}"), FText::AsNumber(SaveData->ClearedLevelCount + 1));
-
-    FText DifficultyText = NSLOCTEXT("Save", "SummaryNormal", "보통");
-
-    if (SaveData->Difficulty == EGameDifficulty::Easy)
-    {
-        DifficultyText = NSLOCTEXT("Save", "SummaryEasy", "쉬움");
-    }
-    else if (SaveData->Difficulty == EGameDifficulty::Hard)
-    {
-        DifficultyText = NSLOCTEXT("Save", "SummaryHard", "어려움");
-    }
-
-    return FText::Format(
-        NSLOCTEXT("Save", "SummaryFormat", "{0} / {1} / Lv.{2} / {3}"),
-        LevelText,
-        DifficultyText,
-        FText::AsNumber(SaveData->PlayerLevel),
-        FText::FromString(SaveData->SaveTime.ToString(TEXT("%m-%d %H:%M"))));
-}
-
-//저장 파일을 지움
-void UDreamVeilGameInstance::DeleteSavedGame()
-{
-    if (!HasSavedGame())
-    {
-        return;
-    }
-
-    UGameplayStatics::DeleteGameInSlot(SAVE_SLOT_NAME, SAVE_USER_INDEX);
 }
 
 //지금 조종 중인 플레이어 폰
