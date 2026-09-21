@@ -21,9 +21,17 @@ AMonsterBase::AMonsterBase()
 	MonsterCollisionComponent = nullptr;
 	MonsterMeshComponent = GetMesh();
 
+	AttackType = EMonsterAttackType::Melee; //기본적으로 근접, BP에서 설정 가능
+
+
+	// 체력 기본값. 에러방지용이라 수정하셈
+	MinHealthRadius = 100.0f;
+	MaxHealthRadius = 150.0f;
+
 	//이동속도
 	MonsterWalkSpeed = 500.0f;
-	//추격을 멈추고 공격할 수 있는 거리
+	// 추격을 멈추고 공격할 수 있는 거리, 기본값은 100이지만, 
+	// 자식 생성자 마지막과 BeginPlay에서 갱신할거임. 일단 안전용
 	MonsterAttackRange = 100.0f;
 
 	// 아래 세 줄 코드는 NavMesh를 이동할 때 플레이어만 바라보고 오는 게 아닌, 
@@ -36,19 +44,67 @@ AMonsterBase::AMonsterBase()
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 360.0f, 0.0f);
 	GetCharacterMovement()->bUseRVOAvoidance = true;
 	GetCharacterMovement()->AvoidanceConsiderationRadius = 500.0f;
+
 }
+
+
 
 // Called when the game starts or when spawned
 void AMonsterBase::BeginPlay()
 {
 	Super::BeginPlay();
-	// 이동속도 초기화
+	// 여기서 자식클래스가 재구성한 MonsterInit이 호출될거니 나머지 BeginPlay에선 호출 ㄴㄴ
+	MonsterInit();
+	
+}
+
+//몬스터 초기화 작업. 몬스터가 전장에 투입될 때 스탯 초기화 등
+void AMonsterBase::MonsterInit()
+{
+	//이속 
 	GetCharacterMovement()->MaxWalkSpeed = MonsterWalkSpeed;
+	// 최대체력인디.. 범위 변수는 블루프린트에서 ㄱㄱ
+	this->MaxHealth = FMath::RandRange(MinHealthRadius, MaxHealthRadius);
+	MonsterCombatStats->SetMaxHealth(MaxHealth);
+	// 어택타입 보기
+	switch (AttackType)
+	{
+	case EMonsterAttackType::Melee:
+	{
+		MonsterAttackRange = 100.0f;
+		break;
+	}
+	case EMonsterAttackType::Ranged:
+	{
+		MonsterAttackRange = 2000.0f;
+		break;
+	}
+	case EMonsterAttackType::Hybrid:
+	{
+		MonsterAttackRange = 1000.0f;
+		break;
+	}
+	default:
+	{
+		MonsterAttackRange = 100.0f;
+	}
+	}
+
 }
 
 float AMonsterBase::GetMonsterAttackRange() const
 {
 	return MonsterAttackRange;
+}
+
+EMonsterAttackType AMonsterBase::GetAttackType() const
+{
+	return AttackType;
+}
+
+UMeshComponent* AMonsterBase::GetMonsterMesh() const
+{
+	return MonsterMeshComponent;
 }
 
 //받은 데미지를 증강 라이브러리로 넘김 방어력 체력 흡혈 가시 갑옷 처리

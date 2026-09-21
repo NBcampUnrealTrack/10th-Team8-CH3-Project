@@ -14,9 +14,6 @@ class DREAMVEIL_API AHordeMonster : public AMonsterBase
 	GENERATED_BODY()
 	
 protected:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stats|Health")
-	float MaxHealth;
-
 	TObjectPtr<UCapsuleComponent> MonsterCapsuleCollisionComponent;
 	TObjectPtr<USkeletalMeshComponent> MonsterSkeletalMeshComponent;
 public:
