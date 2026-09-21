@@ -59,6 +59,14 @@ void AMonsterBase::BeginPlay()
 	Super::BeginPlay();
 	// 여기서 자식클래스가 재구성한 MonsterInit이 호출될거니 나머지 BeginPlay에선 호출 ㄴㄴ
 	MonsterInit();
+
+	if (MonsterCombatStats)
+	{
+		MonsterCombatStats->OnDead.AddDynamic(
+			this,
+			&AMonsterBase::OnDeath
+		);
+	}
 	
 }
 
@@ -94,7 +102,6 @@ void AMonsterBase::MonsterInit()
 		MonsterAttackRange = MELEE_ATTACK_RADIUS_BASE;
 	}
 	}
-
 }
 
 void AMonsterBase::PerformMeleeCheck()
@@ -176,14 +183,6 @@ void AMonsterBase::SpawnAttackProjectile()
 	Projectile->SetDamage(MonsterCombatStats->GetAttackPower());
 
 	UGameplayStatics::FinishSpawningActor(Projectile, SpawnTransform);
-}
-
-void AMonsterBase::HandleAttackMontageEnded(UAnimMontage* Montage, bool bInterrupted)
-{
-}
-
-void AMonsterBase::FinishAttack(bool bSucceeded)
-{
 }
 
 float AMonsterBase::GetMonsterAttackRange() const
@@ -300,8 +299,63 @@ void AMonsterBase::ExecuteAttack()
 	}
 }
 
+void AMonsterBase::HandleAttackMontageEnded(
+	UAnimMontage* Montage,
+	bool bInterrupted)
+{
+	if (!bIsAttacking || Montage != ActiveAttackMontage.Get())
+	{
+		return;
+	}
+
+	FinishAttack(!bInterrupted);
+}
+
+void AMonsterBase::FinishAttack(bool bSucceeded)
+{
+	if (!bIsAttacking)
+	{
+		return;
+	}
+
+	GetWorldTimerManager().ClearTimer(AttackHitTimer);
+	GetWorldTimerManager().ClearTimer(AttackEndTimer);
+
+	bIsAttacking = false;
+	bAttackExecuted = false;
+	AttackTarget.Reset();
+	ActiveAttackMontage = nullptr;
+
+	OnAttackFinished.Broadcast(bSucceeded);
+}
+
 void AMonsterBase::CancelAttack()
 {
+	if (!bIsAttacking)
+	{
+		return;
+	}
+
+	bAttackExecuted = true;
+
+	if (USkeletalMeshComponent* SkeletalMesh =
+		Cast<USkeletalMeshComponent>(GetMonsterMesh()))
+	{
+		if (UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance())
+		{
+			if (UAnimMontage* Montage = ActiveAttackMontage.Get())
+			{
+				FOnMontageEnded EmptyDelegate;
+				AnimInstance->Montage_SetEndDelegate(
+					EmptyDelegate,
+					Montage);
+
+				AnimInstance->Montage_Stop(0.1f, Montage);
+			}
+		}
+	}
+
+	FinishAttack(false);
 }
 
 EMonsterAttackType AMonsterBase::GetAttackType() const
@@ -312,6 +366,11 @@ EMonsterAttackType AMonsterBase::GetAttackType() const
 UMeshComponent* AMonsterBase::GetMonsterMesh() const
 {
 	return MonsterMeshComponent;
+}
+
+void AMonsterBase::OnDeath()
+{
+	Destroy();
 }
 
 //받은 데미지를 증강 라이브러리로 넘김 방어력 체력 흡혈 가시 갑옷 처리

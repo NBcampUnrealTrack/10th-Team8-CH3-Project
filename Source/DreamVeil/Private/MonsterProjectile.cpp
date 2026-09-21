@@ -3,6 +3,13 @@
 
 #include "MonsterProjectile.h"
 #include "Components/SphereComponent.h"
+#include "Components/StaticMeshComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "GameFramework/ProjectileMovementComponent.h"
+#include "GameFramework/Pawn.h"
+#include "GameFramework/DamageType.h"
+
+#include "MonsterBase.h"
 
 // Sets default values
 AMonsterProjectile::AMonsterProjectile()
@@ -28,6 +35,22 @@ AMonsterProjectile::AMonsterProjectile()
 		&AMonsterProjectile::HandleHit
 	);
 
+	BulletMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("BulletMesh"));
+
+	BulletMesh->SetupAttachment(BulletCollision);
+	BulletMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	Movement = CreateDefaultSubobject<UProjectileMovementComponent>(TEXT("Movement"));
+
+	Movement->SetUpdatedComponent(BulletCollision);
+	Movement->InitialSpeed = 1500.0f;
+	Movement->MaxSpeed = 1500.0f;
+	Movement->Velocity = FVector(1.0f, 0.0f, 0.0f);
+	Movement->bInitialVelocityInLocalSpace = true;
+	Movement->bRotationFollowsVelocity = true;
+	Movement->ProjectileGravityScale = 0.0f;
+
+	InitialLifeSpan = 5.0f;
 }
 
 void AMonsterProjectile::SetDamage(float damage)
@@ -41,12 +64,42 @@ void AMonsterProjectile::BeginPlay()
 {
 	Super::BeginPlay();
 	
+	if (AActor* OwnerActor = GetOwner())
+	{
+		BulletCollision->IgnoreActorWhenMoving(OwnerActor, true);
+	}
+
+	if (APawn* InstigatorPawn = GetInstigator())
+	{
+		BulletCollision->IgnoreActorWhenMoving(InstigatorPawn, true);
+	}
 }
 
 void AMonsterProjectile::HandleHit(UPrimitiveComponent* HitComp, AActor* OtherActor, UPrimitiveComponent* OtherComp, FVector NormalImpulse, const FHitResult& Hit)
 {
-}
+	if (bHitProcessed ||
+		!IsValid(OtherActor) ||
+		OtherActor == this ||
+		OtherActor == GetOwner() ||
+		OtherActor == GetInstigator())
+	{
+		return;
+	}
 
-// Called every frame
+	bHitProcessed = true;
+
+	// 예제에서는 Pawn에만 피해 적용
+	if (Cast<APawn>(OtherActor) && !Cast<AMonsterBase>(OtherActor))
+	{
+		UGameplayStatics::ApplyDamage(
+			OtherActor,
+			Damage,
+			GetInstigatorController(),
+			this,
+			UDamageType::StaticClass());
+	}
+
+	Destroy();
+}
 
 

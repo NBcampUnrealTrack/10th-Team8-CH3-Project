@@ -66,6 +66,9 @@ public:
 	// GetMesh대신 이거 써주세요.
 	UFUNCTION(BlueprintPure, Category= "Monster|Mesh")
 	UMeshComponent* GetMonsterMesh() const;
+
+	UFUNCTION()
+	virtual void OnDeath();
 protected:
 	virtual void BeginPlay() override;
 	virtual void MonsterInit();

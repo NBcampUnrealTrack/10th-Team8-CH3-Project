@@ -6,6 +6,10 @@
 AEliteMonster::AEliteMonster()
 {
 	MonsterCapsuleCollisionComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Capsule Collision"));
+	
+	//이거 없으면 충돌체 적중 안됨
+	MonsterCapsuleCollisionComponent->SetCollisionProfileName(TEXT("Pawn"));
+
 	MonsterCollisionComponent = MonsterCapsuleCollisionComponent;
 	MonsterCollisionComponent->SetupAttachment(RootComponent);
 
