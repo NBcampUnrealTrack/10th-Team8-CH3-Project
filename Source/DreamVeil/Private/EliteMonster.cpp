@@ -39,9 +39,16 @@ void AEliteMonster::MonsterInit()
 	{
 	case EEliteMonsterType::Elite1:
 	{
-		AttackType = EMonsterAttackType::Hybrid;
-		
+		AttackType = EMonsterAttackType::Melee;
 		break;
+	}
+	case EEliteMonsterType::Elite2:
+	{
+		AttackType = EMonsterAttackType::Ranged;
+	}
+	case EEliteMonsterType::Elite3:
+	{
+		AttackType = EMonsterAttackType::Hybrid;
 	}
 	}
 }

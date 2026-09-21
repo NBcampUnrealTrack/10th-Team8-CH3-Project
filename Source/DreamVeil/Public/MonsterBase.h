@@ -52,8 +52,14 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Attack")
 	EMonsterAttackType AttackType;
 
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Attack")
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Attack")
 	float MonsterAttackRange;
+
+	//공격 기본값. 공격거리 수정 필요하면 여서 하세요
+	const float MELEE_ATTACK_RADIUS_BASE = 100.0f;
+	const float RANGED_ATTACK_RADIUS_BASE = 2000.0f;
+	const float HYBRID_ATTACK_RADIUS_BASE = 1000.0f;
+
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
 	TObjectPtr<UShapeComponent> MonsterCollisionComponent;

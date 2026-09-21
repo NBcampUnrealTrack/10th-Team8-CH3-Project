@@ -71,22 +71,23 @@ void AMonsterBase::MonsterInit()
 	{
 	case EMonsterAttackType::Melee:
 	{
-		MonsterAttackRange = 100.0f;
+		MonsterAttackRange = MELEE_ATTACK_RADIUS_BASE;
 		break;
 	}
 	case EMonsterAttackType::Ranged:
 	{
-		MonsterAttackRange = 2000.0f;
+		MonsterAttackRange = RANGED_ATTACK_RADIUS_BASE;
 		break;
 	}
 	case EMonsterAttackType::Hybrid:
 	{
-		MonsterAttackRange = 1000.0f;
+		MonsterAttackRange = HYBRID_ATTACK_RADIUS_BASE;
 		break;
 	}
 	default:
 	{
-		MonsterAttackRange = 100.0f;
+		AttackType = EMonsterAttackType::Melee;
+		MonsterAttackRange = MELEE_ATTACK_RADIUS_BASE;
 	}
 	}
 

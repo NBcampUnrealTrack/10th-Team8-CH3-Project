@@ -23,5 +23,5 @@ public:
 	UFUNCTION()	//이벤트 등록할 함수에 이거 안하니까 경고문뜸...
 	void MaxHealthChanged(float OldValue, float NewValue);
 
-	void MonsterInit();
+	virtual void MonsterInit() override;
 };

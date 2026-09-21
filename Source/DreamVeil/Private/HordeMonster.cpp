@@ -31,7 +31,6 @@ AHordeMonster::AHordeMonster()
 void AHordeMonster::BeginPlay()
 {
 	Super::BeginPlay();
-	
 }
 
 void AHordeMonster::MaxHealthChanged(float OldValue, float NewValue)
@@ -40,6 +39,5 @@ void AHordeMonster::MaxHealthChanged(float OldValue, float NewValue)
 }
 void AHordeMonster::MonsterInit()
 {
-	this->MaxHealth = FMath::RandRange(MinHealthRadius, MaxHealthRadius);
-	MonsterCombatStats->SetCurrentHealth(MaxHealth);
+	Super::MonsterInit();
 }
