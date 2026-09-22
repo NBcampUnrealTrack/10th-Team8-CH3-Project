@@ -114,8 +114,13 @@ protected:
 	TObjectPtr<UShapeComponent> MonsterCollisionComponent;
 
 	// 체력 컴포넌트에 저장될 수치, 얘는 읽기만 가능
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats|Health")
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster|Stats|Health")
 	float MaxHealth;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Speed")
+	float MinWalkSpeed;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Speed")
+	float MaxWalkSpeed;
 
 	// 이 두 가지 범위중에서 랜덤하게 자동생성될 예정.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|HealthRadius")

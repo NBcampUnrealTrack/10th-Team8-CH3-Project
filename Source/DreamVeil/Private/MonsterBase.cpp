@@ -35,10 +35,12 @@ AMonsterBase::AMonsterBase()
 	MinHealthRadius = 100.0f;
 	MaxHealthRadius = 150.0f;
 
+	// 뎀지. 수정할거임
 	MonsterDamage = 10.0f;
 
 	//이동속도
-	MonsterWalkSpeed = 500.0f;
+	MinWalkSpeed = 500.0f;
+	MaxWalkSpeed = 1000.0f;
 	// 추격을 멈추고 공격할 수 있는 거리, 기본값은 200이지만, 
 	// 자식 생성자 마지막과 BeginPlay에서 갱신할거임. 일단 안전용
 	MonsterAttackRange = 200.0f;
@@ -75,7 +77,8 @@ void AMonsterBase::BeginPlay()
 //몬스터 초기화 작업. 몬스터가 전장에 투입될 때 스탯 초기화 등
 void AMonsterBase::MonsterInit()
 {
-	//이속 
+	//이속
+	this->MonsterWalkSpeed = FMath::RandRange(MinWalkSpeed, MaxWalkSpeed);
 	GetCharacterMovement()->MaxWalkSpeed = MonsterWalkSpeed;
 	// 최대체력인디.. 범위 변수는 블루프린트에서 ㄱㄱ
 	this->MaxHealth = FMath::RandRange(MinHealthRadius, MaxHealthRadius);
