@@ -9,7 +9,7 @@
 
 AMonsterAIController::AMonsterAIController()
 {
-	static ConstructorHelpers::FObjectFinder<UBehaviorTree> BTObject(TEXT("/Game/Managers/AI/BT_BaseMonster.BT_BaseMonster"));
+	static ConstructorHelpers::FObjectFinder<UBehaviorTree> BTObject(TEXT("/Game/Managers/AI/BT_Monster.BT_Monster"));
 	if (BTObject.Succeeded())
 	{
 		BehaviorTreeAsset = BTObject.Object;

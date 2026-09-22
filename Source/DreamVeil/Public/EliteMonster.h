@@ -13,17 +13,22 @@ UCLASS()
 class DREAMVEIL_API AEliteMonster : public AMonsterBase
 {
 	GENERATED_BODY()
-	
-protected:
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats|Health")
-	float MaxHealth;
-
-	TObjectPtr<UCapsuleComponent> MonsterCapsuleCollisionComponent;
-	TObjectPtr<USkeletalMeshComponent> MonsterSkeletalMeshComponent;
 public:
 	AEliteMonster();
 
 	virtual void BeginPlay() override;
 
-	void MonsterInit();
+	void MonsterInit() override;
+
+	UFUNCTION(BlueprintPure)
+	EEliteMonsterType GetEliteType() const;
+
+protected:
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|EliteType")
+	EEliteMonsterType EliteType;
+
+	TObjectPtr<UCapsuleComponent> MonsterCapsuleCollisionComponent;
+	TObjectPtr<USkeletalMeshComponent> MonsterSkeletalMeshComponent;
+
 };
