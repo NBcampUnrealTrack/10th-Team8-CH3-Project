@@ -28,8 +28,8 @@ void UBTService_CombatState::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
 
 	// 몬스터의 공격 반경, 즉 공격할 수 있는 거리(근접, 원거리)
 	float CombatDistance = Cast<AMonsterBase>(AIPawn)->GetMonsterAttackRange();
-	// 만약 기본값 가져오기 실패하면 100으로 고정
-	if (!CombatDistance) CombatDistance = 100.0f;
+	// 만약 기본값 가져오기 실패하면 200으로 고정
+	if (!CombatDistance) CombatDistance = 200.0f;
 
 	// 해당 근접공격 때리기 가능하면 IsAttackAble 변수 변경
 	if (Distance <= CombatDistance)
