@@ -105,7 +105,7 @@ protected:
 	TObjectPtr<UAnimMontage> AttackMontage;
 
 	//공격 기본값. 공격거리 수정 필요하면 여서 하세요
-	const float MELEE_ATTACK_RADIUS_BASE = 100.0f;
+	const float MELEE_ATTACK_RADIUS_BASE = 200.0f;
 	const float RANGED_ATTACK_RADIUS_BASE = 2000.0f;
 	const float HYBRID_ATTACK_RADIUS_BASE = 1000.0f;
 
@@ -122,6 +122,9 @@ protected:
 	float MinHealthRadius;
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|HealthRadius")
 	float MaxHealthRadius;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|HealthRadius")
+	float MonsterDamage;
 
 private:
 	void PerformMeleeCheck();

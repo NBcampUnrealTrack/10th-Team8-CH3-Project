@@ -35,11 +35,13 @@ AMonsterBase::AMonsterBase()
 	MinHealthRadius = 100.0f;
 	MaxHealthRadius = 150.0f;
 
+	MonsterDamage = 10.0f;
+
 	//이동속도
 	MonsterWalkSpeed = 500.0f;
-	// 추격을 멈추고 공격할 수 있는 거리, 기본값은 100이지만, 
+	// 추격을 멈추고 공격할 수 있는 거리, 기본값은 200이지만, 
 	// 자식 생성자 마지막과 BeginPlay에서 갱신할거임. 일단 안전용
-	MonsterAttackRange = 100.0f;
+	MonsterAttackRange = 200.0f;
 
 	// 아래 세 줄 코드는 NavMesh를 이동할 때 플레이어만 바라보고 오는 게 아닌, 
 	// NavMesh에 따라 경로를 바라보고 오게 자연스럽게 보이기 위함
@@ -77,7 +79,7 @@ void AMonsterBase::MonsterInit()
 	GetCharacterMovement()->MaxWalkSpeed = MonsterWalkSpeed;
 	// 최대체력인디.. 범위 변수는 블루프린트에서 ㄱㄱ
 	this->MaxHealth = FMath::RandRange(MinHealthRadius, MaxHealthRadius);
-	MonsterCombatStats->SetMaxHealth(MaxHealth);
+	MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage);
 	// 어택타입 보기
 	switch (GetAttackType())
 	{
