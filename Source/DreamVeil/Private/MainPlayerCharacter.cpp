@@ -924,6 +924,33 @@ void AMainPlayerCharacter::CheatPickAugment(int32 ChoiceIndex)
 }
 
 //자기 자신에게 데미지 흡혈과 가시 갑옷은 자기 공격이라 걸리지 않음
+//뽑기를 거치지 않고 원하는 증강을 바로 얻음
+void AMainPlayerCharacter::CheatGiveAugment(int32 AugmentID)
+{
+	if (!DispatchTable)
+	{
+		return;
+	}
+
+	//enum 범위를 벗어난 값이 들어오면 엉뚱한 스킬이 걸리므로 막음
+	const int32 MaxAugmentID = static_cast<int32>(EAugmentID::ContinuousAttack);
+
+	if (AugmentID < 0 || AugmentID > MaxAugmentID)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Cheat] AugmentID는 0~%d 사이여야 함"), MaxAugmentID);
+		return;
+	}
+
+	const EAugmentID TargetAugment = static_cast<EAugmentID>(AugmentID);
+
+	//ApplyAugment는 효과 적용과 기록 추가를 같이 함 반복 획득이 안 되는 증강은 풀에서도 빠짐
+	const bool bApplied = DispatchTable->ApplyAugment(TargetAugment);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] %s 적용 %s"),
+		*UDispatchTableComponent::GetAugmentDisplayName(TargetAugment).ToString(),
+		bApplied ? TEXT("성공") : TEXT("실패"));
+}
+
 void AMainPlayerCharacter::CheatDamageMe(float Amount)
 {
 	UAugmentDamageLibrary::ApplyAugmentDamageToTarget(this, this, Amount);

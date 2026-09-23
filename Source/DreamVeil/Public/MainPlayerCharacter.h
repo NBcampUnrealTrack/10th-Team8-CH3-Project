@@ -224,6 +224,12 @@ public:
 	UFUNCTION(Exec)
 	void CheatPickAugment(int32 ChoiceIndex);
 
+	//뽑기를 거치지 않고 원하는 증강을 바로 얻음 이펙트 확인용 예) CheatGiveAugment 10
+	//0 공격력 1 방어력 2 체력 3 스태미나 4 광전사 5 가시갑옷 6 흡혈 7 재생력 8 최후의요새
+	//9 감속탄 10 폭발탄 11 화염탄
+	UFUNCTION(Exec)
+	void CheatGiveAugment(int32 AugmentID);
+
 	//자기 자신에게 데미지 사망 흐름 확인용 예) CheatDamageMe 9999
 	UFUNCTION(Exec)
 	void CheatDamageMe(float Amount);
