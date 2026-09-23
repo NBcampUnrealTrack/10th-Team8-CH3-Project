@@ -371,6 +371,12 @@ int32 UDreamVeilGameInstance::GetCurrentLevelNumber() const
     return 0;
 }
 
+//레벨이 총 몇 개인지
+int32 UDreamVeilGameInstance::GetLevelCount() const
+{
+    return LEVEL_COUNT;
+}
+
 //지금 맵이 로비인지
 bool UDreamVeilGameInstance::IsInLobby() const
 {

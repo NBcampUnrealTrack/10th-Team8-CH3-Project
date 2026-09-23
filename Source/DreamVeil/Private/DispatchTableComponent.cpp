@@ -154,7 +154,7 @@ FText UDispatchTableComponent::GetAugmentDisplayName(EAugmentID AugmentID)
     case EAugmentID::AreaAttack:
         return NSLOCTEXT("Augment", "AreaAttackName", "폭발탄");
     case EAugmentID::ContinuousAttack:
-        return NSLOCTEXT("Augment", "ContinuousAttackName", "독탄");
+        return NSLOCTEXT("Augment", "ContinuousAttackName", "화염탄");
     default:
         return NSLOCTEXT("Augment", "UnknownName", "알 수 없는 증강");
     }
@@ -216,7 +216,7 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
             FText::AsNumber(FMath::RoundToInt(AREA_ATTACK_DAMAGE_RATIO * 100.0f)));
     case EAugmentID::ContinuousAttack:
         return FText::Format(
-            NSLOCTEXT("Augment", "ContinuousAttackDesc", "총에 맞은 적이 {0}초 동안 {1}초마다 피해의 {2}%를 입습니다. 방어력을 무시합니다."),
+            NSLOCTEXT("Augment", "ContinuousAttackDesc", "총에 맞은 적이 {0}초 동안 불타며 {1}초마다 피해의 {2}%를 입습니다. 방어력을 무시합니다."),
             FText::AsNumber(CONTINUOUS_ATTACK_DURATION),
             FText::AsNumber(CONTINUOUS_ATTACK_INTERVAL),
             FText::AsNumber(FMath::RoundToInt(CONTINUOUS_ATTACK_DAMAGE_RATIO * 100.0f)));

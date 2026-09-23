@@ -63,6 +63,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	UUserWidget* OpenMenuWidget(TSubclassOf<UUserWidget> MenuWidgetClass);
 
+	//메뉴를 띄우면서 게임을 멈춤 증강 선택처럼 고르는 동안 맞으면 안 되는 화면이 씀
+	//멈춘 상태는 CloseMenuWidget이 풀어줌
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	UUserWidget* OpenMenuWidgetPaused(TSubclassOf<UUserWidget> MenuWidgetClass);
+
 	//열려 있는 메뉴 위젯을 닫고 게임 입력으로 되돌림 위젯의 닫기 버튼이 부를 것
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void CloseMenuWidget();
