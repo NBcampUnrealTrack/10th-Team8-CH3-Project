@@ -7,7 +7,7 @@ AEliteMonster::AEliteMonster()
 {
 	MonsterCapsuleCollisionComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Capsule Collision"));
 	
-	//ÀÌ°Å ¾øÀ¸¸é Ãæµ¹Ã¼ ÀûÁß ¾ÈµÊ
+	//ì´ê±° ì—†ìœ¼ë©´ ì¶©ëŒì²´ ì ì¤‘ ì•ˆë¨
 	MonsterCapsuleCollisionComponent->SetCollisionProfileName(TEXT("Pawn"));
 
 	MonsterCollisionComponent = MonsterCapsuleCollisionComponent;
@@ -15,13 +15,13 @@ AEliteMonster::AEliteMonster()
 
 	AIControllerClass = AEliteMonsterAIController::StaticClass();
 
-	EliteType = EEliteMonsterType::Elite1; //ÀÏ´Ü ±âº»Àº Elite1
+	EliteType = EEliteMonsterType::Elite1; //ì¼ë‹¨ ê¸°ë³¸ì€ Elite1
 
-	// ¿¤¸®Æ® Ã¼·Â ±âº»°ª. ¹Ù²Ü°Å¸é ÇÏ¼¼¿ë
+	// ì—˜ë¦¬íŠ¸ ì²´ë ¥ ê¸°ë³¸ê°’. ë°”ê¿€ê±°ë©´ í•˜ì„¸ìš©
 	MinHealthRadius = 300.0f;
 	MaxHealthRadius = 500.0f;
 
-	// SkeletalMeshComponent¸¸ÀÇ °íÀ¯ÇÑ ±â´ÉÀ» ¾µ ¼öµµ ÀÖÀ¸´Ï ÀÌ·¸°Ô µÎ º¯¼ö·Î ³ª´¯´Ï´Ù. µÑ ´Ù °¡¸®Å°´Â ÄÄÆ÷³ÍÆ®´Â µ¿ÀÏ
+	// SkeletalMeshComponentë§Œì˜ ê³ ìœ í•œ ê¸°ëŠ¥ì„ ì“¸ ìˆ˜ë„ ìˆìœ¼ë‹ˆ ì´ë ‡ê²Œ ë‘ ë³€ìˆ˜ë¡œ ë‚˜ëˆ•ë‹ˆë‹¤. ë‘˜ ë‹¤ ê°€ë¦¬í‚¤ëŠ” ì»´í¬ë„ŒíŠ¸ëŠ” ë™ì¼
 	MonsterSkeletalMeshComponent = GetMesh();
 	MonsterMeshComponent->SetupAttachment(RootComponent);
 
@@ -30,15 +30,15 @@ AEliteMonster::AEliteMonster()
 
 void AEliteMonster::BeginPlay()
 {
-	Super::BeginPlay(); // ÀÌ ¾È¿¡ MonsterInit µé¾îÀÖÀ½
+	Super::BeginPlay(); // ì´ ì•ˆì— MonsterInit ë“¤ì–´ìˆìŒ
 }
 
 void AEliteMonster::MonsterInit()
 {
 	Super::MonsterInit();
 
-	// ¿¤¸®Æ® ¸ó½ºÅÍ Å¸ÀÔ ¼³Á¤ ±âº»ÀûÀ¸·Î ÇØÁÖ´Â°ÅÀÎµ¥ °ø°İ Å¸ÀÔ Á¦ÇÑÀ» °É¾î¹ö¸®´Â °Å¶û ´Ù¸§¾ø¾î¼­
-	// ºíÇÁ¿¡¼­ ¿¤¸®Æ® ¸ó½ºÅÍ Å¸ÀÔ ¹Ù²ã¹ö¸®°í ½ÍÀ¸¸é ¿©±â ³»¿ë Áö¿ì¼¼¿ä
+	// ì—˜ë¦¬íŠ¸ ëª¬ìŠ¤í„° íƒ€ì… ì„¤ì • ê¸°ë³¸ì ìœ¼ë¡œ í•´ì£¼ëŠ”ê±°ì¸ë° ê³µê²© íƒ€ì… ì œí•œì„ ê±¸ì–´ë²„ë¦¬ëŠ” ê±°ë‘ ë‹¤ë¦„ì—†ì–´ì„œ
+	// ë¸”í”„ì—ì„œ ì—˜ë¦¬íŠ¸ ëª¬ìŠ¤í„° íƒ€ì… ë°”ê¿”ë²„ë¦¬ê³  ì‹¶ìœ¼ë©´ ì—¬ê¸° ë‚´ìš© ì§€ìš°ì„¸ìš”
 	switch (EliteType)
 	{
 	case EEliteMonsterType::Elite1:

@@ -7,40 +7,40 @@
 class AFloatingObject;
 class UBoxComponent;
 
-// ÁöÁ¤ÇÑ ¿µ¿ª¿¡ Á¤ÇØÁø °³¼öÀÇ ¿ÀºêÁ§Æ® »ı¼º
+// ì§€ì •í•œ ì˜ì—­ì— ì •í•´ì§„ ê°œìˆ˜ì˜ ì˜¤ë¸Œì íŠ¸ ìƒì„±
 UCLASS()
 class AFloatingObjectSpawner : public AActor
 {
     GENERATED_BODY()
 
 private:
-    // Details¿¡¼­ »ı¼º ½Ã ¹«ÀÛÀ§ È¸Àü Àû¿ë ¿©ºÎ ¼³Á¤
+    // Detailsì—ì„œ ìƒì„± ì‹œ ë¬´ì‘ìœ„ íšŒì „ ì ìš© ì—¬ë¶€ ì„¤ì •
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner", meta = (AllowPrivateAccess = "true"))
     bool bRandomInitialRotation = true;
-    // Details¿¡¼­ ¿ÀºêÁ§Æ® ÇÑ °³´ç ÃÖ´ë »ı¼º ½Ãµµ È½¼ö ¼³Á¤
+    // Detailsì—ì„œ ì˜¤ë¸Œì íŠ¸ í•œ ê°œë‹¹ ìµœëŒ€ ìƒì„± ì‹œë„ íšŸìˆ˜ ì„¤ì •
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner", meta = (AllowPrivateAccess = "true", ClampMin = "1"))
     int32 MaxSpawnAttemptsPerObject = 30;
-    // Details¿¡¼­ ÀüÃ¼ »ı¼º °³¼ö ¼³Á¤
+    // Detailsì—ì„œ ì „ì²´ ìƒì„± ê°œìˆ˜ ì„¤ì •
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner", meta = (AllowPrivateAccess = "true", ClampMin = "0"))
     int32 SpawnCount = 30;
-    // Details¿¡¼­ °æ°è¿Í ÇÇ¹ş »çÀÌÀÇ ¿©À¯ ¼³Á¤, ¸Ş½Ã Å©±â´Â º°µµ °í·Á
+    // Detailsì—ì„œ ê²½ê³„ì™€ í”¼ë²— ì‚¬ì´ì˜ ì—¬ìœ  ì„¤ì •, ë©”ì‹œ í¬ê¸°ëŠ” ë³„ë„ ê³ ë ¤
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
     float BoundaryMargin = 100.0f;
-    // Details¿¡¼­ ¸Ş½Ã°¡ ÁöÁ¤µÈ ¿ÀºêÁ§Æ® BP µî·Ï
+    // Detailsì—ì„œ ë©”ì‹œê°€ ì§€ì •ëœ ì˜¤ë¸Œì íŠ¸ BP ë“±ë¡
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Spawner", meta = (AllowPrivateAccess = "true"))
     TArray<TSubclassOf<AFloatingObject>> ObjectClasses;
-    // »ı¼º °á°ú È®ÀÎ¿ë ¹è¿­, ¿ÜºÎ º¯°æ Á¦ÇÑ
+    // ìƒì„± ê²°ê³¼ í™•ì¸ìš© ë°°ì—´, ì™¸ë¶€ ë³€ê²½ ì œí•œ
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Transient, Category = "Spawner", meta = (AllowPrivateAccess = "true"))
     TArray<TObjectPtr<AFloatingObject>> SpawnedObjects;
-    // ÄÄÆ÷³ÍÆ® ±³Ã¼ Á¦ÇÑ, Details¿¡¼­ Box Extent ¼öÁ¤
+    // ì»´í¬ë„ŒíŠ¸ êµì²´ ì œí•œ, Detailsì—ì„œ Box Extent ìˆ˜ì •
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Spawner", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UBoxComponent> SpawnBox;
-    // ¼³Á¤ °ËÁõ ¹× ¹«ÀÛÀ§ À§Ä¡¿¡ ¿ÀºêÁ§Æ® »ı¼º
+    // ì„¤ì • ê²€ì¦ ë° ë¬´ì‘ìœ„ ìœ„ì¹˜ì— ì˜¤ë¸Œì íŠ¸ ìƒì„±
     void SpawnObjects();
-    // °ÔÀÓ ½ÃÀÛ ½Ã ÇÑ ¹ø »ı¼º
+    // ê²Œì„ ì‹œì‘ ì‹œ í•œ ë²ˆ ìƒì„±
     virtual void BeginPlay() override;
 
 public:
-    // Ãæµ¹ ¾ø´Â »ı¼º ¿µ¿ª ±¸¼º
+    // ì¶©ëŒ ì—†ëŠ” ìƒì„± ì˜ì—­ êµ¬ì„±
     AFloatingObjectSpawner();
 };

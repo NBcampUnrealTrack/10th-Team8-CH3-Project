@@ -23,36 +23,36 @@
 AMonsterBase::AMonsterBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
-	// ¿ùµå¿¡ ½ºÆùµÆÀ» °æ¿ì AIController Possess ½ÃÅ°±â
+	// ì›”ë“œì— ìŠ¤í°ëì„ ê²½ìš° AIController Possess ì‹œí‚¤ê¸°
 	AutoPossessAI = EAutoPossessAI::PlacedInWorld;
 	MonsterCombatStats = CreateDefaultSubobject<UCombatStatsComponent>(TEXT("MonsterCombatStats"));
 	MonsterDispatchTable = CreateDefaultSubobject<UDispatchTableComponent>(TEXT("MonsterDispatchTable"));
 	MonsterCollisionComponent = nullptr;
 	MonsterMeshComponent = GetMesh();
 
-	AttackType = EMonsterAttackType::Melee; //±âº»ÀûÀ¸·Î ±ÙÁ¢, BP¿¡¼­ ¼³Á¤ °¡´É
+	AttackType = EMonsterAttackType::Melee; //ê¸°ë³¸ì ìœ¼ë¡œ ê·¼ì ‘, BPì—ì„œ ì„¤ì • ê°€ëŠ¥
 
-	// Ã¼·Â ±âº»°ª. ¿¡·¯¹æÁö¿ëÀÌ¶ó ¼öÁ¤ÇÏ¼À
+	// ì²´ë ¥ ê¸°ë³¸ê°’. ì—ëŸ¬ë°©ì§€ìš©ì´ë¼ ìˆ˜ì •í•˜ì…ˆ
 	MinHealthRadius = 100.0f;
 	MaxHealthRadius = 150.0f;
 
-	// µ©Áö. ¼öÁ¤ÇÒ°ÅÀÓ
+	// ë€ì§€. ìˆ˜ì •í• ê±°ì„
 	MonsterDamage = 10.0f;
 
-	//ÀÌµ¿¼Óµµ
+	//ì´ë™ì†ë„
 	MinWalkSpeed = 500.0f;
 	MaxWalkSpeed = 1000.0f;
-	// Ãß°İÀ» ¸ØÃß°í °ø°İÇÒ ¼ö ÀÖ´Â °Å¸®, ±âº»°ªÀº 200ÀÌÁö¸¸, 
-	// ÀÚ½Ä »ı¼ºÀÚ ¸¶Áö¸·°ú BeginPlay¿¡¼­ °»½ÅÇÒ°ÅÀÓ. ÀÏ´Ü ¾ÈÀü¿ë
+	// ì¶”ê²©ì„ ë©ˆì¶”ê³  ê³µê²©í•  ìˆ˜ ìˆëŠ” ê±°ë¦¬, ê¸°ë³¸ê°’ì€ 200ì´ì§€ë§Œ, 
+	// ìì‹ ìƒì„±ì ë§ˆì§€ë§‰ê³¼ BeginPlayì—ì„œ ê°±ì‹ í• ê±°ì„. ì¼ë‹¨ ì•ˆì „ìš©
 	MonsterAttackRange = 200.0f;
 
-	// ¾Æ·¡ ¼¼ ÁÙ ÄÚµå´Â NavMesh¸¦ ÀÌµ¿ÇÒ ¶§ ÇÃ·¹ÀÌ¾î¸¸ ¹Ù¶óº¸°í ¿À´Â °Ô ¾Æ´Ñ, 
-	// NavMesh¿¡ µû¶ó °æ·Î¸¦ ¹Ù¶óº¸°í ¿À°Ô ÀÚ¿¬½º·´°Ô º¸ÀÌ±â À§ÇÔ
+	// ì•„ë˜ ì„¸ ì¤„ ì½”ë“œëŠ” NavMeshë¥¼ ì´ë™í•  ë•Œ í”Œë ˆì´ì–´ë§Œ ë°”ë¼ë³´ê³  ì˜¤ëŠ” ê²Œ ì•„ë‹Œ, 
+	// NavMeshì— ë”°ë¼ ê²½ë¡œë¥¼ ë°”ë¼ë³´ê³  ì˜¤ê²Œ ìì—°ìŠ¤ëŸ½ê²Œ ë³´ì´ê¸° ìœ„í•¨
 	bUseControllerRotationYaw = false;
 	GetCharacterMovement()->bOrientRotationToMovement = true;
 	GetCharacterMovement()->bUseControllerDesiredRotation = false;
 
-	// AIµé³¢¸® ÁÙÁö¾î ¿À´Â °ÍÀÌ ¾Æ´Ñ, ¼­·Î ÇÇÇÏ¸é¼­ Ãß°İÇÒ ¼ö ÀÖ°Ô ÇÏ´Â ÄÚµåµé.
+	// AIë“¤ë¼ë¦¬ ì¤„ì§€ì–´ ì˜¤ëŠ” ê²ƒì´ ì•„ë‹Œ, ì„œë¡œ í”¼í•˜ë©´ì„œ ì¶”ê²©í•  ìˆ˜ ìˆê²Œ í•˜ëŠ” ì½”ë“œë“¤.
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 360.0f, 0.0f);
 	GetCharacterMovement()->bUseRVOAvoidance = true;
 	GetCharacterMovement()->AvoidanceConsiderationRadius = 500.0f;
@@ -62,7 +62,7 @@ AMonsterBase::AMonsterBase()
 void AMonsterBase::BeginPlay()
 {
 	Super::BeginPlay();
-	// ¿©±â¼­ ÀÚ½ÄÅ¬·¡½º°¡ Àç±¸¼ºÇÑ MonsterInitÀÌ È£ÃâµÉ°Å´Ï ³ª¸ÓÁö BeginPlay¿¡¼± È£Ãâ ¤¤¤¤
+	// ì—¬ê¸°ì„œ ìì‹í´ë˜ìŠ¤ê°€ ì¬êµ¬ì„±í•œ MonsterInitì´ í˜¸ì¶œë ê±°ë‹ˆ ë‚˜ë¨¸ì§€ BeginPlayì—ì„  í˜¸ì¶œ ã„´ã„´
 	MonsterInit();
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCanEverAffectNavigation(false);
@@ -78,7 +78,7 @@ void AMonsterBase::BeginPlay()
 	
 }
 
-//¸ó½ºÅÍ ÃÊ±âÈ­ ÀÛ¾÷. ¸ó½ºÅÍ°¡ ÀüÀå¿¡ ÅõÀÔµÉ ¶§ ½ºÅÈ ÃÊ±âÈ­ µî
+//ëª¬ìŠ¤í„° ì´ˆê¸°í™” ì‘ì—…. ëª¬ìŠ¤í„°ê°€ ì „ì¥ì— íˆ¬ì…ë  ë•Œ ìŠ¤íƒ¯ ì´ˆê¸°í™” ë“±
 void AMonsterBase::MonsterInit()
 {
 #pragma region Collisions
@@ -104,17 +104,17 @@ void AMonsterBase::MonsterInit()
 
 #pragma endregion
 
-	//ÀÌ¼Ó
+	//ì´ì†
 	this->MonsterWalkSpeed = FMath::RandRange(MinWalkSpeed, MaxWalkSpeed);
 	GetCharacterMovement()->MaxWalkSpeed = MonsterWalkSpeed;
-	// ÃÖ´ëÃ¼·ÂÀÎµğ.. ¹üÀ§ º¯¼ö´Â ºí·çÇÁ¸°Æ®¿¡¼­ ¤¡¤¡
+	// ìµœëŒ€ì²´ë ¥ì¸ë””.. ë²”ìœ„ ë³€ìˆ˜ëŠ” ë¸”ë£¨í”„ë¦°íŠ¸ì—ì„œ ã„±ã„±
 	this->MaxHealth = FMath::RandRange(MinHealthRadius, MaxHealthRadius);
 
 	if (IsValid(MonsterCombatStats))
 	{
 		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage);
 	}
-	// ¾îÅÃÅ¸ÀÔ º¸±â
+	// ì–´íƒíƒ€ì… ë³´ê¸°
 	switch (GetAttackType())
 	{
 	case EMonsterAttackType::Melee:
@@ -142,41 +142,41 @@ void AMonsterBase::MonsterInit()
 
 void AMonsterBase::PerformMeleeCheck()
 {
-	// Àû ±âÁØ Àü¹æ¿¡ Å¸°İ¹üÀ§ ±¸Ã¼ »ı¼º. ¸ó½ºÅÍ ±âÁØ ¹İ°æÀÌ ¾Æ´Ï¶ó ¸ó½ºÅÍ Àü¹æ¿¡ ¹İ°æÀÌ ÀÖ´Â °Í.
+	// ì  ê¸°ì¤€ ì „ë°©ì— íƒ€ê²©ë²”ìœ„ êµ¬ì²´ ìƒì„±. ëª¬ìŠ¤í„° ê¸°ì¤€ ë°˜ê²½ì´ ì•„ë‹ˆë¼ ëª¬ìŠ¤í„° ì „ë°©ì— ë°˜ê²½ì´ ìˆëŠ” ê²ƒ.
 	const FVector HitCenter = GetActorLocation() + GetActorForwardVector() * MeleeAttackRadius;
 
-	// Ãæµ¹ °Ë»ö ¿ÀºêÁ§Æ®ÀÇ Á¶°Ç °É±â
+	// ì¶©ëŒ ê²€ìƒ‰ ì˜¤ë¸Œì íŠ¸ì˜ ì¡°ê±´ ê±¸ê¸°
 	FCollisionObjectQueryParams ObjectParameters;
-	// Pawn¸¸ °Ë»öÇÒ°ÍÀÓ.
+	// Pawnë§Œ ê²€ìƒ‰í• ê²ƒì„.
 	ObjectParameters.AddObjectTypesToQuery(ECC_Pawn);
 
-	// Ãæµ¹ Á¦¿Ü ¼³Á¤ °É±â
+	// ì¶©ëŒ ì œì™¸ ì„¤ì • ê±¸ê¸°
 	FCollisionQueryParams QueryParameters;
-	// ³­ »¬°ÅÀÓ
+	// ë‚œ ëº„ê±°ì„
 	QueryParameters.AddIgnoredActor(this);
 
-	// °á°ú°ª ÀúÀåÇÒ °÷
+	// ê²°ê³¼ê°’ ì €ì¥í•  ê³³
 	TArray<FOverlapResult> OverlapResults;
 
-	// ¿À¹ö·¦ Ãæµ¹Ã¼Å© ½ÇÇà.
+	// ì˜¤ë²„ë© ì¶©ëŒì²´í¬ ì‹¤í–‰.
 	GetWorld()->OverlapMultiByObjectType(
-		OverlapResults,		// °á°ú°ª
-		HitCenter,			// ¿À¹ö·¦ ½ÃÀÛ À§Ä¡
-		FQuat::Identity,	// °Ë»ç ¿µ¿ª È¸ÀüÀÎµ¥ ÇÊ¿ä¾ø¾î¼­ °Á ÀÌ·¸°Ô
-		ObjectParameters,	// ³­ Pawn¸¸ °Ë»öÇÒ°ÅÀÓ
-		FCollisionShape::MakeSphere(MeleeAttackRadius),	//Áï¼®À¸·Î ¼³Á¤ ¹İ°æ¸¸Å­ ±¸ ¸¸µé¾î¼­ Ãæµ¹Ã¼Å©
-		QueryParameters		// ±Ùµ¥ ³­ »©ÁÖ¼À
+		OverlapResults,		// ê²°ê³¼ê°’
+		HitCenter,			// ì˜¤ë²„ë© ì‹œì‘ ìœ„ì¹˜
+		FQuat::Identity,	// ê²€ì‚¬ ì˜ì—­ íšŒì „ì¸ë° í•„ìš”ì—†ì–´ì„œ ê± ì´ë ‡ê²Œ
+		ObjectParameters,	// ë‚œ Pawnë§Œ ê²€ìƒ‰í• ê±°ì„
+		FCollisionShape::MakeSphere(MeleeAttackRadius),	//ì¦‰ì„ìœ¼ë¡œ ì„¤ì • ë°˜ê²½ë§Œí¼ êµ¬ ë§Œë“¤ì–´ì„œ ì¶©ëŒì²´í¬
+		QueryParameters		// ê·¼ë° ë‚œ ë¹¼ì£¼ì…ˆ
 	);
 
-	// ³­ Áö±İºÎÅÍ °¨ÁöµÈ °ÍµéÀ» ÇÏ³ª¾¿ ±îº¼°Ü
+	// ë‚œ ì§€ê¸ˆë¶€í„° ê°ì§€ëœ ê²ƒë“¤ì„ í•˜ë‚˜ì”© ê¹Œë³¼ê²¨
 	for (const FOverlapResult& Result : OverlapResults)
 	{
-		// ´Ô ÇÃ·¹ÀÌ¾îÀÓ?
+		// ë‹˜ í”Œë ˆì´ì–´ì„?
 		AMainPlayerCharacter* ResultActor = Cast<AMainPlayerCharacter>(Result.GetActor());
-		// ¾Æ´Ï¸é ºñÄÑ ¹æÇØµÈ´Ù
+		// ì•„ë‹ˆë©´ ë¹„ì¼œ ë°©í•´ëœë‹¤
 		if (!IsValid(ResultActor)) return;
 
-		//ÇÃ·¹ÀÌ¾î¸é µ¥¹ÌÁö ÁØ´ÙÀÕ
+		//í”Œë ˆì´ì–´ë©´ ë°ë¯¸ì§€ ì¤€ë‹¤ì‡
 		UGameplayStatics::ApplyDamage(
 			ResultActor,
 			MonsterCombatStats->GetAttackPower(),
@@ -184,24 +184,24 @@ void AMonsterBase::PerformMeleeCheck()
 			this,
 			UDamageType::StaticClass()
 		);
-		//ÇÃ·¹ÀÌ¾î´Â ÇÏ³ª´Ï±î µ© ÁáÀ¸¸é ÀÌ ¹İº¹¹® Á¾·á
+		//í”Œë ˆì´ì–´ëŠ” í•˜ë‚˜ë‹ˆê¹Œ ë€ ì¤¬ìœ¼ë©´ ì´ ë°˜ë³µë¬¸ ì¢…ë£Œ
 		break;
 	}
 }
 
 void AMonsterBase::SpawnAttackProjectile()
 {
-	// Å¸°Ù °¡Á®¿À°í Ã¼Å©
+	// íƒ€ê²Ÿ ê°€ì ¸ì˜¤ê³  ì²´í¬
 	AActor* Target = AttackTarget.Get();
 	if (!IsValid(Target) || !RangedProjectile) return;
 
-	// ¿ø°Å¸® °ø°İÀÌ ¾îµğ¼­ ½ºÆùµÉÁö Á¤ÇØÁÜ
+	// ì›ê±°ë¦¬ ê³µê²©ì´ ì–´ë””ì„œ ìŠ¤í°ë ì§€ ì •í•´ì¤Œ
 	const FVector SpawnLocation = GetActorLocation() + GetActorRotation().RotateVector(ProjectileSpawnOffset);
 	
-	// Á¤±ÔÈ­·Î ¹æÇâº¤ÅÍ ±¸ÇÏ±â
+	// ì •ê·œí™”ë¡œ ë°©í–¥ë²¡í„° êµ¬í•˜ê¸°
 	const FVector Dir = (Target->GetActorLocation() - SpawnLocation).GetSafeNormal();
 
-	// TransformÀ¸·Î ¹­±â
+	// Transformìœ¼ë¡œ ë¬¶ê¸°
 	const FTransform SpawnTransform(Dir.Rotation(), SpawnLocation);
 
 	//
@@ -226,13 +226,13 @@ float AMonsterBase::GetMonsterAttackRange() const
 	return MonsterAttackRange;
 }
 
-// ÀÌ ÇÔ¼ö¿¡ º¯¼ö¸íÀÌ °ãÄ¥ »çÇ×µéÀÌ ¸¹ÀÌ º¸¿©¼­ ±¸ºĞÀ» À§ÇØ °ãÄ¥¸¸ÇÑ º¯¼ö¸í ¾Õ¿¡ ´Ù TempºÙ¿©µ×À½.
+// ì´ í•¨ìˆ˜ì— ë³€ìˆ˜ëª…ì´ ê²¹ì¹  ì‚¬í•­ë“¤ì´ ë§ì´ ë³´ì—¬ì„œ êµ¬ë¶„ì„ ìœ„í•´ ê²¹ì¹ ë§Œí•œ ë³€ìˆ˜ëª… ì•ì— ë‹¤ Tempë¶™ì—¬ë’€ìŒ.
 bool AMonsterBase::StartAttack(AActor* Target)
 {
-	// °ø°İ Á¶°Ç ÃæÁ· ¿©ºÎ È®ÀÎ
+	// ê³µê²© ì¡°ê±´ ì¶©ì¡± ì—¬ë¶€ í™•ì¸
 	if (bIsAttacking || !IsValid(Target) || Target == this) return false;
 	
-	// Å¸ÀÔÀÌ ¾È Á¤ÇØÁø ³ğÀÌ¸é ºñÄÑ¶ó
+	// íƒ€ì…ì´ ì•ˆ ì •í•´ì§„ ë†ˆì´ë©´ ë¹„ì¼œë¼
 	const EMonsterAttackType TempAttackType = GetAttackType();
 	if (TempAttackType != EMonsterAttackType::Melee
 		&& TempAttackType != EMonsterAttackType::Ranged
@@ -241,7 +241,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 		return false;
 	}
 
-	// ¿ø°Å¸® ¸ó½ºÅÍÀÎµ¥ ¿ø°Å¸® Åõ»çÃ¼ Ä³½Ì ¾ÈµÆÀ¸¸é ½ÇÆĞ
+	// ì›ê±°ë¦¬ ëª¬ìŠ¤í„°ì¸ë° ì›ê±°ë¦¬ íˆ¬ì‚¬ì²´ ìºì‹± ì•ˆëìœ¼ë©´ ì‹¤íŒ¨
 	if (TempAttackType == EMonsterAttackType::Ranged && !RangedProjectile) return false;
 
 	FVector Dir = Target->GetActorLocation() - GetActorLocation();
@@ -265,7 +265,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 			? MeleeAttackMontage.Get()
 			: TempAttackType == EMonsterAttackType::Ranged
 			? RangedAttackMontage.Get()
-			/* Á¨Àå ÇÏÀÌºê¸®µå°¡ Á¸ÀçÇÏÁú ¾Ê¾Æ. . . .. . . .. . .
+			/* ì  ì¥ í•˜ì´ë¸Œë¦¬ë“œê°€ ì¡´ì¬í•˜ì§ˆ ì•Šì•„. . . .. . . .. . .
 			: TempAttackType == EMonsterAttackType::Hybrid
 			? HybridAttackMontage.Get()
 			*/
@@ -288,25 +288,25 @@ bool AMonsterBase::StartAttack(AActor* Target)
 			return false;
 		}
 		
-		// ¸ùÅ¸ÁÖ Á¤»óÁ¾·á, Áß´Ü µî ¸ğµÎ Äİ¹éÀ¸·Î Àü´Ş½ÃÅ°±â
+		// ëª½íƒ€ì£¼ ì •ìƒì¢…ë£Œ, ì¤‘ë‹¨ ë“± ëª¨ë‘ ì½œë°±ìœ¼ë¡œ ì „ë‹¬ì‹œí‚¤ê¸°
 		FOnMontageEnded EndDelegate;
 		EndDelegate.BindUObject(
 			this,
 			&AMonsterBase::HandleAttackMontageEnded
 		);
-		// ¿£µå µ¨¸®°ÔÀÌÆ® ¼¼ÆÃ
+		// ì—”ë“œ ë¸ë¦¬ê²Œì´íŠ¸ ì„¸íŒ…
 		TempAnimInstance->Montage_SetEndDelegate(EndDelegate, TempAnimMontage);
 
 		return true;
 	}
-	// Static Mesh ¾È¾µ°Å °°¾Æ¼­ ±¸ÇöÀº ¾È ÇØµÎ´Âµ¥ ÀÌ°Å ¸¸¾à ¾²¸é ¿©µû ±¸Çö³»¿ë ³²°ÜÁÖ¼¼¿ä
+	// Static Mesh ì•ˆì“¸ê±° ê°™ì•„ì„œ êµ¬í˜„ì€ ì•ˆ í•´ë‘ëŠ”ë° ì´ê±° ë§Œì•½ ì“°ë©´ ì—¬ë”° êµ¬í˜„ë‚´ìš© ë‚¨ê²¨ì£¼ì„¸ìš”
 
 	bIsAttacking = false;
 	AttackTarget.Reset();
 	return false;
 }
 
-// °ø°İÆÇÁ¤ ¿©±â¼­ 
+// ê³µê²©íŒì • ì—¬ê¸°ì„œ 
 void AMonsterBase::ExecuteAttack()
 {
 	if (!bIsAttacking || bAttackExecuted) return;
@@ -327,7 +327,7 @@ void AMonsterBase::ExecuteAttack()
 	}
 	case EMonsterAttackType::Hybrid:
 	{
-		//ÇÏÀÌºê¸®µå ±¸Çö ¾ÆÁ÷ º¸·ù
+		//í•˜ì´ë¸Œë¦¬ë“œ êµ¬í˜„ ì•„ì§ ë³´ë¥˜
 		break;
 	}
 	default:
@@ -409,7 +409,7 @@ void AMonsterBase::OnDeath()
 	Destroy();
 }
 
-//¹ŞÀº µ¥¹ÌÁö¸¦ Áõ°­ ¶óÀÌºê·¯¸®·Î ³Ñ±è ¹æ¾î·Â Ã¼·Â ÈíÇ÷ °¡½Ã °©¿Ê Ã³¸®
+//ë°›ì€ ë°ë¯¸ì§€ë¥¼ ì¦ê°• ë¼ì´ë¸ŒëŸ¬ë¦¬ë¡œ ë„˜ê¹€ ë°©ì–´ë ¥ ì²´ë ¥ í¡í˜ˆ ê°€ì‹œ ê°‘ì˜· ì²˜ë¦¬
 float AMonsterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser)
 {
 	const float Damage = Super::TakeDamage(DamageAmount, DamageEvent, EventInstigator, DamageCauser);

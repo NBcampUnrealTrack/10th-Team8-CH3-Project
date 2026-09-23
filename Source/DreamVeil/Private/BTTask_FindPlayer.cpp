@@ -8,17 +8,17 @@
 
 UBTTask_FindPlayer::UBTTask_FindPlayer()
 {
-	//BT¿¡¼­ º¸¿©Áú ÀÌ¸§
+	//BTì—ì„œ ë³´ì—¬ì§ˆ ì´ë¦„
 	NodeName = TEXT("Find Player Location Task");
 }
 EBTNodeResult::Type UBTTask_FindPlayer::ExecuteTask(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory)
 {
-	//BT¿¡¼­ ºí·¢º¸µå ÄÄÆ÷³ÍÆ® °¡Á®¿À±â
+	//BTì—ì„œ ë¸”ë™ë³´ë“œ ì»´í¬ë„ŒíŠ¸ ê°€ì ¸ì˜¤ê¸°
 	UBlackboardComponent* BlackboardComp = OwnerComp.GetBlackboardComponent();
 
 	if (!BlackboardComp) return EBTNodeResult::Failed;
 
-	// ÇÃ·¹ÀÌ¾î °¡Á®¿À±â
+	// í”Œë ˆì´ì–´ ê°€ì ¸ì˜¤ê¸°
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
 	if (!PlayerPawn) return EBTNodeResult::Failed;

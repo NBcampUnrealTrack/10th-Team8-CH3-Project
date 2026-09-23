@@ -5,7 +5,7 @@
 AFloatingObject::AFloatingObject()
 {
     PrimaryActorTick.bCanEverTick = true;
-    // ÀÌµ¿ °æ·Î¸¦ °Ë»çÇÒ ±¸Çü ·çÆ®, ¹İ°æÀº BP¿¡¼­ ¸Ş½Ã Å©±â¿¡ ¸Â°Ô Á¶Àı
+    // ì´ë™ ê²½ë¡œë¥¼ ê²€ì‚¬í•  êµ¬í˜• ë£¨íŠ¸, ë°˜ê²½ì€ BPì—ì„œ ë©”ì‹œ í¬ê¸°ì— ë§ê²Œ ì¡°ì ˆ
     CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
     SetRootComponent(CollisionSphere);
     CollisionSphere->InitSphereRadius(150.0f);
@@ -14,7 +14,7 @@ AFloatingObject::AFloatingObject()
     CollisionSphere->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
     CollisionSphere->SetGenerateOverlapEvents(false);
     CollisionSphere->SetCanEverAffectNavigation(false);
-    // ¿ÜÇü ¸Ş½Ã¸¦ Ãæµ¹Ã¼¿¡ ºÎÂøÇÏ°í Áßº¹ Ãæµ¹ ºñÈ°¼ºÈ­
+    // ì™¸í˜• ë©”ì‹œë¥¼ ì¶©ëŒì²´ì— ë¶€ì°©í•˜ê³  ì¤‘ë³µ ì¶©ëŒ ë¹„í™œì„±í™”
     Mesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("Mesh"));
     Mesh->SetupAttachment(CollisionSphere);
     Mesh->SetMobility(EComponentMobility::Movable);
@@ -26,7 +26,7 @@ AFloatingObject::AFloatingObject()
 
 void AFloatingObject::ChooseTarget()
 {
-    // ·ÎÄÃ ÀÌµ¿ ¹üÀ§¿¡¼­ ¹«ÀÛÀ§ ¸ñÇ¥Á¡ ¼±ÅÃ
+    // ë¡œì»¬ ì´ë™ ë²”ìœ„ì—ì„œ ë¬´ì‘ìœ„ ëª©í‘œì  ì„ íƒ
     const FVector LOCAL_TARGET(
         FMath::FRandRange(LocalMin.X, LocalMax.X),
         FMath::FRandRange(LocalMin.Y, LocalMax.Y),
@@ -36,11 +36,11 @@ void AFloatingObject::ChooseTarget()
 void AFloatingObject::ConfigureMovement(const FTransform& InSpace,
     const FVector& InSpawnPoint, const FVector& InVolumeExtent)
 {
-    // ¿ÀºêÁ§Æ® ÀÚ½ÅÀÇ ¼³Á¤À» ÀÌ¿ëÇØ ÀÌµ¿ ¹üÀ§ °è»ê
+    // ì˜¤ë¸Œì íŠ¸ ìì‹ ì˜ ì„¤ì •ì„ ì´ìš©í•´ ì´ë™ ë²”ìœ„ ê³„ì‚°
     const FVector MOVEMENT_RANGE = MovementHalfExtent.GetAbs();
     const FVector VOLUME_EXTENT = InVolumeExtent.GetAbs();
     MovementSpace = InSpace;
-    // ¹üÀ§ ¹Û »ı¼º À§Ä¡´Â °¡Àå °¡±î¿î ³»ºÎ ÁöÁ¡À¸·Î Á¦ÇÑ
+    // ë²”ìœ„ ë°– ìƒì„± ìœ„ì¹˜ëŠ” ê°€ì¥ ê°€ê¹Œìš´ ë‚´ë¶€ ì§€ì ìœ¼ë¡œ ì œí•œ
     const FVector SPAWN_POINT = InSpawnPoint.ComponentMax(-VOLUME_EXTENT).ComponentMin(VOLUME_EXTENT);
     LocalMin = (SPAWN_POINT - MOVEMENT_RANGE).ComponentMax(-VOLUME_EXTENT);
     LocalMax = (SPAWN_POINT + MOVEMENT_RANGE).ComponentMin(VOLUME_EXTENT);
@@ -52,12 +52,12 @@ void AFloatingObject::MoveToTarget(float DeltaTime)
     {
         return;
     }
-    // ÇÁ·¹ÀÓ ½Ã°£À» ¹İ¿µÇÑ ´ÙÀ½ À§Ä¡
+    // í”„ë ˆì„ ì‹œê°„ì„ ë°˜ì˜í•œ ë‹¤ìŒ ìœ„ì¹˜
     const FVector NEXT_LOCATION = FMath::VInterpConstantTo(GetActorLocation(), TargetLocation, DeltaTime, MoveSpeed);
-    // ·çÆ® Ãæµ¹Ã¼ÀÇ ÀÌµ¿ °æ·Î °Ë»ç °á°ú
+    // ë£¨íŠ¸ ì¶©ëŒì²´ì˜ ì´ë™ ê²½ë¡œ ê²€ì‚¬ ê²°ê³¼
     FHitResult HitResult;
     SetActorLocation(NEXT_LOCATION, true, &HitResult);
-    // Àå¾Ö¹°¿¡ ¸·È÷¸é »õ ¸ñÇ¥Á¡ ¼±ÅÃ
+    // ì¥ì• ë¬¼ì— ë§‰íˆë©´ ìƒˆ ëª©í‘œì  ì„ íƒ
     if (HitResult.bBlockingHit)
     {
         ChooseTarget();
@@ -75,7 +75,7 @@ void AFloatingObject::RotateObject(float DeltaTime)
     {
         return;
     }
-    // ÃÊ´ç È¸Àü·®À» ÀÌ¹ø ÇÁ·¹ÀÓÀÇ È¸Àü·®À¸·Î º¯È¯
+    // ì´ˆë‹¹ íšŒì „ëŸ‰ì„ ì´ë²ˆ í”„ë ˆì„ì˜ íšŒì „ëŸ‰ìœ¼ë¡œ ë³€í™˜
     AddActorLocalRotation(FRotator(
         RotationSpeed.Pitch * DeltaTime,
         RotationSpeed.Yaw * DeltaTime,
@@ -84,17 +84,17 @@ void AFloatingObject::RotateObject(float DeltaTime)
 void AFloatingObject::BeginPlay()
 {
     Super::BeginPlay();
-    // À½¼ö Á¦¿Ü ¹× ÃÖ¼Ò/ÃÖ´ë ÀÌµ¿ ¼Óµµ Á¤¸®
+    // ìŒìˆ˜ ì œì™¸ ë° ìµœì†Œ/ìµœëŒ€ ì´ë™ ì†ë„ ì •ë¦¬
     const float MIN_MOVE_SPEED = FMath::Max(0.0f, FMath::Min(static_cast<float>(MoveSpeedRange.X), static_cast<float>(MoveSpeedRange.Y)));
     const float MAX_MOVE_SPEED = FMath::Max(MIN_MOVE_SPEED, FMath::Max(static_cast<float>(MoveSpeedRange.X), static_cast<float>(MoveSpeedRange.Y)));
     MoveSpeed = FMath::FRandRange(MIN_MOVE_SPEED, MAX_MOVE_SPEED);
-    // Ãàº° ¾ç¹æÇâ È¸Àü ¼ÓµµÀÇ ÇÑ°è
+    // ì¶•ë³„ ì–‘ë°©í–¥ íšŒì „ ì†ë„ì˜ í•œê³„
     const FVector MAX_ROTATION_SPEED = MaxRotationSpeed.GetAbs();
     RotationSpeed = FRotator(
         FMath::FRandRange(-MAX_ROTATION_SPEED.Y, MAX_ROTATION_SPEED.Y),
         FMath::FRandRange(-MAX_ROTATION_SPEED.Z, MAX_ROTATION_SPEED.Z),
         FMath::FRandRange(-MAX_ROTATION_SPEED.X, MAX_ROTATION_SPEED.X));
-    // Á÷Á¢ ¹èÄ¡ÇÑ ¾×ÅÍÀÇ ½ÃÀÛ À§Ä¡ ÁÖº¯À¸·Î ÀÌµ¿ ¹üÀ§ ¼³Á¤
+    // ì§ì ‘ ë°°ì¹˜í•œ ì•¡í„°ì˜ ì‹œì‘ ìœ„ì¹˜ ì£¼ë³€ìœ¼ë¡œ ì´ë™ ë²”ìœ„ ì„¤ì •
     ConfigureMovement(FTransform(FQuat::Identity, GetActorLocation()), FVector::ZeroVector, MovementHalfExtent.GetAbs());
 }
 void AFloatingObject::Tick(float DeltaTime)

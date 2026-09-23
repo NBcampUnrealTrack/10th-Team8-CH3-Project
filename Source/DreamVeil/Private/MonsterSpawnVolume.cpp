@@ -23,11 +23,11 @@ void AMonsterSpawnVolume::ExecuteSpawnActor()
 		const float EliteSpawnRate = GetEliteRate();
 		if (FMath::FRandRange(0.0f, 100.0f) <= EliteSpawnRate)
 		{
-			//¿¤¸®Æ® ½ºÆù
+			//ì—˜ë¦¬íŠ¸ ìŠ¤í°
 		}
 		else
 		{
-			//ÀÏ¹Ý ¸ó½ºÅÍ ½ºÆù
+			//ì¼ë°˜ ëª¬ìŠ¤í„° ìŠ¤í°
 		}
 	}
 	else
@@ -74,8 +74,8 @@ float AMonsterSpawnVolume::GetEliteRate()
 		1.0f
 	);
 	
-	// °ÔÀÓ ³­ÀÌµµ°¡ ÀÌ °æ»ç¸¦ ´¯È÷°Å³ª ¼¼¿ò. ½¬¿òÀÌ¸é ¿¤¸®Æ®°¡ ´Ê°Ô ³ª¿À°í ¾î·Á¿òÀÌ¸é »¡¸® ³ª¿È
-	// ÃÖ¼Ò ÃÖ´ë ½ºÆùÀ²Àº ±×´ë·Î µÖ¼­ À§¿¡ Àâ¾ÆµÐ °ªÀÇ ¶æÀÌ ¹Ù²îÁö ¾ÊÀ½
+	// ê²Œìž„ ë‚œì´ë„ê°€ ì´ ê²½ì‚¬ë¥¼ ëˆ•ížˆê±°ë‚˜ ì„¸ì›€. ì‰¬ì›€ì´ë©´ ì—˜ë¦¬íŠ¸ê°€ ëŠ¦ê²Œ ë‚˜ì˜¤ê³  ì–´ë ¤ì›€ì´ë©´ ë¹¨ë¦¬ ë‚˜ì˜´
+	// ìµœì†Œ ìµœëŒ€ ìŠ¤í°ìœ¨ì€ ê·¸ëŒ€ë¡œ ë‘¬ì„œ ìœ„ì— ìž¡ì•„ë‘” ê°’ì˜ ëœ»ì´ ë°”ë€Œì§€ ì•ŠìŒ
 	float CurveExponent = DifficultyCurve;
 
 	if (const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())

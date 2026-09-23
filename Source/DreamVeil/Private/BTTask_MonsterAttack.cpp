@@ -9,7 +9,7 @@ UBTTask_MonsterAttack::UBTTask_MonsterAttack()
 {
     NodeName = TEXT("Monster Attack");
 
-    // ÀÌ ³ëµå°¡ ¿©·¯ AI°¡ °øÀ¯ÇÏ´Â ³ëµå°¡ ¾Æ´Ï¶ó °¢ÀÚ ¼ÒÀ¯ÇÏ´Â ÀÎ½ºÅÏ½ºÈ­ ÇÑ ³ëµå¶ó´Â ¶æÀÓ
+    // ì´ ë…¸ë“œê°€ ì—¬ëŸ¬ AIê°€ ê³µìœ í•˜ëŠ” ë…¸ë“œê°€ ì•„ë‹ˆë¼ ê°ì ì†Œìœ í•˜ëŠ” ì¸ìŠ¤í„´ìŠ¤í™” í•œ ë…¸ë“œë¼ëŠ” ëœ»ì„
     bCreateNodeInstance = true;
 
     BlackboardKey.AddObjectFilter(
@@ -88,7 +88,7 @@ EBTNodeResult::Type UBTTask_MonsterAttack::AbortTask(
 {
     AMonsterBase* Monster = AttackingMonster.Get();
 
-    // CancelAttackÀÇ Á¾·á ¾Ë¸²À» ¹ŞÁö ¾Êµµ·Ï ¸ÕÀú ÇØÁ¦ÇØÁÖ¤±
+    // CancelAttackì˜ ì¢…ë£Œ ì•Œë¦¼ì„ ë°›ì§€ ì•Šë„ë¡ ë¨¼ì € í•´ì œí•´ì£¼ã…
     ClearBinding();
 
     if (IsValid(Monster))

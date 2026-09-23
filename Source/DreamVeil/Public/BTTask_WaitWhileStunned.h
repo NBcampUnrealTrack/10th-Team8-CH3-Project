@@ -6,7 +6,7 @@
 #include "BehaviorTree/Tasks/BTTask_BlackboardBase.h"
 #include "BTTask_WaitWhileStunned.generated.h"
 
-// ½½·Î¿ì ¸»°í ¸¸¾à ½ºÅÏ±â´É ¸¸µé°Å¸é ¿©±â¼­ ±¸ÇöÇÒ ¿¹Á¤. ´õ¹Ìµ¥ÀÌÅÍ·Î ³²À»¼öµµ ÀÖÀ½
+// ìŠ¬ë¡œìš° ë§ê³  ë§Œì•½ ìŠ¤í„´ê¸°ëŠ¥ ë§Œë“¤ê±°ë©´ ì—¬ê¸°ì„œ êµ¬í˜„í•  ì˜ˆì •. ë”ë¯¸ë°ì´í„°ë¡œ ë‚¨ì„ìˆ˜ë„ ìˆìŒ
 UCLASS()
 class DREAMVEIL_API UBTTask_WaitWhileStunned : public UBTTask_BlackboardBase
 {

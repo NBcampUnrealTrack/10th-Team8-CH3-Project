@@ -11,7 +11,7 @@ void UAnimNotify_MonsterAttack::Notify(USkeletalMeshComponent* MeshComp, UAnimSe
 
 	if (!MeshComp) return;
 
-	// Mesh¿¡¼­ ¾×ÅÍ »« ´ÙÀ½ ABaseMonsterÀ¸·Î Ä³½ºÆÃ
+	// Meshì—ì„œ ì•¡í„° ëº€ ë‹¤ìŒ ABaseMonsterìœ¼ë¡œ ìºìŠ¤íŒ…
 	if (AMonsterBase* Monster = Cast<AMonsterBase>(MeshComp->GetOwner()))
 	{
 		Monster->ExecuteAttack();

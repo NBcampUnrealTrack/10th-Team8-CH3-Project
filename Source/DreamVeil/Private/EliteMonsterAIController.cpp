@@ -16,25 +16,25 @@ AEliteMonsterAIController::AEliteMonsterAIController()
 		BehaviorTreeAsset = BTObject.Object;
 	}
 
-	// AI °¨°¢ °ü·Ã ÄÄÆ÷³ÍÆ®µé Ãß°¡ÇÏ°í Set½ÃÄÑÁÖ±â
+	// AI ê°ê° ê´€ë ¨ ì»´í¬ë„ŒíŠ¸ë“¤ ì¶”ê°€í•˜ê³  Setì‹œì¼œì£¼ê¸°
 	AIPerception = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("AI Perception"));
 	SetPerceptionComponent(*AIPerception);
 	
 	SightConfig = CreateDefaultSubobject<UAISenseConfig_Sight>(TEXT("Sight Config"));
 	
-	// ¹üÀ§°ª ÁöÁ¤. LoseSightRadius´Â ÀÎ½ÄÇÑ ´ë»óÀ» ³õÄ¡´Â °Å¸®, PeripheralVisionAngleDegrees´Â ½Ã¾ß°¢/2ÀÓ.
+	// ë²”ìœ„ê°’ ì§€ì •. LoseSightRadiusëŠ” ì¸ì‹í•œ ëŒ€ìƒì„ ë†“ì¹˜ëŠ” ê±°ë¦¬, PeripheralVisionAngleDegreesëŠ” ì‹œì•¼ê°/2ì„.
 	SightConfig->SightRadius = 1500.0f;
 	SightConfig->LoseSightRadius = 1800.0f;
 	SightConfig->PeripheralVisionAngleDegrees = 60.0f;
 
-	// Áø¿µ ÀÎ½Ä
+	// ì§„ì˜ ì¸ì‹
 	SightConfig->DetectionByAffiliation.bDetectEnemies = true;
 	SightConfig->DetectionByAffiliation.bDetectFriendlies = true;
 	SightConfig->DetectionByAffiliation.bDetectNeutrals = true;
 
-	// AIPerception¿¡´Ù°¡ ¾Æ±î ¼³Á¤ÇÑ SightConfigÀ» ·¹ÆÛ·±½ºº¯¼ö·Î µî·Ï.
+	// AIPerceptionì—ë‹¤ê°€ ì•„ê¹Œ ì„¤ì •í•œ SightConfigì„ ë ˆí¼ëŸ°ìŠ¤ë³€ìˆ˜ë¡œ ë“±ë¡.
 	AIPerception->ConfigureSense(*SightConfig);
-	// ±×¸®°í µî·ÏÇÑ SightConfigÀ» ´ëÇ¥ °¨°¢À¸·Î ¼³Á¤
+	// ê·¸ë¦¬ê³  ë“±ë¡í•œ SightConfigì„ ëŒ€í‘œ ê°ê°ìœ¼ë¡œ ì„¤ì •
 	AIPerception->SetDominantSense(SightConfig->GetSenseImplementation());
 }
 
@@ -42,7 +42,7 @@ void AEliteMonsterAIController::BeginPlay()
 {
 	Super::BeginPlay();
 
-	// ÀÌº¥Æ® µî·Ï
+	// ì´ë²¤íŠ¸ ë“±ë¡
 	AIPerception->OnTargetPerceptionUpdated.AddDynamic(
 		this,
 		&AEliteMonsterAIController::OnTargetPerceptionUpdated);

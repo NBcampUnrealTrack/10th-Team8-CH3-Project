@@ -6,34 +6,34 @@
 
 AComputerActor::AComputerActor()
 {
-	// ÄÄÇ»ÅÍ Static Mesh °Ë»ö
+	// ì»´í“¨í„° Static Mesh ê²€ìƒ‰
 	static ConstructorHelpers::FObjectFinder<UStaticMesh>
 		ComputerMeshFinder(TEXT("/Game/Maps/Asset/SM_Lobby_Computer.SM_Lobby_Computer"));
-	// ¸Ş½Ã¸¦ Ã£Áö ¸øÇÏ¸é Á¾·á
+	// ë©”ì‹œë¥¼ ì°¾ì§€ ëª»í•˜ë©´ ì¢…ë£Œ
 	if (!ComputerMeshFinder.Succeeded())
 	{
 		UE_LOG(LogTemp, Error, TEXT("xxx"));
 		return;
 	}
 	UStaticMeshComponent* ObjectMeshComponent =GetObjectMesh();
-	// ¸Ş½Ã ÄÄÆ÷³ÍÆ®°¡ ¾øÀ¸¸é Á¾·á
+	// ë©”ì‹œ ì»´í¬ë„ŒíŠ¸ê°€ ì—†ìœ¼ë©´ ì¢…ë£Œ
 	if (!ObjectMeshComponent)
 	{
 		return;
 	}
-	// ÄÄÇ»ÅÍ ¸Ş½Ã Àû¿ë
+	// ì»´í“¨í„° ë©”ì‹œ ì ìš©
 	ObjectMeshComponent->SetStaticMesh(ComputerMeshFinder.Object);
 }
 void AComputerActor::Interact_Implementation(AActor* Interactor)
 {
 	Super::Interact_Implementation(Interactor);
-	// »óÈ£ÀÛ¿ë ´ë»óÀÌ ¾øÀ¸¸é Á¾·á
+	// ìƒí˜¸ì‘ìš© ëŒ€ìƒì´ ì—†ìœ¼ë©´ ì¢…ë£Œ
 	if (!Interactor)
 	{
 		return;
 	}
-	// »óÈ£ÀÛ¿ë ¼º°ø È®ÀÎ
+	// ìƒí˜¸ì‘ìš© ì„±ê³µ í™•ì¸
 	UE_LOG(LogTemp, Log, TEXT("ooo"));
-	// ÄÄÇ»ÅÍ BP ÀÌº¥Æ® ½ÇÇà
+	// ì»´í“¨í„° BP ì´ë²¤íŠ¸ ì‹¤í–‰
 	OnComputerInteracted(Interactor);
 }

@@ -15,8 +15,8 @@ ASpawnVolumeBase::ASpawnVolumeBase()
 	
 }
 
-// virtual·Î ¼ø¼ö °¡»óÇÔ¼ö ¸¸µé¶óÇß´õ´Ï ¿À·ù³ª¼­ ÀÌ¸® ºó »óÅÂ·Î µÒ
-// ÇØ´ç Å¬·¡½º´Â abstract, °ğ Ãß»óÅ¬·¡½º±ä ÇØ¼­ µüÈ÷ »ó°ü ¾øÀ»µí ±¸Çö¸¸ ÇØÁÖ¸é µÊ
+// virtualë¡œ ìˆœìˆ˜ ê°€ìƒí•¨ìˆ˜ ë§Œë“¤ë¼í–ˆë”ë‹ˆ ì˜¤ë¥˜ë‚˜ì„œ ì´ë¦¬ ë¹ˆ ìƒíƒœë¡œ ë‘ 
+// í•´ë‹¹ í´ë˜ìŠ¤ëŠ” abstract, ê³§ ì¶”ìƒí´ë˜ìŠ¤ê¸´ í•´ì„œ ë”±íˆ ìƒê´€ ì—†ì„ë“¯ êµ¬í˜„ë§Œ í•´ì£¼ë©´ ë¨
 void ASpawnVolumeBase::ExecuteSpawnActor()
 {
 }
@@ -28,37 +28,37 @@ void ASpawnVolumeBase::BeginPlay()
 	
 }
 
-// bool·Î ¼º°ø ¿©ºÎ¸¦ ÆÇ´ÜÇÏ°í, °á°ú°ªÀº ¹¹½Ã±â³Ä Àú°Å ±× Æ÷ÀÎÅÍ¶û ºñ½ÁÇÑ ÂüÁ¶ ±×°É·Î ¹İÈ¯
-// ¿¥ÆÛ¼¾´õ ºÙÀÌ¸é ¹¹¶óÇß´õ¶ó ±â¾ïÀÌ ¾È³ª±¸¿ä
+// boolë¡œ ì„±ê³µ ì—¬ë¶€ë¥¼ íŒë‹¨í•˜ê³ , ê²°ê³¼ê°’ì€ ë­ì‹œê¸°ëƒ ì €ê±° ê·¸ í¬ì¸í„°ë‘ ë¹„ìŠ·í•œ ì°¸ì¡° ê·¸ê±¸ë¡œ ë°˜í™˜
+// ì— í¼ì„¼ë” ë¶™ì´ë©´ ë­ë¼í–ˆë”ë¼ ê¸°ì–µì´ ì•ˆë‚˜êµ¬ìš”
 bool ASpawnVolumeBase::TryGetRandomNavLocation(FVector& OutLocation) const
 {
-	// SpawnArea, °ğ Box ComponentÀÇ Áß½É ÁÂÇ¥ °¡Á®¿È
+	// SpawnArea, ê³§ Box Componentì˜ ì¤‘ì‹¬ ì¢Œí‘œ ê°€ì ¸ì˜´
 	const FVector Origin = SpawnArea->GetComponentLocation();
-	// Áß½ÉºÎÅÍ ³¡±îÁöÀÇ °Å¸®, °ğ ¹İÁö¸§...ÀÌ¶ó°íÇÏ¸é ÀÌ»óÇÏ±ä ÇÑµ¥ ¾îÂ·µç ±×·± °³³ä
-	// °Á ½ºÄÉÀÏ ¹İ¿µµÈ x,y,z Å©±â°ªÀÇ Àı¹İ ¸®ÅÏÇØÁØ´Ù º¸¸é µÊ´Ù
+	// ì¤‘ì‹¬ë¶€í„° ëê¹Œì§€ì˜ ê±°ë¦¬, ê³§ ë°˜ì§€ë¦„...ì´ë¼ê³ í•˜ë©´ ì´ìƒí•˜ê¸´ í•œë° ì–´ì¨Œë“  ê·¸ëŸ° ê°œë…
+	// ê± ìŠ¤ì¼€ì¼ ë°˜ì˜ëœ x,y,z í¬ê¸°ê°’ì˜ ì ˆë°˜ ë¦¬í„´í•´ì¤€ë‹¤ ë³´ë©´ ë¨ë‹¤
 	const FVector Extent = SpawnArea->GetScaledBoxExtent();
 
-	//NavMesh À§¿¡ »ı¼ºÇØ¾ßµÅ¼­ ³ôÀÌ¸¦ ³ªÅ¸³»´Â Z°ªÀº ¿øº» ±×´ë·Î, ³ª¸ÓÁö XY¸¸·£´ı°ª ¸ÕÀú »ÌÀ½
+	//NavMesh ìœ„ì— ìƒì„±í•´ì•¼ë¼ì„œ ë†’ì´ë¥¼ ë‚˜íƒ€ë‚´ëŠ” Zê°’ì€ ì›ë³¸ ê·¸ëŒ€ë¡œ, ë‚˜ë¨¸ì§€ XYë§Œëœë¤ê°’ ë¨¼ì € ë½‘ìŒ
 	const FVector RandomLocationWithoutZ(
-		FMath::FRandRange(Origin.X - Extent.X, Origin.X + Extent.X),	// ¹üÀ§ ³»ÀÇ X ·£´ı°ª
-		FMath::FRandRange(Origin.Y - Extent.Y, Origin.Y + Extent.Y),	// ¹üÀ§ ³»ÀÇ Y ·£´ı°ª
-		Origin.Z	// Áß½É±âÁØ ³ôÀÌ °Á ±×´ë·Î ´ëÀÔ
+		FMath::FRandRange(Origin.X - Extent.X, Origin.X + Extent.X),	// ë²”ìœ„ ë‚´ì˜ X ëœë¤ê°’
+		FMath::FRandRange(Origin.Y - Extent.Y, Origin.Y + Extent.Y),	// ë²”ìœ„ ë‚´ì˜ Y ëœë¤ê°’
+		Origin.Z	// ì¤‘ì‹¬ê¸°ì¤€ ë†’ì´ ê± ê·¸ëŒ€ë¡œ ëŒ€ì…
 	);
 
-	// ÇöÀç ¿ùµå ³»ºñ°ÔÀÌ¼Ç ½Ã½ºÅÛ °¡Á®¿À±â
+	// í˜„ì¬ ì›”ë“œ ë‚´ë¹„ê²Œì´ì…˜ ì‹œìŠ¤í…œ ê°€ì ¸ì˜¤ê¸°
 	UNavigationSystemV1* NavSystem = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
 	if (!NavSystem) return false;
 
-	// °á°ú°ª µ¹·Á¹ŞÀ» º¯¼ö. ÀÌ ¾È¿¡ Location µé¾îÀÖÀ½
+	// ê²°ê³¼ê°’ ëŒë ¤ë°›ì„ ë³€ìˆ˜. ì´ ì•ˆì— Location ë“¤ì–´ìˆìŒ
 	FNavLocation NavLocation;
 	
-	// RandomLocationWithoutZ ¾È¿¡¼­ NavMesh°¡ À¯È¿ÇÑ °÷ÀÎÁö Å½»öÇÒ °Ë»ö ¹Ú½ºÀÇ ½ºÄÉÀÏÀ» ÁöÁ¤ÇØÁÜ. ¿©±â¼­ ½ºÄÉÀÏÀº »ó´Ü SpawnAreaÀÇ GetScaledBoxExtent¶û °°Àº ÇüÅÂ
-	// ±âº»ÀûÀ¸·Î ½ºÆùº¼·ıÀº Navigation °æ·Î¶û °ãÄ¡Áö ¾ÊÀ» ¼ö ÀÖ¾î¼­ 100¾¿ ¿©À¯¸¦ ÁÖ°í,
-	// ÇØ´ç º¼·ı¸¸Å­ÀÇ ³ôÀÌ¸¦ ÁöÁ¤ÇØÁÜÀ¸·Î Å½»ö °¡´É
+	// RandomLocationWithoutZ ì•ˆì—ì„œ NavMeshê°€ ìœ íš¨í•œ ê³³ì¸ì§€ íƒìƒ‰í•  ê²€ìƒ‰ ë°•ìŠ¤ì˜ ìŠ¤ì¼€ì¼ì„ ì§€ì •í•´ì¤Œ. ì—¬ê¸°ì„œ ìŠ¤ì¼€ì¼ì€ ìƒë‹¨ SpawnAreaì˜ GetScaledBoxExtentë‘ ê°™ì€ í˜•íƒœ
+	// ê¸°ë³¸ì ìœ¼ë¡œ ìŠ¤í°ë³¼ë¥¨ì€ Navigation ê²½ë¡œë‘ ê²¹ì¹˜ì§€ ì•Šì„ ìˆ˜ ìˆì–´ì„œ 100ì”© ì—¬ìœ ë¥¼ ì£¼ê³ ,
+	// í•´ë‹¹ ë³¼ë¥¨ë§Œí¼ì˜ ë†’ì´ë¥¼ ì§€ì •í•´ì¤Œìœ¼ë¡œ íƒìƒ‰ ê°€ëŠ¥
 	const FVector SearchExtent(100.0f, 100.0f, Extent.Z);
 
-	// ·£´ı ÁÂÇ¥·Î »ÌÀº Æ÷ÀÎÆ®°¡ Navigation °æ·Î·Î ¾µ ¼ö ÀÖ´ÂÁö ¹Ù·Î À§¿¡ ÁöÁ¤ÇÑ °Ë»ö ¹Ú½º ¹üÀ§¸¦ µÎ¾î °Ë»öÇØº¸°í,
-	// ÀûÀıÇÑ Æ÷ÀÎÆ®¸¦ Å½»ö ½ÃµµÇØº¸°í ¾ÈµÇ¸é false ¸®ÅÏ
+	// ëœë¤ ì¢Œí‘œë¡œ ë½‘ì€ í¬ì¸íŠ¸ê°€ Navigation ê²½ë¡œë¡œ ì“¸ ìˆ˜ ìˆëŠ”ì§€ ë°”ë¡œ ìœ„ì— ì§€ì •í•œ ê²€ìƒ‰ ë°•ìŠ¤ ë²”ìœ„ë¥¼ ë‘ì–´ ê²€ìƒ‰í•´ë³´ê³ ,
+	// ì ì ˆí•œ í¬ì¸íŠ¸ë¥¼ íƒìƒ‰ ì‹œë„í•´ë³´ê³  ì•ˆë˜ë©´ false ë¦¬í„´
 	if (!NavSystem->ProjectPointToNavigation(
 		RandomLocationWithoutZ,
 		NavLocation,
@@ -68,7 +68,7 @@ bool ASpawnVolumeBase::TryGetRandomNavLocation(FVector& OutLocation) const
 		return false;
 	}
 
-	// ¼º°øÇÏ¸é ·ÎÄÉÀÌ¼Ç¸¸ »Ì¾Æ ÀúÀåÇÏ°í true ¸®ÅÏ
+	// ì„±ê³µí•˜ë©´ ë¡œì¼€ì´ì…˜ë§Œ ë½‘ì•„ ì €ì¥í•˜ê³  true ë¦¬í„´
 	OutLocation = NavLocation.Location;
 	return true;
 }

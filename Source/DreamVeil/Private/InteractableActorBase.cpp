@@ -5,24 +5,24 @@
 
 AInteractableActorBase::AInteractableActorBase()
 {
-	// Tick »ç¿ë ÁßÁö
+	// Tick ì‚¬ìš© ì¤‘ì§€
 	PrimaryActorTick.bCanEverTick = false;
-	// »óÈ£ÀÛ¿ë Ãæµ¹ ¿µ¿ª »ı¼º
+	// ìƒí˜¸ì‘ìš© ì¶©ëŒ ì˜ì—­ ìƒì„±
 	InteractionCollision = CreateDefaultSubobject<UBoxComponent>(TEXT("InteractionCollision"));
 	SetRootComponent(InteractionCollision);
-	// Line Trace °Ë»ç¸¸ Çã¿ë
+	// Line Trace ê²€ì‚¬ë§Œ í—ˆìš©
 	InteractionCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-	// ¿òÁ÷ÀÏ ¼ö ÀÖ´Â ¿ÀºêÁ§Æ®·Î ¼³Á¤
+	// ì›€ì§ì¼ ìˆ˜ ìˆëŠ” ì˜¤ë¸Œì íŠ¸ë¡œ ì„¤ì •
 	InteractionCollision->SetCollisionObjectType(ECC_WorldDynamic);
-	// ±âº»ÀûÀ¸·Î ¸ğµç Ã¤³Î ¹«½Ã
+	// ê¸°ë³¸ì ìœ¼ë¡œ ëª¨ë“  ì±„ë„ ë¬´ì‹œ
 	InteractionCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
-	// Visibility Line Trace¸¸ Â÷´Ü
+	// Visibility Line Traceë§Œ ì°¨ë‹¨
 	InteractionCollision->SetCollisionResponseToChannel(ECC_Visibility,ECR_Block);
-	// ±âº» »óÈ£ÀÛ¿ë ¹Ú½º Å©±â
+	// ê¸°ë³¸ ìƒí˜¸ì‘ìš© ë°•ìŠ¤ í¬ê¸°
 	InteractionCollision->SetBoxExtent(FVector(75.0f));
-	// ³»ºñ°ÔÀÌ¼Ç °è»ê¿¡¼­ Á¦¿Ü
+	// ë‚´ë¹„ê²Œì´ì…˜ ê³„ì‚°ì—ì„œ ì œì™¸
 	InteractionCollision->SetCanEverAffectNavigation(false);
-	// ¿ÜÇü ¸Ş½Ã ÄÄÆ÷³ÍÆ® »ı¼º
+	// ì™¸í˜• ë©”ì‹œ ì»´í¬ë„ŒíŠ¸ ìƒì„±
 	ObjectMesh = CreateDefaultSubobject<UStaticMeshComponent>(TEXT("ObjectMesh"));
 	ObjectMesh->SetupAttachment(InteractionCollision);
 }

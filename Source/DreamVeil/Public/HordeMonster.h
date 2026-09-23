@@ -20,7 +20,7 @@ public:
 	AHordeMonster();
 	virtual void BeginPlay() override;
 
-	UFUNCTION()	//ÀÌº¥Æ® µî·ÏÇÒ ÇÔ¼ö¿¡ ÀÌ°Å ¾ÈÇÏ´Ï±î °æ°í¹®¶ä...
+	UFUNCTION()	//ì´ë²¤íŠ¸ ë“±ë¡í•  í•¨ìˆ˜ì— ì´ê±° ì•ˆí•˜ë‹ˆê¹Œ ê²½ê³ ë¬¸ëœ¸...
 	void MaxHealthChanged(float OldValue, float NewValue);
 
 	virtual void MonsterInit() override;

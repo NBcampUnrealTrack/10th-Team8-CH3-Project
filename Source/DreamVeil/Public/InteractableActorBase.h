@@ -13,18 +13,18 @@ class DREAMVEIL_API AInteractableActorBase : public AActor
 	GENERATED_BODY()
 
 private:
-	// Ä«¸Ş¶ó Line Trace¸¦ °¨ÁöÇÒ ¿µ¿ª
+	// ì¹´ë©”ë¼ Line Traceë¥¼ ê°ì§€í•  ì˜ì—­
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UBoxComponent> InteractionCollision;
-	// Ä§´ë ¶Ç´Â ÄÄÇ»ÅÍ ¿ÜÇü
+	// ì¹¨ëŒ€ ë˜ëŠ” ì»´í“¨í„° ì™¸í˜•
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> ObjectMesh;
 public:
 	AInteractableActorBase();
-	// ¿ÜÇü ¸Ş½Ã ÄÄÆ÷³ÍÆ® ¹İÈ¯
+	// ì™¸í˜• ë©”ì‹œ ì»´í¬ë„ŒíŠ¸ ë°˜í™˜
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	UStaticMeshComponent* GetObjectMesh() const;
-	// ÇÃ·¹ÀÌ¾îÀÇ »óÈ£ÀÛ¿ë Ã³¸®
+	// í”Œë ˆì´ì–´ì˜ ìƒí˜¸ì‘ìš© ì²˜ë¦¬
 	UFUNCTION(BlueprintCallable, BlueprintNativeEvent, Category = "Interaction")
 	void Interact(AActor* Interactor);
 

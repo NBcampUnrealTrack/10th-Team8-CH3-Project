@@ -10,11 +10,11 @@ class DREAMVEIL_API ABedActor : public AInteractableActorBase
 	GENERATED_BODY()
 
 protected:
-	// BP¿¡¼­ ½ºÅ×ÀÌÁö ±â´ÉÀ» ¿¬°áÇÒ ÀÌº¥Æ®
+	// BPì—ì„œ ìŠ¤í…Œì´ì§€ ê¸°ëŠ¥ì„ ì—°ê²°í•  ì´ë²¤íŠ¸
 	UFUNCTION(BlueprintImplementableEvent, Category = "Interaction")
 	void OnBedInteracted(AActor* Interactor);
 public:
 	ABedActor();
-	// Ä§´ë »óÈ£ÀÛ¿ë Ã³¸®
+	// ì¹¨ëŒ€ ìƒí˜¸ì‘ìš© ì²˜ë¦¬
 	virtual void Interact_Implementation(AActor* Interactor) override;
 };

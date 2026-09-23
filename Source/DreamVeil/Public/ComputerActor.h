@@ -10,11 +10,11 @@ class DREAMVEIL_API AComputerActor : public AInteractableActorBase
 	GENERATED_BODY()
 
 protected:
-	// BP¿¡¼­ »óÁ¡ ±â´ÉÀ» ¿¬°áÇÒ ÀÌº¥Æ®
+	// BPì—ì„œ ìƒì  ê¸°ëŠ¥ì„ ì—°ê²°í•  ì´ë²¤íŠ¸
 	UFUNCTION(BlueprintImplementableEvent, Category = "Interaction")
 	void OnComputerInteracted(AActor* Interactor);
 public:
 	AComputerActor();
-	// ÄÄÇ»ÅÍ »óÈ£ÀÛ¿ë Ã³¸®
+	// ì»´í“¨í„° ìƒí˜¸ì‘ìš© ì²˜ë¦¬
 	virtual void Interact_Implementation(AActor* Interactor) override;
 };

@@ -6,34 +6,34 @@
 
 ABedActor::ABedActor()
 {
-	// Ä§´ë ¸Ş½Ã °Ë»ö
+	// ì¹¨ëŒ€ ë©”ì‹œ ê²€ìƒ‰
 	static ConstructorHelpers::FObjectFinder<UStaticMesh>
 		BedMeshFinder(TEXT("/Game/Maps/Asset/SM_Lobby_Bed.SM_Lobby_Bed"));
-	// ¸Ş½Ã °Ë»ö ½ÇÆĞ È®ÀÎ
+	// ë©”ì‹œ ê²€ìƒ‰ ì‹¤íŒ¨ í™•ì¸
 	if (!BedMeshFinder.Succeeded())
 	{
 		UE_LOG(LogTemp, Error, TEXT("xxx"));
 		return;
 	}
 	UStaticMeshComponent* ObjectMeshComponent =GetObjectMesh();
-	// ¸Ş½Ã ÄÄÆ÷³ÍÆ® È®ÀÎ
+	// ë©”ì‹œ ì»´í¬ë„ŒíŠ¸ í™•ì¸
 	if (!ObjectMeshComponent)
 	{
 		return;
 	}
-	// Ä§´ë ¸Ş½Ã Àû¿ë
+	// ì¹¨ëŒ€ ë©”ì‹œ ì ìš©
 	ObjectMeshComponent->SetStaticMesh(BedMeshFinder.Object);
 }
 void ABedActor::Interact_Implementation(AActor* Interactor)
 {
 	Super::Interact_Implementation(Interactor);
-	// »óÈ£ÀÛ¿ë ´ë»ó È®ÀÎ
+	// ìƒí˜¸ì‘ìš© ëŒ€ìƒ í™•ì¸
 	if (!Interactor)
 	{
 		return;
 	}
 	UE_LOG(LogTemp, Log, TEXT("ooo"));
-	// Ä§´ë BP ÀÌº¥Æ® ½ÇÇà
+	// ì¹¨ëŒ€ BP ì´ë²¤íŠ¸ ì‹¤í–‰
 	OnBedInteracted(Interactor);
 }
 

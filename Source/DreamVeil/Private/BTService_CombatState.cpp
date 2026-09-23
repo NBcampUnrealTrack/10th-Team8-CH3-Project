@@ -9,29 +9,29 @@
 
 UBTService_CombatState::UBTService_CombatState()
 {
-	//BT¿¡¼­ º¸¿©Áú°Å
+	//BTì—ì„œ ë³´ì—¬ì§ˆê±°
 	NodeName = TEXT("Update CombatState");
 }
 
 void UBTService_CombatState::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* NodeMemory, float DeltaSeconds)
 {
 	Super::TickNode(OwnerComp, NodeMemory, DeltaSeconds);
-	//ÇÃ·¹ÀÌ¾î À§Ä¡¸¦ °¡Á®¿À±â À§ÇÑ ÇÃ·¹ÀÌ¾î Ä³½ºÆÃ
+	//í”Œë ˆì´ì–´ ìœ„ì¹˜ë¥¼ ê°€ì ¸ì˜¤ê¸° ìœ„í•œ í”Œë ˆì´ì–´ ìºìŠ¤íŒ…
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
-	//ÇØ´ç BT¸¦ °¡Áö°í ÀÖ´Â ai ÄÁÆ®·Ñ·¯ °¡Á®¿À±â
+	//í•´ë‹¹ BTë¥¼ ê°€ì§€ê³  ìˆëŠ” ai ì»¨íŠ¸ë¡¤ëŸ¬ ê°€ì ¸ì˜¤ê¸°
 	AAIController* AIController = OwnerComp.GetAIOwner();
-	//AIÄÁÆ®·Ñ·¯ÀÇ ¼ÒÀ¯ÀÚ, °ğ ¸ó½ºÅÍ °¡Á®¿À±â
+	//AIì»¨íŠ¸ë¡¤ëŸ¬ì˜ ì†Œìœ ì, ê³§ ëª¬ìŠ¤í„° ê°€ì ¸ì˜¤ê¸°
 	APawn* AIPawn = AIController->GetPawn();
 
-	//ÇÃ·¹ÀÌ¾î¿Í ¸ó½ºÅÍ »çÀÌÀÇ °Å¸® °è»ê
+	//í”Œë ˆì´ì–´ì™€ ëª¬ìŠ¤í„° ì‚¬ì´ì˜ ê±°ë¦¬ ê³„ì‚°
 	double Distance = FVector::Distance(AIPawn->GetActorLocation(), PlayerPawn->GetActorLocation());
 
-	// ¸ó½ºÅÍÀÇ °ø°İ ¹İ°æ, Áï °ø°İÇÒ ¼ö ÀÖ´Â °Å¸®(±ÙÁ¢, ¿ø°Å¸®)
+	// ëª¬ìŠ¤í„°ì˜ ê³µê²© ë°˜ê²½, ì¦‰ ê³µê²©í•  ìˆ˜ ìˆëŠ” ê±°ë¦¬(ê·¼ì ‘, ì›ê±°ë¦¬)
 	float CombatDistance = Cast<AMonsterBase>(AIPawn)->GetMonsterAttackRange();
-	// ¸¸¾à ±âº»°ª °¡Á®¿À±â ½ÇÆĞÇÏ¸é 200À¸·Î °íÁ¤
+	// ë§Œì•½ ê¸°ë³¸ê°’ ê°€ì ¸ì˜¤ê¸° ì‹¤íŒ¨í•˜ë©´ 200ìœ¼ë¡œ ê³ ì •
 	if (!CombatDistance) CombatDistance = 200.0f;
 
-	// ÇØ´ç ±ÙÁ¢°ø°İ ¶§¸®±â °¡´ÉÇÏ¸é IsAttackAble º¯¼ö º¯°æ
+	// í•´ë‹¹ ê·¼ì ‘ê³µê²© ë•Œë¦¬ê¸° ê°€ëŠ¥í•˜ë©´ IsAttackAble ë³€ìˆ˜ ë³€ê²½
 	if (Distance <= CombatDistance)
 	{
 		OwnerComp.GetBlackboardComponent()->SetValueAsBool(TEXT("IsAttackAble"), true);

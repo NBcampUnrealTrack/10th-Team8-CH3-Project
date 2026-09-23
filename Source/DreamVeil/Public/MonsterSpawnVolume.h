@@ -18,7 +18,7 @@ public:
 	AMonsterSpawnVolume();
 
 	UFUNCTION()
-	void ExecuteSpawnActor() override; //È£ÃâÀ» ÀÌº¥Æ®·Î ÇÏ¸é Àç¹ÕÀ»µí?
+	void ExecuteSpawnActor() override; //í˜¸ì¶œì„ ì´ë²¤íŠ¸ë¡œ í•˜ë©´ ì¬ë°Œì„ë“¯?
 
 protected:
 	virtual void BeginPlay() override;
@@ -29,22 +29,22 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	TArray<TObjectPtr<AMonsterBase>> EliteMonsters;
 
-	// ÃÖ´ë ¿¤¸®Åä ¸ó½ºÅÍ°¡ ½ºÆùµÇ´Â ·¹º§. 
+	// ìµœëŒ€ ì—˜ë¦¬í†  ëª¬ìŠ¤í„°ê°€ ìŠ¤í°ë˜ëŠ” ë ˆë²¨. 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	int32 MaxDifficultyLevel;
 
-	// ¿¤¸®Åä ¸ó½ºÅÍ°¡ ½ºÆùµÇ´Â ÃÖ¼ÒÈ®·ü, ±âº»°ª 5%. 
+	// ì—˜ë¦¬í†  ëª¬ìŠ¤í„°ê°€ ìŠ¤í°ë˜ëŠ” ìµœì†Œí™•ë¥ , ê¸°ë³¸ê°’ 5%. 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	float EliteMonsterMinRate;
 
-	// ·¹º§¿¡ µû¸¥ ¿¤¸®Æ® ¸ó½ºÅÍ ÃÖ´ë ½ºÆùÀ². %·Î µÇ±â¿¡ 100 ÀÌ»óÀÌ¸é ¸ğµÎ ¿¤¸®Æ® ¸ó½ºÅÍ·Î ³ª¿Ã °¡´É¼ºÀÌ ÀÖÀ½
+	// ë ˆë²¨ì— ë”°ë¥¸ ì—˜ë¦¬íŠ¸ ëª¬ìŠ¤í„° ìµœëŒ€ ìŠ¤í°ìœ¨. %ë¡œ ë˜ê¸°ì— 100 ì´ìƒì´ë©´ ëª¨ë‘ ì—˜ë¦¬íŠ¸ ëª¬ìŠ¤í„°ë¡œ ë‚˜ì˜¬ ê°€ëŠ¥ì„±ì´ ìˆìŒ
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	float EliteMonsterMaxRate;
 
-	// ÃÖ´ë ½ºÆùÀ²±îÁö ¿À¸¦ ¼ö ÀÖ´Â »ó½Â °î¼± °æ»ç, °ğ ³­ÀÌµµ°¡ ¾ó¸¶³ª »¡¸® ¾î·Á¿öÁö´ÂÁö¸¦ ¼³Á¤ÇÒ ¼ö ÀÖÀ½.
-	// 0.1 ~ 3.0À» ÃßÃµ. 
-	// 0.1 = °æ»ç°¡ ¸Å¿ì °¡ÆÄ¸£°Ô ¿À¸§. ÃÊ¹İ¿¡ ¾öÃ» ºı¼¼Áü
-	// 3.0 = °æ»ç°¡ ¸Å¿ì ¿Ï¸¸ÇÏ°Ô ¿À¸§. ÃÊ¹İÀÌ ¸Å¿ì ½¬¿öÁü
+	// ìµœëŒ€ ìŠ¤í°ìœ¨ê¹Œì§€ ì˜¤ë¥¼ ìˆ˜ ìˆëŠ” ìƒìŠ¹ ê³¡ì„  ê²½ì‚¬, ê³§ ë‚œì´ë„ê°€ ì–¼ë§ˆë‚˜ ë¹¨ë¦¬ ì–´ë ¤ì›Œì§€ëŠ”ì§€ë¥¼ ì„¤ì •í•  ìˆ˜ ìˆìŒ.
+	// 0.1 ~ 3.0ì„ ì¶”ì²œ. 
+	// 0.1 = ê²½ì‚¬ê°€ ë§¤ìš° ê°€íŒŒë¥´ê²Œ ì˜¤ë¦„. ì´ˆë°˜ì— ì—„ì²­ ë¹¡ì„¸ì§
+	// 3.0 = ê²½ì‚¬ê°€ ë§¤ìš° ì™„ë§Œí•˜ê²Œ ì˜¤ë¦„. ì´ˆë°˜ì´ ë§¤ìš° ì‰¬ì›Œì§
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	float DifficultyCurve;
 

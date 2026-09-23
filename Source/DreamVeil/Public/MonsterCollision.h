@@ -6,7 +6,7 @@
 
 namespace MonsterCollision
 {
-    // ¹İµå½Ã DefaultEngine.iniÀÇ ½ÇÁ¦ Ã¤³Î ¹øÈ£¿¡ ¸ÂÃçÁà.
+    // ë°˜ë“œì‹œ DefaultEngine.iniì˜ ì‹¤ì œ ì±„ë„ ë²ˆí˜¸ì— ë§ì¶°ì¤˜.
     constexpr ECollisionChannel Monster = ECC_GameTraceChannel1;
     constexpr ECollisionChannel MonsterProjectile = ECC_GameTraceChannel2;
     constexpr ECollisionChannel WeaponTrace = ECC_GameTraceChannel3;

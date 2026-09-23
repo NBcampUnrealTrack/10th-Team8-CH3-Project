@@ -7,60 +7,60 @@
 class USphereComponent;
 class UStaticMeshComponent;
 
-// ¸Ş½ÃÀÇ ºÎÀ¯ ÀÌµ¿°ú È¸Àü ´ã´ç
+// ë©”ì‹œì˜ ë¶€ìœ  ì´ë™ê³¼ íšŒì „ ë‹´ë‹¹
 UCLASS()
 class AFloatingObject : public AActor
 {
     GENERATED_BODY()
 
 private:
-    // ½ÇÇà Áß ÀÌµ¿ ¼Óµµ (cm/s)
+    // ì‹¤í–‰ ì¤‘ ì´ë™ ì†ë„ (cm/s)
     float MoveSpeed = 0.0f;
-    // ½ÇÇà Áß Ãàº° È¸Àü ¼Óµµ (µµ/s)
+    // ì‹¤í–‰ ì¤‘ ì¶•ë³„ íšŒì „ ì†ë„ (ë„/s)
     FRotator RotationSpeed = FRotator::ZeroRotator;
-    // ÀÌµ¿ ¹üÀ§ÀÇ ±âÁØ ÁÂÇ¥°è
+    // ì´ë™ ë²”ìœ„ì˜ ê¸°ì¤€ ì¢Œí‘œê³„
     FTransform MovementSpace = FTransform::Identity;
-    // ·ÎÄÃ ÁÂÇ¥ ±âÁØ ÃÖ´ë ÀÌµ¿ °æ°è
+    // ë¡œì»¬ ì¢Œí‘œ ê¸°ì¤€ ìµœëŒ€ ì´ë™ ê²½ê³„
     FVector LocalMax = FVector::ZeroVector;
-    // ·ÎÄÃ ÁÂÇ¥ ±âÁØ ÃÖ¼Ò ÀÌµ¿ °æ°è
+    // ë¡œì»¬ ì¢Œí‘œ ê¸°ì¤€ ìµœì†Œ ì´ë™ ê²½ê³„
     FVector LocalMin = FVector::ZeroVector;
-    // ÇöÀç ÀÌµ¿ ÁßÀÎ ¿ùµå ¸ñÇ¥Á¡
+    // í˜„ì¬ ì´ë™ ì¤‘ì¸ ì›”ë“œ ëª©í‘œì 
     FVector TargetLocation = FVector::ZeroVector;
-    // Details¿¡¼­ ÀÌµ¿ ¿©ºÎ ¼³Á¤
+    // Detailsì—ì„œ ì´ë™ ì—¬ë¶€ ì„¤ì •
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Object|Movement", meta = (AllowPrivateAccess = "true"))
     bool bEnableMovement = true;
-    // Details¿¡¼­ È¸Àü ¿©ºÎ ¼³Á¤
+    // Detailsì—ì„œ íšŒì „ ì—¬ë¶€ ì„¤ì •
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Object|Rotation", meta = (AllowPrivateAccess = "true"))
     bool bEnableRotation = true;
-    // Details¿¡¼­ Ãàº° ÃÖ´ë È¸Àü ¼Óµµ ¼³Á¤ (X=Roll, Y=Pitch, Z=Yaw)
+    // Detailsì—ì„œ ì¶•ë³„ ìµœëŒ€ íšŒì „ ì†ë„ ì„¤ì • (X=Roll, Y=Pitch, Z=Yaw)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Object|Rotation", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
     FVector MaxRotationSpeed = FVector(8.0, 12.0, 18.0);
-    // Details¿¡¼­ »ı¼º À§Ä¡ ÁÖº¯ÀÇ Ãàº° ÀÌµ¿ °Å¸® ¼³Á¤
+    // Detailsì—ì„œ ìƒì„± ìœ„ì¹˜ ì£¼ë³€ì˜ ì¶•ë³„ ì´ë™ ê±°ë¦¬ ì„¤ì •
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Object|Movement", meta = (AllowPrivateAccess = "true", ClampMin = "0.0"))
     FVector MovementHalfExtent = FVector(300.0, 300.0, 150.0);
-    // Details¿¡¼­ ÃÖ¼Ò/ÃÖ´ë ÀÌµ¿ ¼Óµµ ¼³Á¤ (¿ùµå cm/s)
+    // Detailsì—ì„œ ìµœì†Œ/ìµœëŒ€ ì´ë™ ì†ë„ ì„¤ì • (ì›”ë“œ cm/s)
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Object|Movement", meta = (AllowPrivateAccess = "true"))
     FVector2D MoveSpeedRange = FVector2D(30.0, 80.0);
-    // È¸ÀüÇÏ´Â ¸Ş½Ã ÀüÃ¼¸¦ °¨½Ò ·çÆ® Ãæµ¹Ã¼, Details¿¡¼­ Sphere Radius ¼³Á¤
+    // íšŒì „í•˜ëŠ” ë©”ì‹œ ì „ì²´ë¥¼ ê°ìŒ€ ë£¨íŠ¸ ì¶©ëŒì²´, Detailsì—ì„œ Sphere Radius ì„¤ì •
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Object|Collision", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<USphereComponent> CollisionSphere;
-    // ÄÄÆ÷³ÍÆ® ±³Ã¼ Á¦ÇÑ, Details¿¡¼­ ³»ºÎ Static Mesh ÁöÁ¤
+    // ì»´í¬ë„ŒíŠ¸ êµì²´ ì œí•œ, Detailsì—ì„œ ë‚´ë¶€ Static Mesh ì§€ì •
     UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Object", meta = (AllowPrivateAccess = "true"))
     TObjectPtr<UStaticMeshComponent> Mesh;
-    // Çã¿ëµÈ ÀÌµ¿ ¹üÀ§¿¡¼­ ´ÙÀ½ ¸ñÇ¥Á¡ ¼±ÅÃ
+    // í—ˆìš©ëœ ì´ë™ ë²”ìœ„ì—ì„œ ë‹¤ìŒ ëª©í‘œì  ì„ íƒ
     void ChooseTarget();
-    // DeltaTimeÀ» ¹İ¿µÇØ ¸ñÇ¥Á¡ ¹æÇâÀ¸·Î ÀÌµ¿
+    // DeltaTimeì„ ë°˜ì˜í•´ ëª©í‘œì  ë°©í–¥ìœ¼ë¡œ ì´ë™
     void MoveToTarget(float DeltaTime);
-    // DeltaTimeÀ» ¹İ¿µÇØ °³Ã¼º° ¼Óµµ·Î È¸Àü
+    // DeltaTimeì„ ë°˜ì˜í•´ ê°œì²´ë³„ ì†ë„ë¡œ íšŒì „
     void RotateObject(float DeltaTime);
-    // °ÔÀÓ ½ÃÀÛ ½Ã ÀÌµ¿ ¹üÀ§¿Í ¹«ÀÛÀ§ ¼Óµµ ÃÊ±âÈ­
+    // ê²Œì„ ì‹œì‘ ì‹œ ì´ë™ ë²”ìœ„ì™€ ë¬´ì‘ìœ„ ì†ë„ ì´ˆê¸°í™”
     virtual void BeginPlay() override;
-    // ¸Å ÇÁ·¹ÀÓ ÀÌµ¿°ú È¸Àü °»½Å
+    // ë§¤ í”„ë ˆì„ ì´ë™ê³¼ íšŒì „ ê°±ì‹ 
     virtual void Tick(float DeltaTime) override;
 
 public:
-    // ¸Ş½Ã »ı¼º ¹× ±âº» µ¿ÀÛ ¼³Á¤
+    // ë©”ì‹œ ìƒì„± ë° ê¸°ë³¸ ë™ì‘ ì„¤ì •
     AFloatingObject();
-    // Àü´Ş¹ŞÀº »ı¼º ¿µ¿ª ¾È¿¡¼­ ÀÚ½ÅÀÇ ÀÌµ¿ ¹üÀ§ °è»ê
+    // ì „ë‹¬ë°›ì€ ìƒì„± ì˜ì—­ ì•ˆì—ì„œ ìì‹ ì˜ ì´ë™ ë²”ìœ„ ê³„ì‚°
     void ConfigureMovement(const FTransform& InSpace, const FVector& InSpawnPoint, const FVector& InVolumeExtent);
 };

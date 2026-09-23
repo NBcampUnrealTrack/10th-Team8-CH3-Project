@@ -19,9 +19,9 @@ AMonsterProjectile::AMonsterProjectile()
 	BulletCollision = CreateDefaultSubobject<USphereComponent>(TEXT("Sphere Collision"));
 
 	SetRootComponent(BulletCollision);
-	BulletCollision->InitSphereRadius(10.0f); // ±âº»°ªÀ¸·Î Á» ÀÛ°Ô¸¸µé±â
+	BulletCollision->InitSphereRadius(10.0f); // ê¸°ë³¸ê°’ìœ¼ë¡œ ì¢€ ì‘ê²Œë§Œë“¤ê¸°
 
-	//Details ÆĞ³Î¿¡¼­ ¼³Á¤ °¡´ÉÇÑ Collision °ü·Ã ¼³Á¤ ÄÚµå¿¡¼­ ÇØÁÖ±â
+	//Details íŒ¨ë„ì—ì„œ ì„¤ì • ê°€ëŠ¥í•œ Collision ê´€ë ¨ ì„¤ì • ì½”ë“œì—ì„œ í•´ì£¼ê¸°
 	BulletCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	BulletCollision->SetCollisionObjectType(ECC_WorldDynamic);
 	BulletCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
@@ -54,7 +54,7 @@ AMonsterProjectile::AMonsterProjectile()
 
 void AMonsterProjectile::SetDamage(float damage)
 {
-	// 0º¸´Ü Ä¿¾ßÁö
+	// 0ë³´ë‹¨ ì»¤ì•¼ì§€
 	this->Damage = FMath::Max(0.0f, damage);
 }
 
@@ -87,7 +87,7 @@ void AMonsterProjectile::HandleHit(UPrimitiveComponent* HitComp, AActor* OtherAc
 
 	bHitProcessed = true;
 
-	// ¿¹Á¦¿¡¼­´Â Pawn¿¡¸¸ ÇÇÇØ Àû¿ë
+	// ì˜ˆì œì—ì„œëŠ” Pawnì—ë§Œ í”¼í•´ ì ìš©
 	if (Cast<APawn>(OtherActor) && !Cast<AMonsterBase>(OtherActor))
 	{
 		UGameplayStatics::ApplyDamage(

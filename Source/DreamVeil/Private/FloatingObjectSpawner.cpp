@@ -6,7 +6,7 @@
 AFloatingObjectSpawner::AFloatingObjectSpawner()
 {
     PrimaryActorTick.bCanEverTick = false;
-    // Box Extent: °¢ Ãà ÀüÃ¼ ±æÀÌÀÇ Àı¹İ
+    // Box Extent: ê° ì¶• ì „ì²´ ê¸¸ì´ì˜ ì ˆë°˜
     SpawnBox = CreateDefaultSubobject<UBoxComponent>(TEXT("SpawnBox"));
     SetRootComponent(SpawnBox);
     SpawnBox->SetBoxExtent(FVector(1500.0, 1500.0, 600.0));
@@ -16,15 +16,15 @@ AFloatingObjectSpawner::AFloatingObjectSpawner()
 }
 void AFloatingObjectSpawner::SpawnObjects()
 {
-    // ¾×ÅÍ¸¦ »ı¼ºÇÒ ¿ùµå
+    // ì•¡í„°ë¥¼ ìƒì„±í•  ì›”ë“œ
     UWorld* World = GetWorld();
     if (!IsValid(World))
     {
         return;
     }
-    // »ı¼º °¡´ÉÇÑ BP¸¦ º¸°üÇÒ ÀÓ½Ã ¸ñ·Ï
+    // ìƒì„± ê°€ëŠ¥í•œ BPë¥¼ ë³´ê´€í•  ì„ì‹œ ëª©ë¡
     TArray<TSubclassOf<AFloatingObject>> ValidClasses;
-    // Candidate: µî·ÏµÈ Å¬·¡½º ÇÑ °³
+    // Candidate: ë“±ë¡ëœ í´ë˜ìŠ¤ í•œ ê°œ
     for (const TSubclassOf<AFloatingObject>& Candidate : ObjectClasses)
     {
         if (!Candidate.Get() || Candidate->HasAnyClassFlags(CLASS_Abstract))
@@ -38,7 +38,7 @@ void AFloatingObjectSpawner::SpawnObjects()
         UE_LOG(LogTemp, Warning, TEXT("%s: assign at least one FloatingObject Blueprint."), *GetName());
         return;
     }
-    // »ı¼º ½ÃÁ¡ÀÇ ¹Ú½º ÁÂÇ¥°è¿Í Ãàº° ½ºÄÉÀÏ
+    // ìƒì„± ì‹œì ì˜ ë°•ìŠ¤ ì¢Œí‘œê³„ì™€ ì¶•ë³„ ìŠ¤ì¼€ì¼
     const FTransform MOVEMENT_SPACE = SpawnBox->GetComponentTransform();
     const FVector VOLUME_SCALE = MOVEMENT_SPACE.GetScale3D().GetAbs();
     if (VOLUME_SCALE.GetMin() <= KINDA_SMALL_NUMBER)
@@ -46,45 +46,45 @@ void AFloatingObjectSpawner::SpawnObjects()
         UE_LOG(LogTemp, Warning, TEXT("%s: SpawnBox scale cannot be zero."), *GetName());
         return;
     }
-    // °æ°è ¿©À¯¸¦ Á¦¿ÜÇÑ ·ÎÄÃ »ı¼º ¹üÀ§
+    // ê²½ê³„ ì—¬ìœ ë¥¼ ì œì™¸í•œ ë¡œì»¬ ìƒì„± ë²”ìœ„
     const FVector VOLUME_EXTENT = SpawnBox->GetUnscaledBoxExtent() - FVector(FMath::Max(0.0f, BoundaryMargin));
     if (VOLUME_EXTENT.GetMin() <= 0.0)
     {
         UE_LOG(LogTemp, Warning, TEXT("%s: BoundaryMargin must be smaller than every Box Extent axis."), *GetName());
         return;
     }
-    // À½¼ö¸¦ Á¦¿ÜÇÑ ¿äÃ» °³¼ö, ObjectIndex: ÇöÀç »ı¼º ¼ø¼­
+    // ìŒìˆ˜ë¥¼ ì œì™¸í•œ ìš”ì²­ ê°œìˆ˜, ObjectIndex: í˜„ì¬ ìƒì„± ìˆœì„œ
     const int32 REQUESTED_COUNT = FMath::Max(0, SpawnCount);
     for (int32 ObjectIndex = 0; ObjectIndex < REQUESTED_COUNT; ++ObjectIndex)
     {
-        // ¹«ÀÛÀ§·Î °í¸¥ Å¬·¡½ºÀÇ ÀÎµ¦½º
+        // ë¬´ì‘ìœ„ë¡œ ê³ ë¥¸ í´ë˜ìŠ¤ì˜ ì¸ë±ìŠ¤
         const int32 CLASS_INDEX = FMath::RandRange(0, ValidClasses.Num() - 1);
-        // AttemptIndex: °°Àº Á¾·ùÀÇ ¿ÀºêÁ§Æ®¸¦ ´Ù¸¥ À§Ä¡¿¡ »ı¼ºÇÏ´Â ½Ãµµ ¼ø¼­
+        // AttemptIndex: ê°™ì€ ì¢…ë¥˜ì˜ ì˜¤ë¸Œì íŠ¸ë¥¼ ë‹¤ë¥¸ ìœ„ì¹˜ì— ìƒì„±í•˜ëŠ” ì‹œë„ ìˆœì„œ
         for (int32 AttemptIndex = 0; AttemptIndex < FMath::Max(1, MaxSpawnAttemptsPerObject); ++AttemptIndex)
         {
-            // ¹Ú½º ³»ºÎ¿¡¼­ ¼±ÅÃÇÑ ·ÎÄÃ »ı¼º À§Ä¡
+            // ë°•ìŠ¤ ë‚´ë¶€ì—ì„œ ì„ íƒí•œ ë¡œì»¬ ìƒì„± ìœ„ì¹˜
             const FVector LOCAL_POINT(
                 FMath::FRandRange(-VOLUME_EXTENT.X, VOLUME_EXTENT.X),
                 FMath::FRandRange(-VOLUME_EXTENT.Y, VOLUME_EXTENT.Y),
                 FMath::FRandRange(-VOLUME_EXTENT.Z, VOLUME_EXTENT.Z));
-            // º¯È¯µÈ ¿ùµå »ı¼º À§Ä¡
+            // ë³€í™˜ëœ ì›”ë“œ ìƒì„± ìœ„ì¹˜
             const FVector WORLD_POINT = MOVEMENT_SPACE.TransformPosition(LOCAL_POINT);
-            // ¿É¼Ç¿¡ µû¶ó Á¤ÇÑ ½ÃÀÛ È¸Àü
+            // ì˜µì…˜ì— ë”°ë¼ ì •í•œ ì‹œì‘ íšŒì „
             const FRotator INITIAL_ROTATION = bRandomInitialRotation
                 ? FRotator(FMath::FRandRange(-180.0f, 180.0f),
                     FMath::FRandRange(-180.0f, 180.0f), FMath::FRandRange(-180.0f, 180.0f))
                 : FRotator::ZeroRotator;
-            // ´Ù¸¥ Â÷´Ü Ãæµ¹Ã¼¿Í °ãÄ¡´Â À§Ä¡´Â »ı¼º °ÅÀı
+            // ë‹¤ë¥¸ ì°¨ë‹¨ ì¶©ëŒì²´ì™€ ê²¹ì¹˜ëŠ” ìœ„ì¹˜ëŠ” ìƒì„± ê±°ì ˆ
             FActorSpawnParameters SpawnParameters;
             SpawnParameters.Owner = this;
             SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::DontSpawnIfColliding;
-            // ÀÌ¹ø¿¡ »ı¼ºÇÑ ¿ÀºêÁ§Æ®
+            // ì´ë²ˆì— ìƒì„±í•œ ì˜¤ë¸Œì íŠ¸
             AFloatingObject* Object = World->SpawnActor<AFloatingObject>(ValidClasses[CLASS_INDEX], WORLD_POINT, INITIAL_ROTATION, SpawnParameters);
             if (!IsValid(Object))
             {
                 continue;
             }
-            // ¿µ¿ª¸¸ Àü´ŞÇÏ°í ¼¼ºÎ ÀÌµ¿ ¹üÀ§ °è»êÀº ¿ÀºêÁ§Æ®¿¡ À§ÀÓ
+            // ì˜ì—­ë§Œ ì „ë‹¬í•˜ê³  ì„¸ë¶€ ì´ë™ ë²”ìœ„ ê³„ì‚°ì€ ì˜¤ë¸Œì íŠ¸ì— ìœ„ì„
             Object->ConfigureMovement(MOVEMENT_SPACE, LOCAL_POINT, VOLUME_EXTENT);
             SpawnedObjects.Add(Object);
             break;
