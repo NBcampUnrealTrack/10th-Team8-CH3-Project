@@ -1,6 +1,7 @@
 #include "ActiveAugmentSkills.h"
 
 #include "AugmentDamageLibrary.h"
+#include "CombatStatsComponent.h"
 #include "AugmentTypes.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
@@ -122,6 +123,13 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         return;
     }
 
+    //주변에 아무도 없어도 터지는 건 보여야 해서 대상을 찾기 전에 먼저 재생함
+    //이펙트 에셋은 쏜 사람의 스탯 컴포넌트가 들고 있음 증강 스킬은 UObject라 에셋을 못 들고 있어서
+    if (UCombatStatsComponent* OwnerStats = OwnerActor->FindComponentByClass<UCombatStatsComponent>())
+    {
+        OwnerStats->PlayAreaAttackEffect(HitResult.ImpactPoint);
+    }
+
     //쏜 사람은 자기 범위 공격에 안 맞고 직접 맞은 대상은 이미 총 데미지를 받았으므로 제외
     TArray<AActor*> ActorsToIgnore;
     ActorsToIgnore.Add(OwnerActor);
@@ -195,6 +203,13 @@ void UContinuousAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitD
 
     PoisonState = &PoisonedTargets.Add(TargetActor, NewState);
 
+    //불이 붙었다는 연출 켜기 꺼지는 건 타이머가 끝날 때 ProcessPoisonTick이 함
+    //이미 걸려 있던 대상은 위에서 돌아가므로 여기까지 오지 않아 불꽃이 겹치지 않음
+    if (UCombatStatsComponent* TargetStats = TargetActor->FindComponentByClass<UCombatStatsComponent>())
+    {
+        TargetStats->SetOnFire(true);
+    }
+
     //첫 독 데미지는 맞은 순간이 아니라 한 간격 뒤부터
     FTimerDelegate TickDelegate = FTimerDelegate::CreateUObject(
         this,
@@ -210,11 +225,21 @@ void UContinuousAttackSkill::Deactivate()
 {
     UWorld* World = GetWorld();
 
-    if (World)
+    for (TPair<TWeakObjectPtr<AActor>, FPoisonedTargetState>& PoisonPair : PoisonedTargets)
     {
-        for (TPair<TWeakObjectPtr<AActor>, FPoisonedTargetState>& PoisonPair : PoisonedTargets)
+        if (World)
         {
             World->GetTimerManager().ClearTimer(PoisonPair.Value.TickTimerHandle);
+        }
+
+        //타이머만 지우면 불꽃이 영원히 남으므로 여기서도 꺼줌
+        //약한 참조라 이미 사라진 대상은 Get이 nullptr을 돌려줘서 자동으로 걸러짐
+        if (AActor* BurningActor = PoisonPair.Key.Get())
+        {
+            if (UCombatStatsComponent* BurningStats = BurningActor->FindComponentByClass<UCombatStatsComponent>())
+            {
+                BurningStats->SetOnFire(false);
+            }
         }
     }
 
@@ -259,6 +284,16 @@ void UContinuousAttackSkill::ProcessPoisonTick(TWeakObjectPtr<AActor> WeakTarget
     if (World)
     {
         World->GetTimerManager().ClearTimer(PoisonState->TickTimerHandle);
+    }
+
+    //시간이 다 됐거나 대상이 죽었으므로 불을 끔
+    //대상이 이미 사라졌으면 TargetActor가 nullptr이라 건너뜀 이때는 이펙트도 같이 사라져 있음
+    if (TargetActor)
+    {
+        if (UCombatStatsComponent* TargetStats = TargetActor->FindComponentByClass<UCombatStatsComponent>())
+        {
+            TargetStats->SetOnFire(false);
+        }
     }
 
     PoisonedTargets.Remove(WeakTarget);

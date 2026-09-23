@@ -11,6 +11,9 @@ class UDispatchTableComponent;
 class UInventoryComponent;
 class UWeaponBase;
 class UAnimMontage;
+class UAnimInstance;
+class UAudioComponent;
+class USoundBase;
 enum class EWeaponSlot : uint8;
 enum class EAugmentID : uint8;
 
@@ -237,6 +240,16 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
 	TObjectPtr<UAnimMontage> RifleFireMontage;
 
+	//로비에서만 쓸 애님 블루프린트 비워두면 평소 애님을 그대로 씀
+	//로비용 캐릭터 블루프린트를 따로 만들지 않으려고 여기서 갈아끼움
+	//BeginPlay에서 로비일 때만 SetAnimInstanceClass로 바꾸므로 레벨에서는 건드리지 않음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
+	TSubclassOf<UAnimInstance> LobbyAnimClass;
+
+	//체력이 위험할 때 반복 재생할 심장 소리 비워두면 소리 없이 넘어감
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sound")
+	TObjectPtr<USoundBase> HeartbeatSound;
+
 	float SprintSpeed;
 	float NoramalSpeed;
 	float SprintSpeedMultiplier;
@@ -323,6 +336,17 @@ private:
 	//스태미나를 줄이거나 채우는 반복 타이머 스태미나가 변하는 동안만 돌고 가득 차면 멈춤
 	FTimerHandle StaminaTimerHandle;
 
+	//이동 속도를 목표치까지 서서히 옮기는 타이머 속도가 목표에 닿으면 스스로 멈춤
+	//바로 바꾸면 애니메이션 블렌드 스페이스가 뚝뚝 끊겨서 천천히 옮김
+	FTimerHandle SpeedBlendTimerHandle;
+
+	//지금 향해 가는 이동 속도 달리기를 켜고 끌 때마다 바뀜
+	float TargetWalkSpeed;
+
+	//심장 소리를 재생 중인 컴포넌트 재생 중이 아니면 nullptr
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> HeartbeatAudio;
+
 	//들고 있는 무기만 보이고 나머지는 숨김
 	void UpdateWeaponVisibility();
 
@@ -343,6 +367,16 @@ private:
 
 	//달리기 키를 누른 채 실제로 움직이고 있는지 스태미나 소모와 발사 금지가 같이 씀
 	bool IsSprintMoving() const;
+
+	//이동 속도를 목표치 쪽으로 한 칸 옮김 목표에 닿으면 타이머를 멈춤
+	void UpdateWalkSpeedBlend();
+
+	//목표 속도를 정하고 보간 타이머를 깨움 달리기를 켜고 끌 때 부름
+	void SetTargetWalkSpeed(float NewTargetSpeed);
+
+	//체력 비율을 보고 심장 소리를 켜거나 끔 체력이 바뀔 때마다 불림
+	UFUNCTION()
+	void UpdateHeartbeat(float OldValue, float NewValue);
 
 	//스탯 컴포넌트의 사망 이벤트를 받음
 	UFUNCTION()

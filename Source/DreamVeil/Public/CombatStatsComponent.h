@@ -19,6 +19,9 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDead);
 
+class UNiagaraSystem;
+class UNiagaraComponent;
+
 //체력 공격력 방어력을 들고 바꾸고 알리는 컴포넌트
 //증강은 전혀 모름 증강 없는 액터에도 이것만 붙여서 쓸 수 있음
 //증강은 UDispatchTableComponent가 이 컴포넌트를 찾아서 스탯을 바꿈
@@ -75,6 +78,39 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Stats")
 	bool IsDead() const;
 
+	// 증강 이펙트
+	// 플레이어와 몬스터가 둘 다 가진 컴포넌트가 이것뿐이라 증강 연출을 여기 모음
+	// 증강 스킬은 UObject라 월드에 이펙트를 직접 붙일 수 없어서 이 컴포넌트에게 부탁함
+
+	//가시 갑옷 반사를 맞았을 때 몸에서 솟는 가시 비워두면 이펙트 없이 데미지만 들어감
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
+	TObjectPtr<UNiagaraSystem> ThornReflectEffect;
+
+	//불타는 동안 계속 재생할 불꽃 Loop Behavior를 Infinite로 만들어야 꺼질 때까지 남아 있음
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
+	TObjectPtr<UNiagaraSystem> OnFireEffect;
+
+	//폭발탄이 터질 때 맞은 지점에 재생 Loop Behavior는 Once로 둘 것
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
+	TObjectPtr<UNiagaraSystem> AreaAttackEffect;
+
+	//가시 반사를 맞았다는 연출 반사 데미지가 들어올 때 AugmentDamageLibrary가 부름
+	UFUNCTION(BlueprintCallable, Category = "Stats|Effect")
+	void PlayThornReflectEffect();
+
+	//폭발 연출을 지정한 위치에 재생 폭발탄 증강이 터진 자리에서 부름
+	UFUNCTION(BlueprintCallable, Category = "Stats|Effect")
+	void PlayAreaAttackEffect(const FVector& Location);
+
+	//불타는 상태를 켜고 끔 켜면 불꽃이 몸에 붙고 끄면 사라짐
+	//같은 상태로 두 번 불러도 이펙트가 겹치지 않음
+	UFUNCTION(BlueprintCallable, Category = "Stats|Effect")
+	void SetOnFire(bool bNewOnFire);
+
+	//지금 불타고 있는지 애님 블루프린트나 UI가 읽을 수 있게 열어둠
+	UFUNCTION(BlueprintPure, Category = "Stats|Effect")
+	bool IsOnFire() const;
+
 	// 스탯 변경
 
 	//공방체 기본값을 넣고 죽음 상태를 풀고 체력을 가득 채움 증강으로 더해진 값은 유지
@@ -129,6 +165,13 @@ protected:
 	virtual void BeginPlay() override;
 
 private:
+	//불타는 중인지 SetOnFire가 켜고 끔
+	bool bOnFire = false;
+
+	//지금 몸에 붙어 있는 불꽃 컴포넌트 꺼질 때 없애려고 들고 있음 안 타면 nullptr
+	UPROPERTY(Transient)
+	TObjectPtr<UNiagaraComponent> OnFireEffectComponent;
+
 	//체력 공격력 방어력 기본값은 디테일 패널에서 캐릭터별로 입력
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats", meta = (AllowPrivateAccess = "true"))
 	FCombatStats Stats;

@@ -5,6 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 
 #include "MainPlayerCharacter.h"
+#include "TimerManager.h"
 #include "DreamVeilGameInstance.h"
 
 AMonsterSpawnVolume::AMonsterSpawnVolume()
@@ -86,4 +87,52 @@ float AMonsterSpawnVolume::GetEliteRate()
 	LevelAlpha = FMath::Pow(LevelAlpha, CurveExponent);
 
 	return FMath::Lerp(EliteMonsterMinRate, EliteMonsterMaxRate, LevelAlpha);
+}
+
+// 웨이브 스폰
+// 게임모드가 "이번 웨이브에 몇 마리 내라"고 시키면 여기서 간격을 두고 내보냄
+// 실제로 한 마리를 만드는 일은 ExecuteSpawnActor가 하므로 그쪽만 고치면 스폰 방식이 바뀜
+
+//웨이브 시작 남은 수를 더하고 타이머를 깨움
+void AMonsterSpawnVolume::SpawnWave(int32 MonsterCount, float SpawnInterval)
+{
+	if (MonsterCount <= 0)
+	{
+		return;
+	}
+
+	//앞 웨이브가 아직 다 안 나왔으면 남은 수에 더함 타이머가 이어서 마저 내보냄
+	PendingSpawnCount += MonsterCount;
+
+	//이미 돌고 있으면 그대로 두고 남은 수만 늘어남 타이머를 다시 걸면 간격이 흐트러짐
+	if (GetWorldTimerManager().IsTimerActive(WaveSpawnTimerHandle))
+	{
+		return;
+	}
+
+	//0 이하가 들어오면 타이머가 매 프레임 돌아서 최소값으로 막음
+	const float SafeInterval = FMath::Max(SpawnInterval, 0.05f);
+
+	//첫 마리도 간격만큼 기다렸다 나옴 웨이브 시작과 동시에 눈앞에 튀어나오지 않게
+	GetWorldTimerManager().SetTimer(WaveSpawnTimerHandle, this, &AMonsterSpawnVolume::SpawnOneFromWave, SafeInterval, true);
+}
+
+//타이머가 돌 때마다 한 마리 내보냄
+void AMonsterSpawnVolume::SpawnOneFromWave()
+{
+	if (PendingSpawnCount <= 0)
+	{
+		GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
+		return;
+	}
+
+	PendingSpawnCount--;
+
+	ExecuteSpawnActor();
+
+	//마지막 한 마리를 냈으면 더 돌 이유가 없음
+	if (PendingSpawnCount <= 0)
+	{
+		GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
+	}
 }

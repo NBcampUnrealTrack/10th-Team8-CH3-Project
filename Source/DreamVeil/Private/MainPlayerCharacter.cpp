@@ -25,6 +25,8 @@
 #include "Animation/AnimMontage.h"
 #include "Components/SkeletalMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
+#include "Components/AudioComponent.h"
+#include "Kismet/GameplayStatics.h"
 
 //카메라가 위아래로 돌 수 있는 최대 각도
 //엔진 기본은 거의 90도라서 끝까지 내리면 카메라가 캐릭터 바로 위로 가고 조금만 움직여도 방향이 휙 뒤집힘
@@ -44,6 +46,19 @@ const float STAMINA_REGEN_DELAY = 1.0f;
 const float MIN_STAMINA_TO_SPRINT = 20.0f;
 //스태미나 갱신 간격 초 매 프레임 Tick 대신 스태미나가 변할 때만 도는 타이머를 씀
 const float STAMINA_UPDATE_INTERVAL = 0.05f;
+
+//이동 속도를 목표치까지 옮기는 간격 초 스태미나와 같은 간격이라 체감이 맞음
+const float SPEED_BLEND_INTERVAL = 0.02f;
+
+//1초에 바뀔 수 있는 이동 속도 값이 클수록 빨리 최고 속도에 도달함
+//630에서 1071까지 441 차이라 900이면 약 0.5초에 걸쳐 올라감
+const float SPEED_BLEND_RATE = 900.0f;
+
+//이 차이보다 가까우면 목표에 닿은 것으로 보고 타이머를 멈춤
+const float SPEED_BLEND_TOLERANCE = 1.0f;
+
+//체력이 이 비율 아래로 내려가면 심장 소리를 재생함
+const float HEARTBEAT_HEALTH_RATIO = 0.3f;
 
 
 AMainPlayerCharacter::AMainPlayerCharacter()
@@ -89,6 +104,9 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 
 	GetCharacterMovement()->MaxWalkSpeed = NoramalSpeed;
 
+	//보간이 시작될 때 튀지 않게 지금 속도와 같은 값으로 시작
+	TargetWalkSpeed = NoramalSpeed;
+
 	//스태미나는 가득 찬 상태로 시작
 	//레벨을 넘기면 캐릭터가 새로 만들어져 기본값으로 돌아가고 BeginPlay의 증강 복원이 스태미나 증가를 다시 적용함
 	MaxStamina = BASE_MAX_STAMINA;
@@ -124,10 +142,21 @@ void AMainPlayerCharacter::BeginPlay()
 
 	UpdateWeaponVisibility();
 
+	//로비에서는 총을 안 들었으므로 맨손 애님 블루프린트로 갈아끼움
+	//로비용 캐릭터 블루프린트를 따로 만들지 않아도 되게 여기서 처리함
+	//LobbyAnimClass를 비워두면 아무 일도 안 하고 평소 애님을 그대로 씀
+	if (CurrentWeaponSlot == EWeaponSlot::Nothing && LobbyAnimClass && GetMesh())
+	{
+		GetMesh()->SetAnimInstanceClass(LobbyAnimClass);
+	}
+
 	//죽으면 입력을 막고 GameState 쪽에 알림
 	if (CombatStats)
 	{
 		CombatStats->OnDead.AddDynamic(this, &AMainPlayerCharacter::HandleDead);
+
+		//체력이 바뀔 때마다 심장 소리를 켤지 끌지 판단함
+		CombatStats->OnCurrentHealthChanged.AddDynamic(this, &AMainPlayerCharacter::UpdateHeartbeat);
 	}
 
 	//이전 레벨에서 저장한 증강이 있으면 다시 적용 첫 레벨이면 아무 일도 없음
@@ -689,10 +718,9 @@ void AMainPlayerCharacter::SetSprinting(bool bNewSprinting)
 	//이 값이 켜진 채 실제로 움직이면 FireCurrentWeapon에서 발사를 막음 (IsSprintMoving)
 	bIsSprinting = bNewSprinting;
 
-	if (GetCharacterMovement())
-	{
-		GetCharacterMovement()->MaxWalkSpeed = bIsSprinting ? SprintSpeed : NoramalSpeed;
-	}
+	//속도를 바로 바꾸지 않고 목표만 정함 실제 값은 UpdateWalkSpeedBlend가 조금씩 옮김
+	//한 번에 바꾸면 이동 애니메이션(블렌드 스페이스)이 뚝 끊겨서 부자연스러움
+	SetTargetWalkSpeed(bIsSprinting ? SprintSpeed : NoramalSpeed);
 
 	//달리기를 시작하면 줄이기 시작하고 멈추면 회복을 시작해야 하므로 타이머가 쉬고 있으면 깨움
 	if (!GetWorldTimerManager().IsTimerActive(StaminaTimerHandle))
@@ -750,6 +778,78 @@ void AMainPlayerCharacter::SetCurrentStamina(float NewStamina)
 	CurrentStamina = ClampedStamina;
 
 	OnStaminaChanged.Broadcast(CurrentStamina, MaxStamina);
+}
+
+//목표 속도를 정하고 보간 타이머를 깨움
+void AMainPlayerCharacter::SetTargetWalkSpeed(float NewTargetSpeed)
+{
+	TargetWalkSpeed = NewTargetSpeed;
+
+	//이미 돌고 있으면 그대로 두고 목표만 바뀜 달리다 말고 놓아도 중간부터 이어서 줄어듦
+	if (!GetWorldTimerManager().IsTimerActive(SpeedBlendTimerHandle))
+	{
+		GetWorldTimerManager().SetTimer(SpeedBlendTimerHandle, this, &AMainPlayerCharacter::UpdateWalkSpeedBlend, SPEED_BLEND_INTERVAL, true);
+	}
+}
+
+//이동 속도를 목표치 쪽으로 한 칸 옮김
+void AMainPlayerCharacter::UpdateWalkSpeedBlend()
+{
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+
+	if (!Movement)
+	{
+		GetWorldTimerManager().ClearTimer(SpeedBlendTimerHandle);
+		return;
+	}
+
+	//이번 칸에 움직일 수 있는 최대량 FInterpConstantTo는 이 양만큼만 목표 쪽으로 옮겨줌
+	//FInterpTo(지수 보간) 대신 쓰는 이유 지수 보간은 목표 근처에서 한없이 느려져서 최고 속도에 늦게 닿음
+	Movement->MaxWalkSpeed = FMath::FInterpConstantTo(
+		Movement->MaxWalkSpeed,
+		TargetWalkSpeed,
+		SPEED_BLEND_INTERVAL,
+		SPEED_BLEND_RATE
+	);
+
+	//목표에 닿았으면 더 돌 이유가 없음 매 프레임 도는 Tick을 안 쓰려고 타이머를 멈춤
+	if (FMath::IsNearlyEqual(Movement->MaxWalkSpeed, TargetWalkSpeed, SPEED_BLEND_TOLERANCE))
+	{
+		Movement->MaxWalkSpeed = TargetWalkSpeed;
+		GetWorldTimerManager().ClearTimer(SpeedBlendTimerHandle);
+	}
+}
+
+//체력 비율을 보고 심장 소리를 켜거나 끔
+void AMainPlayerCharacter::UpdateHeartbeat(float OldValue, float NewValue)
+{
+	if (!HeartbeatSound || !CombatStats)
+	{
+		return;
+	}
+
+	//죽었으면 소리를 끄고 끝 죽은 뒤에도 두근거리면 이상함
+	const bool bShouldPlay = !CombatStats->IsDead() && CombatStats->GetHealthPercentage() <= HEARTBEAT_HEALTH_RATIO;
+
+	if (bShouldPlay)
+	{
+		//이미 재생 중이면 다시 틀지 않음 안 그러면 맞을 때마다 소리가 겹침
+		if (!HeartbeatAudio)
+		{
+			//2D로 재생하는 이유 플레이어 자신의 심장이라 거리에 따라 작아지면 안 됨
+			//사운드 에셋의 Looping을 켜두면 계속 반복됨
+			HeartbeatAudio = UGameplayStatics::SpawnSound2D(this, HeartbeatSound);
+		}
+
+		return;
+	}
+
+	//체력을 회복했거나 죽었으면 소리를 멈춤
+	if (HeartbeatAudio)
+	{
+		HeartbeatAudio->Stop();
+		HeartbeatAudio = nullptr;
+	}
 }
 
 //달리기 키를 누른 채 실제로 움직이고 있는지

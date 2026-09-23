@@ -2,6 +2,7 @@
 #include "EnhancedInputSubsystems.h"
 #include "MainPlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
+#include "Kismet/GameplayStatics.h"
 
 AMainPlayerController::AMainPlayerController() : 
 InputMappingContext(nullptr),
@@ -100,9 +101,31 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
     return MenuWidgetInstance;
 }
 
+//메뉴 위젯을 띄우면서 게임을 멈춤
+UUserWidget* AMainPlayerController::OpenMenuWidgetPaused(TSubclassOf<UUserWidget> MenuWidgetClass)
+{
+	UUserWidget* MenuWidget = OpenMenuWidget(MenuWidgetClass);
+
+	//띄우지 못했으면 멈추지 않음 안 그러면 풀 방법이 없어서 게임이 굳음
+	if (!MenuWidget)
+	{
+		return nullptr;
+	}
+
+	//위젯은 기본적으로 멈춘 동안에도 입력을 받으므로 버튼이 그대로 눌림
+	//SetGamePaused는 플레이어 컨트롤러가 있어야 먹혀서 여기(컨트롤러)에서 부름
+	UGameplayStatics::SetGamePaused(this, true);
+
+	return MenuWidget;
+}
+
 //열려 있는 메뉴 위젯을 닫음
 void AMainPlayerController::CloseMenuWidget()
 {
+	//멈춰둔 게임을 먼저 풀어줌 멈추지 않았으면 아무 일도 없음
+	//닫는 쪽에서 항상 풀어주므로 띄운 쪽이 멈췄는지 기억할 필요가 없음
+	UGameplayStatics::SetGamePaused(this, false);
+
     if (MenuWidgetInstance)
     {
         MenuWidgetInstance->RemoveFromParent();

@@ -99,6 +99,10 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
     //서로 가시 갑옷을 들고 있을 때 무한히 주고받는 것을 막음
     if (IsThornReflectDamage(DamageTypeClass))
     {
+        //반사를 맞은 쪽(보통 몬스터)의 몸에서 가시가 솟는 연출
+        //여기서 재생하는 이유 반사가 실제로 들어간 순간이라 헛방이 없음
+        DamagedStats->PlayThornReflectEffect();
+
         return FinalDamage;
     }
 

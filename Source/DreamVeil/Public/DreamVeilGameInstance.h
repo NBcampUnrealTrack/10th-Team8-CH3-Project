@@ -85,6 +85,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Level")
 	int32 GetCurrentLevelNumber() const;
 
+	//레벨이 총 몇 개인지 마지막 레벨(보스 레벨)인지 판단할 때 씀
+	//맵을 추가해도 LEVEL_MAP_PATHS만 늘리면 되도록 개수를 여기서 돌려줌
+	UFUNCTION(BlueprintPure, Category = "Level")
+	int32 GetLevelCount() const;
+
 	//지금 맵이 로비인지 싸우지 않는 곳이라 플레이어가 무기를 숨길지 정할 때 씀
 	//레벨 맵이 아닌지(IsInLevelMap)로 판단하지 않는 이유 테스트 맵에서도 무기가 사라지면 사격을 시험할 수 없음
 	UFUNCTION(BlueprintPure, Category = "Level")
