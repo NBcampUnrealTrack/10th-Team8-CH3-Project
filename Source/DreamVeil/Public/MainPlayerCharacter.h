@@ -10,6 +10,7 @@ class UCombatStatsComponent;
 class UDispatchTableComponent;
 class UInventoryComponent;
 class UWeaponBase;
+class UAnimMontage;
 enum class EWeaponSlot : uint8;
 enum class EAugmentID : uint8;
 
@@ -229,6 +230,13 @@ public:
 	void CheatShowStatus();
 
 protected:
+	//무기별 발사 몽타주 기존 애님 블루프린트의 발사 슬롯으로 재생
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
+	TObjectPtr<UAnimMontage> PistolFireMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
+	TObjectPtr<UAnimMontage> RifleFireMontage;
+
 	float SprintSpeed;
 	float NoramalSpeed;
 	float SprintSpeedMultiplier;

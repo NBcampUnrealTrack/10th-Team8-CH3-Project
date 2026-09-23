@@ -21,6 +21,10 @@
 #include "Camera/PlayerCameraManager.h"
 #include "TimerManager.h"
 #include "MonsterCollision.h"
+#include "Animation/AnimInstance.h"
+#include "Animation/AnimMontage.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "UObject/ConstructorHelpers.h"
 
 //카메라가 위아래로 돌 수 있는 최대 각도
 //엔진 기본은 거의 90도라서 끝까지 내리면 카메라가 캐릭터 바로 위로 가고 조금만 움직여도 방향이 휙 뒤집힘
@@ -44,6 +48,13 @@ const float STAMINA_UPDATE_INTERVAL = 0.05f;
 
 AMainPlayerCharacter::AMainPlayerCharacter()
 {
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> PistolFireAsset(
+		TEXT("/Game/Animation/Pistol/MM_Pistol_Fire_Montage.MM_Pistol_Fire_Montage"));
+	static ConstructorHelpers::FObjectFinder<UAnimMontage> RifleFireAsset(
+		TEXT("/Game/Animation/Rifle/MM_Rifle_Fire_Montage.MM_Rifle_Fire_Montage"));
+	PistolFireMontage = PistolFireAsset.Object;
+	RifleFireMontage = RifleFireAsset.Object;
+
 
 	PrimaryActorTick.bCanEverTick = false;
 
@@ -392,6 +403,18 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 
 	//여기부터는 무기 담당 총구 위치와 방향만 넘기면 나머지는 무기가 처리
 	CurrentWeapon->Fire(MuzzleLocation, FireDirection);
+
+	//연사 간격이나 달리기에 막힌 입력에서는 재생하지 않고 실제 발사마다 시작
+	UAnimMontage* FireMontage = CurrentWeaponSlot == EWeaponSlot::Pistol
+		? PistolFireMontage.Get() : RifleFireMontage.Get();
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		if (FireMontage)
+		{
+			AnimInstance->Montage_Play(FireMontage, 1.0f,
+				EMontagePlayReturnType::MontageLength, 0.0f, false);
+		}
+	}
 
 	//반동 :사격후 카메라를 위로 올림
 	AddControllerPitchInput(-1.5f);
