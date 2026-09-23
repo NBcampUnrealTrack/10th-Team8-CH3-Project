@@ -64,6 +64,9 @@ void AMonsterBase::BeginPlay()
 	Super::BeginPlay();
 	// 여기서 자식클래스가 재구성한 MonsterInit이 호출될거니 나머지 BeginPlay에선 호출 ㄴㄴ
 	MonsterInit();
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCanEverAffectNavigation(false);
+	GetCharacterMovement()->SetAvoidanceEnabled(false);
 
 	if (MonsterCombatStats)
 	{
@@ -79,30 +82,25 @@ void AMonsterBase::BeginPlay()
 void AMonsterBase::MonsterInit()
 {
 #pragma region Collisions
-
 	UCapsuleComponent* MovementCapsule = GetCapsuleComponent();
 
 	MovementCapsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	MovementCapsule->SetCollisionObjectType(MonsterCollision::Monster);
-	MovementCapsule->SetCollisionResponseToAllChannels(ECR_Ignore);
-	MovementCapsule->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
-	MovementCapsule->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
-
+	MovementCapsule->SetCollisionResponseToAllChannels(ECR_Block);
+	MovementCapsule->SetCollisionResponseToChannel(MonsterCollision::MonsterProjectile, ECR_Ignore);
+	MovementCapsule->SetCollisionResponseToChannel(MonsterCollision::MonsterHitbox, ECR_Ignore);
 	MovementCapsule->SetCanEverAffectNavigation(false);
 	
 	if (IsValid(MonsterCollisionComponent))
 	{
 		MonsterCollisionComponent->SetSimulatePhysics(false);
 		MonsterCollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
-		MonsterCollisionComponent->SetCollisionObjectType(MonsterCollision::Monster);
+		MonsterCollisionComponent->SetCollisionObjectType(MonsterCollision::MonsterHitbox);
 		MonsterCollisionComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
 		MonsterCollisionComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 		MonsterCollisionComponent->SetGenerateOverlapEvents(false);
 		MonsterCollisionComponent->SetCanEverAffectNavigation(false);
 	}
-	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
-	GetMesh()->SetCanEverAffectNavigation(false);
-	GetCharacterMovement()->SetAvoidanceEnabled(false);
 
 #pragma endregion
 

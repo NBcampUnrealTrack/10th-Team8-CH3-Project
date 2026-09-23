@@ -10,4 +10,5 @@ namespace MonsterCollision
     constexpr ECollisionChannel Monster = ECC_GameTraceChannel1;
     constexpr ECollisionChannel MonsterProjectile = ECC_GameTraceChannel2;
     constexpr ECollisionChannel WeaponTrace = ECC_GameTraceChannel3;
+    constexpr ECollisionChannel MonsterHitbox = ECC_GameTraceChannel4;
 }

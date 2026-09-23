@@ -92,7 +92,8 @@ void AMainPlayerCharacter::BeginPlay()
 
 	UCapsuleComponent* Capsule = GetCapsuleComponent();
 	Capsule->SetCollisionObjectType(ECC_Pawn);
-	Capsule->SetCollisionResponseToChannel(MonsterCollision::Monster, ECR_Ignore);
+	Capsule->SetCollisionResponseToChannel(MonsterCollision::Monster, ECR_Block);
+	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterHitbox, ECR_Ignore);
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterProjectile, ECR_Block);
 	//기본 무기 권총은 처음부터 가지고 들고 시작
 	AcquiredWeaponSlots.AddUnique(EWeaponSlot::Pistol);
