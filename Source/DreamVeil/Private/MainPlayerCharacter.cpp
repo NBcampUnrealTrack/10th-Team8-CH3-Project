@@ -8,6 +8,7 @@
 #include "Camera/CameraComponent.h"
 #include "GameFramework/SpringArmComponent.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "AugmentDamageLibrary.h"
 #include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
@@ -19,6 +20,7 @@
 #include "AugmentTypes.h"
 #include "Camera/PlayerCameraManager.h"
 #include "TimerManager.h"
+#include "MonsterCollision.h"
 
 //카메라가 위아래로 돌 수 있는 최대 각도
 //엔진 기본은 거의 90도라서 끝까지 내리면 카메라가 캐릭터 바로 위로 가고 조금만 움직여도 방향이 휙 뒤집힘
@@ -88,6 +90,10 @@ void AMainPlayerCharacter::BeginPlay()
 	//컴포넌트 BeginPlay가 여기서 돌아서 빠지면 증강이 적용되지 않음
 	Super::BeginPlay();
 
+	UCapsuleComponent* Capsule = GetCapsuleComponent();
+	Capsule->SetCollisionObjectType(ECC_Pawn);
+	Capsule->SetCollisionResponseToChannel(MonsterCollision::Monster, ECR_Ignore);
+	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterProjectile, ECR_Block);
 	//기본 무기 권총은 처음부터 가지고 들고 시작
 	AcquiredWeaponSlots.AddUnique(EWeaponSlot::Pistol);
 	CurrentWeaponSlot = EWeaponSlot::Pistol;

@@ -4,6 +4,7 @@
 #include "MonsterBase.h"
 #include "MonsterAIController.h"
 #include "Components/SphereComponent.h"
+#include "Components/CapsuleComponent.h"
 #include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
 #include "AugmentDamageLibrary.h"
@@ -17,6 +18,7 @@
 #include "Animation/AnimInstance.h"
 #include "MainPlayerCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "MonsterCollision.h"
 
 AMonsterBase::AMonsterBase()
 {
@@ -29,7 +31,6 @@ AMonsterBase::AMonsterBase()
 	MonsterMeshComponent = GetMesh();
 
 	AttackType = EMonsterAttackType::Melee; //기본적으로 근접, BP에서 설정 가능
-
 
 	// 체력 기본값. 에러방지용이라 수정하셈
 	MinHealthRadius = 100.0f;
@@ -77,12 +78,44 @@ void AMonsterBase::BeginPlay()
 //몬스터 초기화 작업. 몬스터가 전장에 투입될 때 스탯 초기화 등
 void AMonsterBase::MonsterInit()
 {
+#pragma region Collisions
+
+	UCapsuleComponent* MovementCapsule = GetCapsuleComponent();
+
+	MovementCapsule->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	MovementCapsule->SetCollisionObjectType(MonsterCollision::Monster);
+	MovementCapsule->SetCollisionResponseToAllChannels(ECR_Ignore);
+	MovementCapsule->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+	MovementCapsule->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+
+	MovementCapsule->SetCanEverAffectNavigation(false);
+	
+	if (IsValid(MonsterCollisionComponent))
+	{
+		MonsterCollisionComponent->SetSimulatePhysics(false);
+		MonsterCollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+		MonsterCollisionComponent->SetCollisionObjectType(MonsterCollision::Monster);
+		MonsterCollisionComponent->SetCollisionResponseToAllChannels(ECR_Ignore);
+		MonsterCollisionComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
+		MonsterCollisionComponent->SetGenerateOverlapEvents(false);
+		MonsterCollisionComponent->SetCanEverAffectNavigation(false);
+	}
+	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	GetMesh()->SetCanEverAffectNavigation(false);
+	GetCharacterMovement()->SetAvoidanceEnabled(false);
+
+#pragma endregion
+
 	//이속
 	this->MonsterWalkSpeed = FMath::RandRange(MinWalkSpeed, MaxWalkSpeed);
 	GetCharacterMovement()->MaxWalkSpeed = MonsterWalkSpeed;
 	// 최대체력인디.. 범위 변수는 블루프린트에서 ㄱㄱ
 	this->MaxHealth = FMath::RandRange(MinHealthRadius, MaxHealthRadius);
-	MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage);
+
+	if (IsValid(MonsterCombatStats))
+	{
+		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage);
+	}
 	// 어택타입 보기
 	switch (GetAttackType())
 	{
