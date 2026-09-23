@@ -8,7 +8,6 @@
 #include "GameFramework/ProjectileMovementComponent.h"
 #include "GameFramework/Pawn.h"
 #include "GameFramework/DamageType.h"
-
 #include "MonsterBase.h"
 
 // Sets default values
