@@ -29,6 +29,10 @@ class DREAMVEIL_API UPoisonDamageType : public UDamageType
 	GENERATED_BODY()
 };
 
+//헤드샷 데미지 배율 머리를 맞히면 데미지가 이만큼 곱해짐
+//총 적중(ApplyWeaponHit)만 이 배율을 받음 범위 공격 독 가시 갑옷 반사는 머리를 겨눌 수 있는 공격이 아니라서 그냥 평타로 들어감
+const float HEADSHOT_DAMAGE_MULTIPLIER = 2.0f;
+
 //언리얼 데미지 시스템으로 데미지를 주고받는 처리를 모아둠
 //보내는 쪽은 ApplyAugmentDamageToTarget 총 적중은 ApplyWeaponHit
 //받는 쪽은 캐릭터 TakeDamage에서 Super::TakeDamage 뒤에 ProcessIncomingDamage를 부름

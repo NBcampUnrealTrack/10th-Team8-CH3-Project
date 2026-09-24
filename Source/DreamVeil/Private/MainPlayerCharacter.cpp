@@ -406,43 +406,13 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 		return;
 	}
 
-	const FVector MuzzleLocation = CurrentWeapon->GetMuzzleLocation();
-	const FVector CameraLocation = CameraComp->GetComponentLocation();
-	const FVector CameraDirection = CameraComp->GetForwardVector();
-	const FVector CameraTraceEnd = CameraLocation + CameraDirection * CurrentWeapon->GetRange();
+	FVector MuzzleLocation;
+	FVector FireDirection;
 
-	//카메라와 총구 사이에 있는 내 캐릭터가 먼저 잡히지 않도록 제외
-	FCollisionQueryParams AimQueryParams;
-	AimQueryParams.AddIgnoredActor(this);
-
-	//화면 가운데가 실제로 가리키는 지점을 카메라에서 먼저 찾음
-	//사거리 끝을 그냥 조준점으로 쓰면 카메라가 캐릭터에 가깝거나 아래에 있을 때 총구 방향이 조준선과 어긋남
-	FHitResult AimHit;
-	const bool bAimHitSomething = GetWorld()->LineTraceSingleByChannel(
-		AimHit, CameraLocation, CameraTraceEnd, CurrentWeapon->GetTraceChannel(), AimQueryParams
-	);
-
-	FVector AimPoint = bAimHitSomething ? AimHit.ImpactPoint : CameraTraceEnd;
-
-	//총구에서 조준점으로 가는 방향 길이는 버리고 방향만 남김
-	const FVector MuzzleToAim = AimPoint - MuzzleLocation;
-
-	FVector FireDirection = MuzzleToAim.GetSafeNormal();
-
-	//벽에 바짝 붙으면 조준점이 총구 바로 옆이나 뒤에 잡혀서 총알이 엉뚱한 데로 나감
-	//세 가지를 한꺼번에 걸러서 이럴 때는 그냥 카메라 정면으로 쏨
-	// 1) 총구와 조준점이 같은 자리라 방향을 못 구한 경우
-	// 2) 조준점이 총구에 너무 가까운 경우 거리가 짧으면 방향이 조금만 흔들려도 크게 튐
-	// 3) 구한 방향이 카메라가 보는 쪽과 많이 벌어진 경우
-	//예전에는 3)을 내적 0 이하(90도 넘게 벌어짐)로만 봤는데 벽에 붙으면 89도쯤에서도 이상하게 나가서 범위를 넓힘
-	const bool bAimTooClose = MuzzleToAim.SizeSquared() < FMath::Square(MIN_AIM_DISTANCE);
-
-	//둘 다 단위 벡터라 내적이 곧 두 방향 사이 각의 코사인 각이 클수록 코사인은 작아짐
-	const bool bAimTooWide = FVector::DotProduct(FireDirection, CameraDirection) < FMath::Cos(FMath::DegreesToRadians(MAX_AIM_ANGLE_DEGREES));
-
-	if (FireDirection.IsNearlyZero() || bAimTooClose || bAimTooWide)
+	//조준 계산은 조준점 UI와 나눠 쓰는 함수가 함 위에서 무기를 이미 확인해서 여기서는 실패하지 않음
+	if (!CalculateFireAim(MuzzleLocation, FireDirection))
 	{
-		FireDirection = CameraDirection;
+		return;
 	}
 
 	//여기부터는 무기 담당 총구 위치와 방향만 넘기면 나머지는 무기가 처리
@@ -462,6 +432,96 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 
 	//반동 :사격후 카메라를 위로 올림
 	AddControllerPitchInput(-1.5f);
+}
+
+//총알이 나갈 총구 위치와 방향을 구함
+//사격과 조준점 UI가 나눠 씀 둘이 따로 계산하면 화면의 조준점과 실제 탄착점이 어긋남
+bool AMainPlayerCharacter::CalculateFireAim(FVector& OutMuzzleLocation, FVector& OutFireDirection) const
+{
+	//맨손 상태(로비)면 nullptr이라 조준할 것도 없음
+	const UWeaponBase* CurrentWeapon = GetCurrentWeapon();
+
+	if (!CurrentWeapon || !CameraComp)
+	{
+		return false;
+	}
+
+	OutMuzzleLocation = CurrentWeapon->GetMuzzleLocation();
+
+	const FVector CameraLocation = CameraComp->GetComponentLocation();
+	const FVector CameraDirection = CameraComp->GetForwardVector();
+	const FVector CameraTraceEnd = CameraLocation + CameraDirection * CurrentWeapon->GetRange();
+
+	//카메라와 총구 사이에 있는 내 캐릭터가 먼저 잡히지 않도록 제외
+	FCollisionQueryParams AimQueryParams;
+	AimQueryParams.AddIgnoredActor(this);
+
+	//화면 가운데가 실제로 가리키는 지점을 카메라에서 먼저 찾음
+	//사거리 끝을 그냥 조준점으로 쓰면 카메라가 캐릭터에 가깝거나 아래에 있을 때 총구 방향이 조준선과 어긋남
+	FHitResult AimHit;
+	const bool bAimHitSomething = GetWorld()->LineTraceSingleByChannel(
+		AimHit, CameraLocation, CameraTraceEnd, CurrentWeapon->GetTraceChannel(), AimQueryParams
+	);
+
+	const FVector AimPoint = bAimHitSomething ? FVector(AimHit.ImpactPoint) : CameraTraceEnd;
+
+	//총구에서 조준점으로 가는 방향 길이는 버리고 방향만 남김
+	const FVector MuzzleToAim = AimPoint - OutMuzzleLocation;
+
+	OutFireDirection = MuzzleToAim.GetSafeNormal();
+
+	//벽에 바짝 붙으면 조준점이 총구 바로 옆이나 뒤에 잡혀서 총알이 엉뚱한 데로 나감
+	//세 가지를 한꺼번에 걸러서 이럴 때는 그냥 카메라 정면으로 쏨
+	// 1) 총구와 조준점이 같은 자리라 방향을 못 구한 경우
+	// 2) 조준점이 총구에 너무 가까운 경우 거리가 짧으면 방향이 조금만 흔들려도 크게 튐
+	// 3) 구한 방향이 카메라가 보는 쪽과 많이 벌어진 경우
+	//예전에는 3)을 내적 0 이하(90도 넘게 벌어짐)로만 봤는데 벽에 붙으면 89도쯤에서도 이상하게 나가서 범위를 넓힘
+	const bool bAimTooClose = MuzzleToAim.SizeSquared() < FMath::Square(MIN_AIM_DISTANCE);
+
+	//둘 다 단위 벡터라 내적이 곧 두 방향 사이 각의 코사인 각이 클수록 코사인은 작아짐
+	const bool bAimTooWide = FVector::DotProduct(OutFireDirection, CameraDirection) < FMath::Cos(FMath::DegreesToRadians(MAX_AIM_ANGLE_DEGREES));
+
+	if (OutFireDirection.IsNearlyZero() || bAimTooClose || bAimTooWide)
+	{
+		OutFireDirection = CameraDirection;
+	}
+
+	return true;
+}
+
+//조준점을 그릴 화면 좌표
+bool AMainPlayerCharacter::GetCrosshairScreenPosition(FVector2D& OutScreenPosition) const
+{
+	FVector MuzzleLocation;
+	FVector FireDirection;
+
+	if (!CalculateFireAim(MuzzleLocation, FireDirection))
+	{
+		return false;
+	}
+
+	//조준이 성공했으면 무기는 반드시 있음 사거리와 트레이스 채널을 물어보려고 다시 가져옴
+	const UWeaponBase* CurrentWeapon = GetCurrentWeapon();
+
+	//총구에서 실제로 쏠 방향으로 한 번 더 쏘아봐서 총알이 닿을 지점을 구함
+	//카메라가 보는 곳을 그대로 쓰지 않는 이유 벽에 붙어서 방향이 재조정되면 카메라가 보는 곳과 탄착점이 달라짐
+	const FVector TraceEnd = MuzzleLocation + FireDirection * CurrentWeapon->GetRange();
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	FHitResult Hit;
+	const bool bHitSomething = GetWorld()->LineTraceSingleByChannel(
+		Hit, MuzzleLocation, TraceEnd, CurrentWeapon->GetTraceChannel(), QueryParams
+	);
+
+	//아무것도 없으면 사거리 끝에 조준점을 둠 하늘을 봐도 조준점이 사라지지 않게
+	const FVector CrosshairWorldLocation = bHitSomething ? FVector(Hit.ImpactPoint) : TraceEnd;
+
+	//월드 좌표를 화면 좌표로 바꿈 탄착점이 화면 뒤나 밖이면 false가 돌아와서 UI가 조준점을 숨길 수 있음
+	return UGameplayStatics::ProjectWorldToScreen(
+		Cast<APlayerController>(GetController()), CrosshairWorldLocation, OutScreenPosition
+	);
 }
 
 //현재 플레이어 레벨
@@ -527,6 +587,16 @@ void AMainPlayerCharacter::RestoreLevelProgress(int32 SavedLevel, float SavedExp
 	CurrentExperience = FMath::Max(SavedExperience, 0.0f);
 
 	//UI가 처음 뜰 때 옛 값을 보지 않게 바로 알림
+	//레벨도 같이 알려야 함 예전에는 경험치만 알려서 맵을 넘길 때마다 화면의 레벨이 1로 굳어 있었음
+	RefreshProgressUI();
+}
+
+//지금 레벨과 경험치를 UI에 다시 알림
+void AMainPlayerCharacter::RefreshProgressUI()
+{
+	//레벨이 오른 게 아니어도 같은 이벤트로 알림 UI 입장에서는 둘 다 레벨 숫자를 새로 그리는 일이라 같음
+	OnLevelUp.Broadcast(PlayerLevel);
+
 	OnExperienceChanged.Broadcast(CurrentExperience, GetRequiredExperience());
 }
 

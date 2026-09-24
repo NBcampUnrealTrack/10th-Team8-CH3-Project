@@ -30,6 +30,15 @@ AMonsterBase::AMonsterBase()
 	MonsterCollisionComponent = nullptr;
 	MonsterMeshComponent = GetMesh();
 
+	//머리 판정용 구
+	//실제 충돌을 꺼두는 이유 이동용 캡슐이 머리까지 감싸고 있어서 켜도 총알 광선이 여기까지 닿지 못하고 물리에만 방해가 됨
+	//대신 총알 광선이 이 구를 지나갔는지로 헤드샷을 판정함 IsHeadshotHit 참고
+	HeadCollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("HeadCollision"));
+	HeadCollisionComponent->SetupAttachment(GetMesh(), HeadSocketName);
+	HeadCollisionComponent->SetSphereRadius(20.0f);
+	HeadCollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HeadCollisionComponent->SetCanEverAffectNavigation(false);
+
 	AttackType = EMonsterAttackType::Melee; //기본적으로 근접, BP에서 설정 가능
 
 	// 체력 기본값. 에러방지용이라 수정하셈
@@ -66,7 +75,10 @@ void AMonsterBase::BeginPlay()
 	MonsterInit();
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCanEverAffectNavigation(false);
-	GetCharacterMovement()->SetAvoidanceEnabled(false);
+	//서로 피해 가기(RVO)를 켬 끄면 몬스터들이 플레이어까지 최단 경로 하나에 전부 몰려서
+	//한 줄로 줄지어 오거나 한 지점에서 서로 밀며 겹쳐 보임 캡슐끼리 막기만으로는 이게 안 풀림
+	//막기는 이미 서로 통과하지 못하게만 해주고 길을 비켜주지는 않기 때문
+	GetCharacterMovement()->SetAvoidanceEnabled(true);
 
 	if (MonsterCombatStats)
 	{
@@ -100,6 +112,13 @@ void AMonsterBase::MonsterInit()
 		MonsterCollisionComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 		MonsterCollisionComponent->SetGenerateOverlapEvents(false);
 		MonsterCollisionComponent->SetCanEverAffectNavigation(false);
+	}
+
+	//머리 구를 머리 뼈에 다시 붙임 블루프린트에서 소켓 이름을 바꿨거나 메시를 갈아 끼웠어도 따라가게 함
+	//소켓이 없는 메시(스태틱 메시 몬스터)면 붙이지 않고 블루프린트에 잡아둔 위치를 그대로 씀
+	if (IsValid(HeadCollisionComponent) && IsValid(GetMonsterMesh()) && GetMonsterMesh()->DoesSocketExist(HeadSocketName))
+	{
+		HeadCollisionComponent->AttachToComponent(GetMonsterMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, HeadSocketName);
 	}
 
 #pragma endregion
@@ -402,6 +421,24 @@ EMonsterAttackType AMonsterBase::GetAttackType() const
 UMeshComponent* AMonsterBase::GetMonsterMesh() const
 {
 	return MonsterMeshComponent;
+}
+
+//이 총알이 머리를 지나갔는지
+bool AMonsterBase::IsHeadshotHit(const FHitResult& HitResult) const
+{
+	if (!IsValid(HeadCollisionComponent))
+	{
+		return false;
+	}
+
+	//맞은 컴포넌트가 머리인지로 판단하지 않는 이유
+	//이동용 캡슐이 머리끝까지 감싸고 있어서 광선은 언제나 캡슐 표면에서 먼저 막힘 그래서 머리 구는 절대 맞은 컴포넌트가 될 수 없음
+	//대신 총알이 지나간 선(TraceStart~TraceEnd)과 머리 중심의 거리를 재서 구를 스쳐 갔는지를 봄
+	//이러면 캡슐 어디에 맞았는지와 상관없이 머리를 겨눴는지로 판정됨
+	const FVector HeadCenter = HeadCollisionComponent->GetComponentLocation();
+	const float HeadRadius = HeadCollisionComponent->GetScaledSphereRadius();
+
+	return FMath::PointDistToSegment(HeadCenter, HitResult.TraceStart, HitResult.TraceEnd) <= HeadRadius;
 }
 
 void AMonsterBase::OnDeath()

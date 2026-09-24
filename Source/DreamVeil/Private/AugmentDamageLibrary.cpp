@@ -303,8 +303,13 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
         WeaponHitResult.Location = WeaponHitResult.ImpactPoint;
     }
 
+    //머리를 맞혔으면 데미지를 올림 머리 판정은 몬스터가 자기 머리 구로 직접 함
+    //여기(총 적중)에서만 배율을 거는 이유 범위 공격 독 가시 갑옷 반사는 조준해서 맞히는 공격이 아니라 평타로 들어가야 함
+    const AMonsterBase* HitMonster = Cast<AMonsterBase>(HitActor);
+    const float HeadshotDamage = (HitMonster && HitMonster->IsHeadshotHit(HitResult)) ? Damage * HEADSHOT_DAMAGE_MULTIPLIER : Damage;
+
     //맞은 대상에게 먼저 데미지 벽이나 바닥을 맞혔으면 스탯이 없어서 0
-    const float AppliedDamage = ApplyAugmentDamageToTarget(DamageCauser, HitActor, Damage);
+    const float AppliedDamage = ApplyAugmentDamageToTarget(DamageCauser, HitActor, HeadshotDamage);
 
     if (!Shooter)
     {
@@ -319,6 +324,7 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
     }
 
     //벽을 맞혀도 적중 지점 주변에 범위 공격이 터지도록 대상 유무와 상관없이 부름
+    //헤드샷 배율을 뺀 원래 데미지를 넘김 범위 공격의 폭발 데미지까지 머리 배율을 타면 안 됨
     ShooterTable->ProcessWeaponHit(WeaponHitResult, Damage);
 
     return AppliedDamage;

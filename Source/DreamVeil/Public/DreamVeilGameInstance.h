@@ -60,6 +60,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	bool OpenNextLevel();
 
+	//고른 레벨로 들어감 침대의 레벨 선택 UI가 버튼마다 이걸 부를 것
+	//아직 안 열린 레벨(IsLevelUnlocked가 false)이면 아무것도 하지 않고 false라서 UI가 버튼을 막지 못해도 안전함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	bool OpenLevelByNumber(int32 LevelNumber);
+
 	//지금 레벨을 깼을 때 진행도를 올리고 로비로 돌아감 게임모드가 제한 시간 안에 다 잡았거나 보스를 잡았을 때 부름
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void CompleteCurrentLevel();
