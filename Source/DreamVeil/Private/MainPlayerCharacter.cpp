@@ -598,11 +598,15 @@ void AMainPlayerCharacter::SetAugmentChoicePaused(bool bPaused)
 		return;
 	}
 
-	//SetGamePaused는 플레이어 컨트롤러가 있어야 먹힘 컨트롤러가 없으면 멈추지도 못하므로 상태도 바꾸지 않음
-	if (!UGameplayStatics::SetGamePaused(this, bPaused))
+	//멈추는 일은 컨트롤러가 함 SetGamePaused가 컨트롤러를 필요로 하고 누르고 있던 입력을 버리는 것도 컨트롤러만 할 수 있음
+	//컨트롤러가 없으면 멈추지도 못하므로 상태도 바꾸지 않음
+	AMainPlayerController* PlayerController = Cast<AMainPlayerController>(GetController());
+	if (!PlayerController)
 	{
 		return;
 	}
+
+	PlayerController->SetGameSuspended(bPaused);
 
 	bAugmentChoicePaused = bPaused;
 }
