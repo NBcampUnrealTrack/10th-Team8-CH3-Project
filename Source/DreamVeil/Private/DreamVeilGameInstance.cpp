@@ -157,8 +157,11 @@ void UDreamVeilGameInstance::CompleteCurrentLevel()
     //저장을 안 하면 새 맵을 로드할 때 플레이어가 새로 만들어지면서 증강이 전부 사라짐
     SaveCurrentPlayerProgress();
 
-    //실수로 두 번 불려도 레벨 개수를 넘지 않게 막음
-    ClearedLevelCount = FMath::Min(ClearedLevelCount + 1, LEVEL_COUNT);
+    //진행도는 지금 깬 레벨 번호와 이미 깬 수 중 큰 쪽으로 둠
+    //무조건 +1을 하지 않는 이유 침대에서 이미 깬 꿈을 다시 고를 수 있게 되면서
+    //3번 꿈까지 깬 사람이 1번 꿈을 다시 깼을 뿐인데 진행도가 4로 올라가 전부 해금되는 문제가 생김
+    //레벨 맵이 아니면 GetCurrentLevelNumber가 0이라 진행도가 그대로 유지됨 실수로 불려도 안전함
+    ClearedLevelCount = FMath::Min(FMath::Max(ClearedLevelCount, GetCurrentLevelNumber()), LEVEL_COUNT);
 
     OpenLobbyWithAutoSave();
 }
@@ -398,6 +401,13 @@ bool UDreamVeilGameInstance::IsLevelUnlocked(int32 LevelNumber) const
 {
     //깬 레벨 수 + 1번 레벨까지 열려 있음 하나도 안 깼으면 L1만
     return LevelNumber >= 1 && LevelNumber <= LEVEL_COUNT && LevelNumber <= ClearedLevelCount + 1;
+}
+
+//그 레벨을 이미 깼는지
+bool UDreamVeilGameInstance::IsLevelCleared(int32 LevelNumber) const
+{
+    //깬 레벨 수까지가 이미 깬 레벨 해금은 여기서 한 칸 더 나간 번호까지라 조건이 하나 다름
+    return LevelNumber >= 1 && LevelNumber <= ClearedLevelCount;
 }
 
 //난이도를 정함

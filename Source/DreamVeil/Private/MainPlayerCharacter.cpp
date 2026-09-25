@@ -150,6 +150,10 @@ void AMainPlayerCharacter::BeginPlay()
 
 	UpdateWeaponVisibility();
 
+	//바뀐 무기 칸을 UI에 알림 위에서 로비면 Nothing으로 바꿨는데 그동안 아무도 알려주지 않아서
+	//로비에 와도 HUD 오른쪽 아래에 권총이 그대로 떠 있었음 EquipWeapon만 이 이벤트를 쏘고 있었던 탓
+	OnWeaponChanged.Broadcast(CurrentWeaponSlot);
+
 	//로비에서는 총을 안 들었으므로 맨손 애님 블루프린트로 갈아끼움
 	//로비용 캐릭터 블루프린트를 따로 만들지 않아도 되게 여기서 처리함
 	//LobbyAnimClass를 비워두면 아무 일도 안 하고 평소 애님을 그대로 씀
@@ -591,13 +595,16 @@ void AMainPlayerCharacter::RestoreLevelProgress(int32 SavedLevel, float SavedExp
 	RefreshProgressUI();
 }
 
-//지금 레벨과 경험치를 UI에 다시 알림
+//지금 레벨과 경험치와 무기 칸을 UI에 다시 알림
 void AMainPlayerCharacter::RefreshProgressUI()
 {
 	//레벨이 오른 게 아니어도 같은 이벤트로 알림 UI 입장에서는 둘 다 레벨 숫자를 새로 그리는 일이라 같음
 	OnLevelUp.Broadcast(PlayerLevel);
 
 	OnExperienceChanged.Broadcast(CurrentExperience, GetRequiredExperience());
+
+	//무기 칸도 같이 알림 HUD가 늦게 떠서 BeginPlay의 알림을 놓쳤어도 로비에서 무기 칸이 사라지게 하려는 것
+	OnWeaponChanged.Broadcast(CurrentWeaponSlot);
 }
 
 //지금 떠 있는 증강 선택지

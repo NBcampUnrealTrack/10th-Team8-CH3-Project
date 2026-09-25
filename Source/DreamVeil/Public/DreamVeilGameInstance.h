@@ -104,6 +104,12 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Level")
 	bool IsLevelUnlocked(int32 LevelNumber) const;
 
+	//그 레벨을 이미 깼는지 침대의 꿈 선택 UI가 깬 꿈에 표시를 달 때 씀
+	//IsLevelUnlocked만으로는 "열렸지만 아직 안 깬 꿈"과 "이미 깬 꿈"을 구분할 수 없어서 따로 둠
+	//깬 레벨 수를 그대로 열어주지 않는 이유 UI가 진행도 숫자를 직접 다루기 시작하면 해금 규칙이 두 군데로 갈라짐
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsLevelCleared(int32 LevelNumber) const;
+
 	// 난이도
 
 	//난이도를 정함 메인 메뉴에서 새 게임을 시작하기 전에 부를 것
