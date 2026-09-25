@@ -156,7 +156,7 @@ public:
 	float CalculateOutgoingDamage() const;
 
 	//받은 데미지를 방어력으로 줄여 체력에 적용하고 적용한 데미지를 반환 죽었거나 0 이하면 0
-	//bIgnoreDefence가 true면 방어력을 빼지 않음 독 데미지용
+	//bIgnoreDefence가 true면 방어력을 빼지 않음 화염 데미지용
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	float ApplyIncomingDamage(float IncomingDamage, bool bIgnoreDefence = false);
 

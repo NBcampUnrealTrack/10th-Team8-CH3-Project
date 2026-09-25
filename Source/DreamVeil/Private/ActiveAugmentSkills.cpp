@@ -158,7 +158,7 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
     UAugmentDamageLibrary::ApplyAugmentDamage(OwnerActor, FoundTargets, SplashDamage);
 }
 
-//지속 공격 총에 맞은 대상에게 독을 걺 이미 걸린 대상이면 시간과 데미지만 갱신
+//지속 공격 총에 맞은 대상에게 불을 붙임 이미 걸린 대상이면 시간과 데미지만 갱신
 void UContinuousAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
     UWorld* World = GetWorld();
@@ -187,54 +187,54 @@ void UContinuousAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitD
         return;
     }
 
-    FPoisonedTargetState* PoisonState = PoisonedTargets.Find(TargetActor);
+    FBurningTargetState* BurnState = BurningTargets.Find(TargetActor);
 
-    //이미 독에 걸려 있으면 틱 주기는 그대로 두고 남은 시간과 데미지만 새로 맞음
-    if (PoisonState)
+    //이미 불이 붙어 있으면 틱 주기는 그대로 두고 남은 시간과 데미지만 새로 맞음
+    if (BurnState)
     {
-        PoisonState->TickDamage = TickDamage;
-        PoisonState->RemainingTime = CONTINUOUS_ATTACK_DURATION;
+        BurnState->TickDamage = TickDamage;
+        BurnState->RemainingTime = CONTINUOUS_ATTACK_DURATION;
         return;
     }
 
-    FPoisonedTargetState NewState;
+    FBurningTargetState NewState;
     NewState.TickDamage = TickDamage;
     NewState.RemainingTime = CONTINUOUS_ATTACK_DURATION;
 
-    PoisonState = &PoisonedTargets.Add(TargetActor, NewState);
+    BurnState = &BurningTargets.Add(TargetActor, NewState);
 
-    //불이 붙었다는 연출 켜기 꺼지는 건 타이머가 끝날 때 ProcessPoisonTick이 함
+    //불이 붙었다는 연출 켜기 꺼지는 건 타이머가 끝날 때 ProcessBurnTick이 함
     //이미 걸려 있던 대상은 위에서 돌아가므로 여기까지 오지 않아 불꽃이 겹치지 않음
     if (UCombatStatsComponent* TargetStats = TargetActor->FindComponentByClass<UCombatStatsComponent>())
     {
         TargetStats->SetOnFire(true);
     }
 
-    //첫 독 데미지는 맞은 순간이 아니라 한 간격 뒤부터
+    //첫 화염 데미지는 맞은 순간이 아니라 한 간격 뒤부터
     FTimerDelegate TickDelegate = FTimerDelegate::CreateUObject(
         this,
-        &UContinuousAttackSkill::ProcessPoisonTick,
+        &UContinuousAttackSkill::ProcessBurnTick,
         TWeakObjectPtr<AActor>(TargetActor)
     );
 
-    World->GetTimerManager().SetTimer(PoisonState->TickTimerHandle, TickDelegate, CONTINUOUS_ATTACK_INTERVAL, true);
+    World->GetTimerManager().SetTimer(BurnState->TickTimerHandle, TickDelegate, CONTINUOUS_ATTACK_INTERVAL, true);
 }
 
-//지속 공격 독 타이머 전부 정리
+//지속 공격 화염 타이머 전부 정리
 void UContinuousAttackSkill::Deactivate()
 {
     UWorld* World = GetWorld();
 
-    for (TPair<TWeakObjectPtr<AActor>, FPoisonedTargetState>& PoisonPair : PoisonedTargets)
+    for (TPair<TWeakObjectPtr<AActor>, FBurningTargetState>& BurnPair : BurningTargets)
     {
         if (World)
         {
-            World->GetTimerManager().ClearTimer(PoisonPair.Value.TickTimerHandle);
+            World->GetTimerManager().ClearTimer(BurnPair.Value.TickTimerHandle);
         }
 
         //타이머만 지우면 불꽃이 영원히 남으므로 여기서도 꺼줌
         //약한 참조라 이미 사라진 대상은 Get이 nullptr을 돌려줘서 자동으로 걸러짐
-        if (AActor* BurningActor = PoisonPair.Key.Get())
+        if (AActor* BurningActor = BurnPair.Key.Get())
         {
             if (UCombatStatsComponent* BurningStats = BurningActor->FindComponentByClass<UCombatStatsComponent>())
             {
@@ -243,15 +243,15 @@ void UContinuousAttackSkill::Deactivate()
         }
     }
 
-    PoisonedTargets.Empty();
+    BurningTargets.Empty();
 }
 
-//지속 공격 한 대상에게 독 데미지 한 번
-void UContinuousAttackSkill::ProcessPoisonTick(TWeakObjectPtr<AActor> WeakTarget)
+//지속 공격 한 대상에게 화염 데미지 한 번
+void UContinuousAttackSkill::ProcessBurnTick(TWeakObjectPtr<AActor> WeakTarget)
 {
-    FPoisonedTargetState* PoisonState = PoisonedTargets.Find(WeakTarget);
+    FBurningTargetState* BurnState = BurningTargets.Find(WeakTarget);
 
-    if (!PoisonState)
+    if (!BurnState)
     {
         return;
     }
@@ -260,21 +260,21 @@ void UContinuousAttackSkill::ProcessPoisonTick(TWeakObjectPtr<AActor> WeakTarget
 
     AActor* TargetActor = WeakTarget.Get();
 
-    //독 데미지 표식을 달아서 대상 방어력을 무시하고 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않음
+    //화염 데미지 표식을 달아서 대상 방어력을 무시하고 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않음
     //대상이 사라졌거나 이미 죽어서 데미지가 안 들어가면 0이 돌아옴
-    const float AppliedDamage = UAugmentDamageLibrary::ApplyPoisonDamage(GetOwnerActor(), TargetActor, PoisonState->TickDamage);
+    const float AppliedDamage = UAugmentDamageLibrary::ApplyFireDamage(GetOwnerActor(), TargetActor, BurnState->TickDamage);
 
     //데미지 처리 중에 목록이 바뀌었을 수 있으니 다시 찾음
-    PoisonState = PoisonedTargets.Find(WeakTarget);
+    BurnState = BurningTargets.Find(WeakTarget);
 
-    if (!PoisonState)
+    if (!BurnState)
     {
         return;
     }
 
-    PoisonState->RemainingTime -= CONTINUOUS_ATTACK_INTERVAL;
+    BurnState->RemainingTime -= CONTINUOUS_ATTACK_INTERVAL;
 
-    const bool bExpired = PoisonState->RemainingTime <= KINDA_SMALL_NUMBER;
+    const bool bExpired = BurnState->RemainingTime <= KINDA_SMALL_NUMBER;
 
     if (!bExpired && AppliedDamage > 0.0f)
     {
@@ -283,7 +283,7 @@ void UContinuousAttackSkill::ProcessPoisonTick(TWeakObjectPtr<AActor> WeakTarget
 
     if (World)
     {
-        World->GetTimerManager().ClearTimer(PoisonState->TickTimerHandle);
+        World->GetTimerManager().ClearTimer(BurnState->TickTimerHandle);
     }
 
     //시간이 다 됐거나 대상이 죽었으므로 불을 끔
@@ -296,5 +296,5 @@ void UContinuousAttackSkill::ProcessPoisonTick(TWeakObjectPtr<AActor> WeakTarget
         }
     }
 
-    PoisonedTargets.Remove(WeakTarget);
+    BurningTargets.Remove(WeakTarget);
 }

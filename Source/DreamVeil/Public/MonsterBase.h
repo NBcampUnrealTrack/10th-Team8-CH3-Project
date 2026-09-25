@@ -87,7 +87,7 @@ public:
 
 	//이 총알이 머리를 지나갔는지 헤드샷이면 데미지가 올라감
 	//머리 판정을 몬스터가 직접 하는 이유 머리 구의 위치와 크기를 아는 것은 몬스터 자신뿐임
-	//총 적중(UAugmentDamageLibrary::ApplyWeaponHit)만 이걸 물어봄 범위 공격 독 가시 갑옷은 머리 판정을 하지 않음
+	//총 적중(UAugmentDamageLibrary::ApplyWeaponHit)만 이걸 물어봄 범위 공격 화염 가시 갑옷은 머리 판정을 하지 않음
 	UFUNCTION(BlueprintPure, Category = "Collision")
 	bool IsHeadshotHit(const FHitResult& HitResult) const;
 

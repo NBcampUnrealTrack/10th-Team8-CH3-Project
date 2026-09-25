@@ -91,7 +91,11 @@ void AMonsterBase::ShowAttackWarning(const FVector& StartPos, const FVector& End
 	const float AttackLength = Direction.Size();
 
 	// KINDA_SMALL_NUMBER라는게 왜있냐... 이거 일단 0.00001f
-	if (AttackLength <= KINDA_SMALL_NUMBER || AttackWidth <= 0.0f)
+	//정확히는 0.0001f(1.e-4f)임 0이 하나 많았음 UnrealMathUtility.h:130
+	//float는 계산을 거치면 0이어야 할 값이 0.0000000437 같은 쓰레기로 남아서 == 0.0f 비교를 믿을 수 없음
+	//그래서 "이 정도면 0으로 치자"는 기준선이 필요한 것 여기서는 공격 범위 길이가 0이면 그릴 데칼이 없다는 뜻
+	//UE_를 붙인 이유 UE 5.6에서 UE_ 없는 이름은 deprecated라 그냥 쓰면 경고가 나고 우리는 -WarningsAsErrors로 빌드함
+	if (AttackLength <= UE_KINDA_SMALL_NUMBER || AttackWidth <= 0.0f)
 	{
 		HideAttackWarning();
 		return;

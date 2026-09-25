@@ -24,8 +24,8 @@ struct FSlowedCharacterState
 //감속 중인 대상과 상태를 담는 맵 타입 반복자처럼 긴 타입을 짧게 쓰려고 별명을 붙임
 using FSlowedCharacterMap = TMap<TWeakObjectPtr<ACharacter>, FSlowedCharacterState>;
 
-//독에 걸린 대상 하나의 상태
-struct FPoisonedTargetState
+//불이 붙은 대상 하나의 상태
+struct FBurningTargetState
 {
 	//틱마다 줄 데미지
 	float TickDamage = 0.0f;
@@ -69,7 +69,7 @@ public:
 	virtual void OnWeaponHit(const FHitResult& HitResult, float HitDamage) override;
 };
 
-//지속 공격 총에 맞은 대상에게 일정 시간 동안 독 데미지
+//지속 공격 총에 맞은 대상에게 일정 시간 동안 화염 데미지
 UCLASS()
 class DREAMVEIL_API UContinuousAttackSkill : public UAugmentSkillBase
 {
@@ -81,9 +81,9 @@ public:
 	virtual void Deactivate() override;
 
 private:
-	//독에 걸린 대상과 상태
-	TMap<TWeakObjectPtr<AActor>, FPoisonedTargetState> PoisonedTargets;
+	//불이 붙은 대상과 상태
+	TMap<TWeakObjectPtr<AActor>, FBurningTargetState> BurningTargets;
 
-	//한 대상에게 독 데미지 한 번
-	void ProcessPoisonTick(TWeakObjectPtr<AActor> WeakTarget);
+	//한 대상에게 화염 데미지 한 번
+	void ProcessBurnTick(TWeakObjectPtr<AActor> WeakTarget);
 };

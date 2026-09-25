@@ -306,7 +306,7 @@ void AMainGameModeBase::ClearLevel()
 		return;
 	}
 
-	//타이머를 먼저 멈추고 확인하는 이유 죽은 뒤에 독 데미지로 마지막 몬스터가 죽어도 클리어되지 않게
+	//타이머를 먼저 멈추고 확인하는 이유 죽은 뒤에 화염 데미지로 마지막 몬스터가 죽어도 클리어되지 않게
 	if (IsPlayerDead())
 	{
 		return;

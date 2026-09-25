@@ -20,17 +20,17 @@ class DREAMVEIL_API UThornReflectDamageType : public UDamageType
 	GENERATED_BODY()
 };
 
-//지속 공격 독 데미지에 붙이는 표식
+//지속 공격 화염 데미지에 붙이는 표식
 //이 타입으로 들어온 데미지는 대상 방어력을 무시하고 흡혈과 가시 갑옷 반사를 일으키지 않음
 //틱마다 가시 갑옷 반사가 들어와 쏜 사람이 계속 깎이는 것을 막기 위함
 UCLASS()
-class DREAMVEIL_API UPoisonDamageType : public UDamageType
+class DREAMVEIL_API UFireDamageType : public UDamageType
 {
 	GENERATED_BODY()
 };
 
 //헤드샷 데미지 배율 머리를 맞히면 데미지가 이만큼 곱해짐
-//총 적중(ApplyWeaponHit)만 이 배율을 받음 범위 공격 독 가시 갑옷 반사는 머리를 겨눌 수 있는 공격이 아니라서 그냥 평타로 들어감
+//총 적중(ApplyWeaponHit)만 이 배율을 받음 범위 공격 화염 가시 갑옷 반사는 머리를 겨눌 수 있는 공격이 아니라서 그냥 평타로 들어감
 const float HEADSHOT_DAMAGE_MULTIPLIER = 2.0f;
 
 //언리얼 데미지 시스템으로 데미지를 주고받는 처리를 모아둠
@@ -69,13 +69,13 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
 	static bool IsThornReflectDamage(TSubclassOf<UDamageType> DamageTypeClass);
 
-	//지속 공격 독 데미지를 보냄 독 표식이 붙어서 흡혈과 가시 갑옷 반사가 일어나지 않음
+	//지속 공격 화염 데미지를 보냄 화염 표식이 붙어서 흡혈과 가시 갑옷 반사가 일어나지 않음
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
-	static float ApplyPoisonDamage(AActor* DamageCauser, AActor* Target, float Damage);
+	static float ApplyFireDamage(AActor* DamageCauser, AActor* Target, float Damage);
 
-	//독으로 들어온 데미지인지 확인
+	//화염으로 들어온 데미지인지 확인
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
-	static bool IsPoisonDamage(TSubclassOf<UDamageType> DamageTypeClass);
+	static bool IsFireDamage(TSubclassOf<UDamageType> DamageTypeClass);
 
 	//공격자의 현재 공격력을 가져옴 평타 데미지를 만들 때 씀
 	UFUNCTION(BlueprintCallable, Category = "AugmentDamage")
