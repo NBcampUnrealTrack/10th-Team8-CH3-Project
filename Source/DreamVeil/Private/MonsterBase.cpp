@@ -2,9 +2,11 @@
 
 
 #include "MonsterBase.h"
+#include "MonsterSkill.h"
 #include "MonsterAIController.h"
 #include "Components/SphereComponent.h"
 #include "Components/CapsuleComponent.h"
+#include "Components/DecalComponent.h"
 #include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
 #include "AugmentDamageLibrary.h"
@@ -27,8 +29,28 @@ AMonsterBase::AMonsterBase()
 	AutoPossessAI = EAutoPossessAI::PlacedInWorld;
 	MonsterCombatStats = CreateDefaultSubobject<UCombatStatsComponent>(TEXT("MonsterCombatStats"));
 	MonsterDispatchTable = CreateDefaultSubobject<UDispatchTableComponent>(TEXT("MonsterDispatchTable"));
+	MonsterSkill = CreateDefaultSubobject<UMonsterSkill>(TEXT("MonsterSkill"));
 	MonsterCollisionComponent = nullptr;
 	MonsterMeshComponent = GetMesh();
+
+	// 스킬이나 기본 공격의 범위를 나타내어 경고하는 영역. 데칼컴포넌트로 구현한다.
+	// 일단 엘리트 몬스터만 사용할 거긴 한데 근접 몬스터에서 쓰면 좋을듯? 몰?루
+	AttackWarningEffect = CreateDefaultSubobject<UDecalComponent>(TEXT("MonsterAttackWarning"));
+	AttackWarningEffect->SetupAttachment(RootComponent);
+	// 부모 몬스터의 회전 등과 관계 없이 월드 좌표에 경고 이펙트 고정하기.
+	AttackWarningEffect->SetAbsolute(true, true, true);
+	// 화면에서 작게 보인다고 경고가 사라지지 않도록 설정
+	AttackWarningEffect->SetFadeScreenSize(0.0f);
+	AttackWarningEffect->SetVisibility(false);
+
+	//머리 판정용 구
+	//실제 충돌을 꺼두는 이유 이동용 캡슐이 머리까지 감싸고 있어서 켜도 총알 광선이 여기까지 닿지 못하고 물리에만 방해가 됨
+	//대신 총알 광선이 이 구를 지나갔는지로 헤드샷을 판정함 IsHeadshotHit 참고
+	HeadCollisionComponent = CreateDefaultSubobject<USphereComponent>(TEXT("HeadCollision"));
+	HeadCollisionComponent->SetupAttachment(GetMesh(), HeadSocketName);
+	HeadCollisionComponent->SetSphereRadius(20.0f);
+	HeadCollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	HeadCollisionComponent->SetCanEverAffectNavigation(false);
 
 	AttackType = EMonsterAttackType::Melee; //기본적으로 근접, BP에서 설정 가능
 
@@ -59,6 +81,60 @@ AMonsterBase::AMonsterBase()
 
 }
 
+
+void AMonsterBase::ShowAttackWarning(const FVector& StartPos, const FVector& EndPos, float AttackWidth)
+{
+	FVector Direction = EndPos - StartPos;
+	Direction.Z = 0.0f;
+
+	// 시작지점에서 끝부분까지 거리만 가져오기. 방향은 없수
+	const float AttackLength = Direction.Size();
+
+	// KINDA_SMALL_NUMBER라는게 왜있냐... 이거 일단 0.00001f
+	//정확히는 0.0001f(1.e-4f)임 0이 하나 많았음 UnrealMathUtility.h:130
+	//float는 계산을 거치면 0이어야 할 값이 0.0000000437 같은 쓰레기로 남아서 == 0.0f 비교를 믿을 수 없음
+	//그래서 "이 정도면 0으로 치자"는 기준선이 필요한 것 여기서는 공격 범위 길이가 0이면 그릴 데칼이 없다는 뜻
+	//UE_를 붙인 이유 UE 5.6에서 UE_ 없는 이름은 deprecated라 그냥 쓰면 경고가 나고 우리는 -WarningsAsErrors로 빌드함
+	if (AttackLength <= UE_KINDA_SMALL_NUMBER || AttackWidth <= 0.0f)
+	{
+		HideAttackWarning();
+		return;
+	}
+
+	// 이렇게 GetSafeNormal을 사용하지 않고 직접 나눠 방향벡터 정규화하는데, 이유는 각자 쓸 곳이 있기 때문이다.
+	Direction /= AttackLength;
+
+	FVector Center = StartPos + Direction * (AttackLength * 0.5f);
+	Center.Z = StartPos.Z;
+
+	const float DirectionYaw = Direction.Rotation().Yaw;
+
+	// 직사각형 각도를 지정해줌.
+	// 데칼 투영은 바닥에 투영해야하므로 -90.0f로 바닥을 바라보게 해주고, 
+	// DirectionYaw로 공격 방향을 직사각형이 길게 가리키도록 회전시킨다.
+	AttackWarningEffect->SetWorldLocationAndRotation(
+		Center, FRotator(-90.0f, DirectionYaw, 0.0f)
+	);
+
+	// 데칼은 사이즈가 DecalSize로 정해지기에, 혹시라도 컴포넌트 자체에 있는 Scale값이 수정되어있을 걸 방지해서
+	// 스케일 값을 1로 초기화해주는 과정. OneVector = 1 1 1임
+	AttackWarningEffect->SetWorldScale3D(FVector::OneVector);
+
+	// 데칼 사이즈를 정해준다. 100은 투영 깊이, 나머지는 투영 범위 마즘
+	AttackWarningEffect->DecalSize = FVector(100.0f, AttackWidth * 0.5f, AttackLength * 0.5f);
+
+	// 데칼 설정이 변경되었으니, 렌더링을 다시 갱신해야 적용되기에 MakrkRenderStateDirty로
+	// 갱신이 필요한 상태라고 저장을 해 두면, 엔진에서 이 상태를 보고 렌더링을 다시 갱신해준다.
+	AttackWarningEffect->MarkRenderStateDirty();
+	AttackWarningEffect->SetVisibility(true);
+}
+
+void AMonsterBase::HideAttackWarning()
+{
+	AttackWarningEffect->SetVisibility(false);
+}
+
+
 void AMonsterBase::BeginPlay()
 {
 	Super::BeginPlay();
@@ -66,7 +142,10 @@ void AMonsterBase::BeginPlay()
 	MonsterInit();
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	GetMesh()->SetCanEverAffectNavigation(false);
-	GetCharacterMovement()->SetAvoidanceEnabled(false);
+	//서로 피해 가기(RVO)를 켬 끄면 몬스터들이 플레이어까지 최단 경로 하나에 전부 몰려서
+	//한 줄로 줄지어 오거나 한 지점에서 서로 밀며 겹쳐 보임 캡슐끼리 막기만으로는 이게 안 풀림
+	//막기는 이미 서로 통과하지 못하게만 해주고 길을 비켜주지는 않기 때문
+	GetCharacterMovement()->SetAvoidanceEnabled(true);
 
 	if (MonsterCombatStats)
 	{
@@ -100,6 +179,13 @@ void AMonsterBase::MonsterInit()
 		MonsterCollisionComponent->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 		MonsterCollisionComponent->SetGenerateOverlapEvents(false);
 		MonsterCollisionComponent->SetCanEverAffectNavigation(false);
+	}
+
+	//머리 구를 머리 뼈에 다시 붙임 블루프린트에서 소켓 이름을 바꿨거나 메시를 갈아 끼웠어도 따라가게 함
+	//소켓이 없는 메시(스태틱 메시 몬스터)면 붙이지 않고 블루프린트에 잡아둔 위치를 그대로 씀
+	if (IsValid(HeadCollisionComponent) && IsValid(GetMonsterMesh()) && GetMonsterMesh()->DoesSocketExist(HeadSocketName))
+	{
+		HeadCollisionComponent->AttachToComponent(GetMonsterMesh(), FAttachmentTransformRules::SnapToTargetNotIncludingScale, HeadSocketName);
 	}
 
 #pragma endregion
@@ -229,6 +315,7 @@ float AMonsterBase::GetMonsterAttackRange() const
 // 이 함수에 변수명이 겹칠 사항들이 많이 보여서 구분을 위해 겹칠만한 변수명 앞에 다 Temp붙여뒀음.
 bool AMonsterBase::StartAttack(AActor* Target)
 {
+	if (MonsterSkill && MonsterSkill->IsUsingSkill()) return false;
 	// 공격 조건 충족 여부 확인
 	if (bIsAttacking || !IsValid(Target) || Target == this) return false;
 	
@@ -367,6 +454,7 @@ void AMonsterBase::FinishAttack(bool bSucceeded)
 
 void AMonsterBase::CancelAttack()
 {
+	if (MonsterSkill) MonsterSkill->CancelSkill();
 	if (!bIsAttacking)
 	{
 		return;
@@ -404,8 +492,28 @@ UMeshComponent* AMonsterBase::GetMonsterMesh() const
 	return MonsterMeshComponent;
 }
 
+//이 총알이 머리를 지나갔는지
+bool AMonsterBase::IsHeadshotHit(const FHitResult& HitResult) const
+{
+	if (!IsValid(HeadCollisionComponent))
+	{
+		return false;
+	}
+
+	//맞은 컴포넌트가 머리인지로 판단하지 않는 이유
+	//이동용 캡슐이 머리끝까지 감싸고 있어서 광선은 언제나 캡슐 표면에서 먼저 막힘 그래서 머리 구는 절대 맞은 컴포넌트가 될 수 없음
+	//대신 총알이 지나간 선(TraceStart~TraceEnd)과 머리 중심의 거리를 재서 구를 스쳐 갔는지를 봄
+	//이러면 캡슐 어디에 맞았는지와 상관없이 머리를 겨눴는지로 판정됨
+	const FVector HeadCenter = HeadCollisionComponent->GetComponentLocation();
+	const float HeadRadius = HeadCollisionComponent->GetScaledSphereRadius();
+
+	return FMath::PointDistToSegment(HeadCenter, HitResult.TraceStart, HitResult.TraceEnd) <= HeadRadius;
+}
+
 void AMonsterBase::OnDeath()
 {
+	CancelAttack();
+	HideAttackWarning();
 	Destroy();
 }
 

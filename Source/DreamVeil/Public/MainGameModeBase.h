@@ -2,174 +2,158 @@
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
+#include "StageCombatProperties.h"
 #include "MainGameModeBase.generated.h"
 
-class AActor;
 class AMonsterBase;
 class AMonsterSpawnVolume;
 
-//웨이브가 바뀌었을 때 지금 웨이브와 전체 웨이브 수 HUD가 "3 / 6" 같은 표시에 씀
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
-	FOnWaveChanged,
-	int32, NewWave,
-	int32, TotalWaves
-);
+//웨이브 번호 없이 현재 전투 상태만 구분함. 기존 BP에 저장된 숫자는 유지함
+UENUM(BlueprintType)
+enum class EStagePhase : uint8
+{
+	Combat = 0,
+	Boss = 2,
+	Finished = 3
+};
 
-//마지막 레벨에서 웨이브를 다 넘기고 몬스터도 다 잡았을 때 한 번
-//UI는 이걸 받아서 보스에 도전할지 로비로 돌아갈지 묻는 창을 띄울 것
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBossChoiceReady);
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnStagePhaseChanged, EStagePhase, NewPhase);
 
-
-//레벨이 끝나는 조건을 정함
-//제한 시간 안에 몬스터를 다 잡으면 클리어해서 다음 레벨이 열림 시간을 넘기면 실패하고 로비로 돌아감
-//보스가 있는 레벨(L4)은 보스를 잡는 순간 클리어 L4를 깨야 Endless가 열림
-//로비와 메인 메뉴도 이 게임모드를 쓰지만 L1~L4가 아니면 아무것도 하지 않음
+//게임모드는 시간과 소환 예약을 관리하고 실제 위치 선정과 생성은 볼륨에 맡김
 UCLASS()
 class DREAMVEIL_API AMainGameModeBase : public AGameModeBase
 {
 	GENERATED_BODY()
-
 public:
-	//스포너가 이번 레벨에 낼 몬스터를 다 냈을 때 부를 것
-	//이 뒤로 살아있는 몬스터가 0이 되면 클리어 부르지 않으면 다 잡아도 클리어되지 않고 시간이 넘어가서 실패함
-	UFUNCTION(BlueprintCallable, Category = "Level")
-	void NotifyAllMonstersSpawned();
-	// 현재 남은 시간
+	//보스전 안내 UI는 웨이브 번호 대신 상태 변경을 받아서 표시함
+	UPROPERTY(BlueprintAssignable, Category = "Level|Stage")
+	FOnStagePhaseChanged OnStagePhaseChanged;
+
+	UFUNCTION(BlueprintPure, Category = "Level|Stage")
+	EStagePhase GetStagePhase() const { return StagePhase; }
+	//Tick으로 시간을 더하지 않고 월드 게임 시간을 사용해서 일시정지와 시간 배율을 따름
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetLevelElapsedTime() const;
+	//기존 잠식 UI의 연결을 유지하되 이제 웨이브가 아니라 보스 등장까지 남은 시간을 반환함
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetPhaseTimeRemaining() const;
 	UFUNCTION(BlueprintPure, Category = "Level")
 	float GetLevelTimeRemaining() const;
-	// 전체 제한 시간
 	UFUNCTION(BlueprintPure, Category = "Level")
 	float GetLevelTimeLimit() const;
-	// 잠식 진행률 (0 ~ 1)
 	UFUNCTION(BlueprintPure, Category = "Level")
 	float GetLevelTimeProgress() const;
 
-	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
-	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠
+	//보스 판정은 드롭에서도 사용하므로 기존 Boss 태그 규칙을 유지함
 	static bool IsBossMonster(const AActor* Actor);
 
-	// 웨이브
-
-	//웨이브가 바뀔 때마다 알림 HUD가 받을 것
-	UPROPERTY(BlueprintAssignable, Category = "Level|Wave")
-	FOnWaveChanged OnWaveChanged;
-
-	//마지막 레벨에서 보스 도전 여부를 물어야 할 때 알림
-	UPROPERTY(BlueprintAssignable, Category = "Level|Boss")
-	FOnBossChoiceReady OnBossChoiceReady;
-
-	//지금 몇 번째 웨이브인지 아직 시작 전이면 0
-	UFUNCTION(BlueprintPure, Category = "Level|Wave")
-	int32 GetCurrentWave() const;
-
-	//이 레벨의 전체 웨이브 수
-	UFUNCTION(BlueprintPure, Category = "Level|Wave")
-	int32 GetWaveCount() const;
-
-	//보스에 도전 보스 선택 UI의 도전 버튼이 부를 것
-	//보스를 내고 웨이브도 계속 돌려서 보스전 중에도 잡몹이 나옴
-	UFUNCTION(BlueprintCallable, Category = "Level|Boss")
-	void AcceptBossChallenge();
-
-	//보스를 넘기고 로비로 보스 선택 UI의 돌아가기 버튼이 부를 것
-	UFUNCTION(BlueprintCallable, Category = "Level|Boss")
-	void DeclineBossChallenge();
-
 protected:
-	//레벨 제한 시간 초 이 안에 다 잡아야 클리어 넘기면 실패 블루프린트 게임모드에서 바꿀 수 있음
+	//맵별 게임모드 BP에서 수량, 증가 주기/증가량, 소환 간격과 보스 시간을 조절함
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Stage")
+	FStageCombatProperties StageProperties;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss", meta = (ClampMin = "0"))
+	float BossSpawnDistance = 800.0f;
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
+	bool bUseLevelTimeLimit = false;
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level", meta = (EditCondition = "bUseLevelTimeLimit", ClampMin = "0.1"))
 	float LevelTimeLimit = 180.0f;
 
-	//웨이브 사이 간격 초 30초면 0 30 60 90 120 150초에 한 번씩 나옴
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
-	float WaveInterval = 30.0f;
-
-	//이 레벨의 전체 웨이브 수 마지막 웨이브를 내고 나면 더 안 나옴
-	//제한 시간과 맞추려면 WaveInterval x WaveCount 가 LevelTimeLimit 이하여야 함
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
-	int32 WaveCount = 6;
-
-	//웨이브 한 번에 스폰 볼륨 하나가 낼 몬스터 수
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
-	int32 MonstersPerWave = 4;
-
-	//한 마리씩 낼 때 사이 간격 초 0.5면 4마리가 1.5초에 걸쳐 나옴
-	//한꺼번에 쏟아지지 않게 끊어 내려는 것
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
-	float WaveSpawnInterval = 0.5f;
-
-	//보스로 쓸 몬스터 마지막 레벨에서 도전을 고르면 이걸 냄
-	//비워두면 보스 선택지 자체가 뜨지 않고 웨이브를 다 넘긴 순간 바로 클리어됨
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
-	TSubclassOf<AMonsterBase> BossClass;
-
-	//보스를 플레이어 앞 얼마나 떨어진 곳에 낼지 보스 전용 스폰 지점이 생기면 안 써도 됨
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
-	float BossSpawnDistance = 800.0f;
-
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
-	//웨이브를 차례로 내보내는 타이머 마지막 웨이브를 내면 멈춤
-	FTimerHandle WaveTimerHandle;
-
-	//지금까지 내보낸 웨이브 수 아직 시작 전이면 0
-	int32 CurrentWave = 0;
-
-	//보스 도전 여부를 묻는 창이 떠 있는지 답을 두 번 받지 않으려고 둠
-	bool bBossChoicePending = false;
-
-	//보스를 이미 냈는지 보스를 내고 나면 잡몹이 다 죽어도 선택지를 다시 묻지 않음
-	bool bBossSpawned = false;
-
-	//다음 웨이브를 내보냄 웨이브 타이머가 부름
-	void StartNextWave();
-
-	//맵에 있는 스폰 볼륨 전부에게 이번 웨이브 몬스터를 내라고 시킴
-	void RequestWaveSpawn();
-
-	//보스를 냄 도전을 고른 뒤에 불림
-	void SpawnBoss();
-
-	//지금 맵이 마지막 레벨(보스가 있는 곳)인지
-	bool IsFinalLevel() const;
-
-	//레벨 제한 시간 타이머 L1~L4에서만 걸림
-	//타이머를 건 적이 없거나 레벨을 이미 끝냈으면 무효 상태라서 레벨이 두 번 끝나는 걸 막는 표시로도 씀
+	friend class FStageTimedSpawnTest;
+	EStagePhase StagePhase = EStagePhase::Combat;
+	bool bStageActive = false;
+	//맵 시작점을 저장하여 다른 맵에서 흐른 시간이 섞이지 않게 함
+	double LevelStartTime = 0.0;
+	//이전 예약이 남았으면 뒤에 더함. 처치 수와는 무관함
+	int32 PendingSpawnCount = 0;
+	FTimerHandle SpawnIncreaseTimerHandle;
+	FTimerHandle MonsterSpawnTimerHandle;
+	FTimerHandle BossTimerHandle;
 	FTimerHandle LevelTimerHandle;
+	//약한 참조로 레벨에서 제거된 볼륨이나 보스의 수명을 붙잡지 않음
+	TArray<TWeakObjectPtr<AMonsterSpawnVolume>> SpawnVolumes;
+	TWeakObjectPtr<AMonsterBase> StageBoss;
 
-	//지금 살아있는 몬스터 수
-	int32 AliveMonsterCount = 0;
-
-	//스포너가 낼 몬스터를 다 냈는지 이게 true여야 0마리일 때 클리어
-	bool bAllMonstersSpawned = false;
-
-	//몬스터의 사망 이벤트를 구독하고 살아있는 수에 더함
-	void RegisterMonster(AMonsterBase* Monster);
-
-	//월드에 액터가 스폰될 때마다 불림 몬스터면 등록
-	void HandleActorSpawned(AActor* SpawnedActor);
-
-	//등록한 몬스터가 죽었을 때
+	void SetStagePhase(EStagePhase NewPhase);
+	void StartStage();
+	void RequestMonsterSpawn();
+	void SpawnNextMonster();
+	void StartBossFight();
+	void CompleteStage();
+	void StopStage();
+	void StopStageTimers();
+	void FailLevel();
+	bool IsPlayerDead() const;
+	//플레이어가 죽으면 즉시 예약을 취소하고 로비 복귀는 기존 게임 오버 UI에 맡김
 	UFUNCTION()
-	void HandleMonsterDead();
-
-	//보스가 죽었을 때 나머지 몬스터와 상관없이 바로 클리어
+	void HandlePlayerDead();
 	UFUNCTION()
 	void HandleBossDead();
-
-	//스포너가 다 냈고 살아있는 몬스터가 없으면 클리어
-	void TryClearLevel();
-
-	//레벨 타이머를 멈춤 레벨 맵이 아니거나 이미 끝났으면 false 클리어와 실패가 같이 씀
-	bool StopLevel();
-
-	//플레이어가 죽었는지 죽었으면 클리어도 실패도 하지 않고 게임 오버 흐름에 맡김
-	bool IsPlayerDead() const;
-
-	//클리어 진행도를 올리고 로비로 보냄 다음 레벨이 열림
-	void ClearLevel();
-
-	//제한 시간 초과 진행도는 그대로 두고 로비로 보냄
-	void FailLevel();
 };
+
+//이전 구조 학습 메모: 아래 주석은 원문 보존용이며 현재 구현 설명이 아님
+// 지금 일반 전투인지 보스전인지. 준비 상태는 따로 안 두고 첫 웨이브 바로 시작함
+// 일반 몬스터 나오는 구간. 정예도 여기 포함임
+// 마지막 웨이브. 얜 보스 잡아야 끝남
+// 클리어든 실패든 더 진행 안 하는 상태
+// HUD에서 2 / 6 같은 웨이브 번호 띄울 때 쓰세요
+// 얜 번호 말고 전투 / 보스 / 종료 상태 바뀐 거 알려줌
+// 이번에 몇 마리 낼지랑 설정 전달용. 실제 몬스터 만드는 건 스포너에서 구현해야 됨
+// 얜 잠깐 멈추는 게 아니라 남은 생성 요청 전부 취소하라는 알림
+// 예전 보스 선택 UI 안 깨지게 남겨둠. 지금은 자동 등장이라 이 알림 안 보냄
+// 스테이지 진행 담당. 일반 스폰은 요청만 보내고 웨이브 넘어가는 조건을 여기서 봄
+// 실제로 다음 웨이브 시작할 때 보냄.
+// 보스전 안내 같은 건 이거 받아서 바꾸세요
+// 스포너 연결할 자리. 받은 요청 다 처리했으면 그 ID로 NotifySpawnRequestFinished 호출 ㄱㄱ
+// 맵 끝났으니 생성 예약도 치우라는 알림
+// 구형 BP 연결 보존용. 새 UI는 OnStagePhaseChanged 쓰세요
+// 현재 웨이브 번호. 시작 전은 0이고 첫 전투부터 1
+// 보스 웨이브까지 포함한 전체 횟수
+// 지금 일반 전투인지 보스전인지 확인할 때 쓰는 거
+// 지금 전투가 몇 초 남았는지. 보스전이랑 끝난 상태는 0 나옴
+// 얜 스테이지 전체 제한 시간 쪽. 위의 웨이브 시간하고 별개임
+// 전체 제한 시간 꺼뒀으면 0. HUD에서도 그때는 타이머 안 띄우면 됨
+// 전체 제한 시간을 얼마나 썼는지 0~1로 줌. 잠식 표시용
+// 보스 판정은 Boss 태그로 통일. 드롭 쪽에서도 이거 씀
+// 받은 요청 ID 하나를 다 처리했을 때 호출. 예약만 걸어놓고 부르면 안 됨
+// 예전 BP 노드 남겨둔 거. 이걸 불러도 대기 중인 요청이 있으면 못 넘어감
+// 예전 도전 버튼 연결용 빈 함수. 이제 마지막 웨이브에서 알아서 보스 나옴
+// 예전 돌아가기 버튼도 호출만 받아줌. 보스 안 잡고 클리어하는 건 막음
+// 맵별 전투 설정은 여서 하세요. 엔드리스는 총 3회에 일반 수량 2칸 넣으면 됨
+// 한 마리씩 내는 간격. 게임모드는 이 값만 전달하고 실제 생성은 스포너 담당
+// 보스를 플레이어 앞 얼마나 떨어진 곳에 낼지. 일단 거리 기준으로 둠
+// 전체 제한 시간 쓸 거면 이거 켜세요. 일단 기본은 꺼둠
+// 위 옵션 켰을 때만 쓰는 초 단위 제한. 보스전 시간도 포함됨
+// 설정 확인하고 첫 웨이브 바로 시작
+// 맵 나갈 때 타이머랑 액터 생성 알림 연결 정리
+// 테스트에서 내부 상태 확인하려고 열어둔 거. 게임 코드에서 쓸 용도는 아님
+// 현재 진행 상태. 시작 전에는 bStageActive가 false라 아직 안 돌아감
+// 지금 몇 번째 웨이브인지.
+// 로비거나 이미 끝난 판에서 진행 함수 또 도는 거 막는 용도
+// 시작 중 완료 답이 와도 재귀로 다음 웨이브 열지 않게 막음
+// 일반 전투 시간 다 되면 다음 웨이브로 넘겨줌
+// 스테이지 전체 제한 시간. 옵션 꺼져 있으면 안 걸림
+// 월드의 액터 생성 알림 구독한 번호. 맵 나갈 때 이걸로 해제함
+// 정예랑 이전 웨이브 잔여몹도 포함. 보스는 여기서 안 셈
+// 요청할 때마다 올림. 완료 알림이 어느 웨이브 건지 구분하려고 둠
+// 아직 처리 끝났다는 답 안 온 요청들. 비어 있어야 조기 전멸 인정됨
+// 같은 몬스터 두 번 세면 안 되니까 등록한 애들은 기억해둠
+// 이번에 만든 보스 기록. 약한 참조라 보스가 없어지는 걸 붙잡지는 않음
+// 상태 바꿀 땐 이걸 거치면 됨. UI 알림도 같이 나감
+// 번호 하나 올리고 일반 전투인지 마지막 보스인지 나눔
+// 전투 타이머 걸고 이번 웨이브 생성 요청
+// 마지막 웨이브. 보스 사망 알림 연결하고 등장시킴
+// 수량이랑 스테이지 설정 전달만 함. 여기서 일반 몬스터 직접 만드는 거 아님
+// 시간 다 됐으니 남은 몬스터 있어도 다음 웨이브 시작
+// 생성 대기도 없고 살아 있는 몬스터도 없으면 남은 시간 스킵
+// 보스 잡았을 때 판 정리하고 GameInstance에 클리어 전달
+// 타이머 전부 끄고 스폰 대기 요청도 취소하라고 알림
+// 전체 제한 시간 넘겼을 때 실패 처리
+// 플레이어 죽었으면 게임 오버 쪽에 맡기려고 체크함
+// 살아 있는 수에 더하고 사망 알림 연결. 이미 센 애면 무시함
+// 월드에 뭐가 생겼든 일단 몬스터인지 확인
+// 일반 / 정예 한 마리 죽을 때마다 수 줄이고 전멸인지 확인
+// 보스는 죽으면 바로 스테이지 클리어

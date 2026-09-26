@@ -6,13 +6,17 @@
 #include "GameFramework/Character.h"
 #include "MonsterType.h"
 #include "TimerManager.h"
+#include "Engine/HitResult.h"
 #include "MonsterBase.generated.h"
 
 class AMonsterProjectile;
 class UAnimMontage;
 class UShapeComponent;
+class USphereComponent;
 class UCombatStatsComponent;
 class UDispatchTableComponent;
+class UDecalComponent;
+class UMonsterSkill;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(
 	FOnMonsterAttackFinished,
@@ -39,6 +43,15 @@ public:
 	void CancelAttack();
 
 	FOnMonsterAttackFinished OnAttackFinished;
+
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster|Skill")
+	TObjectPtr<UMonsterSkill> MonsterSkill;
+
+	bool IsAttacking() const { return bIsAttacking; }
+
+	// 시각 효과는 몬스터가 소유하고, 스킬 컴포넌트에서 필요할 때 요청한다.
+	void ShowAttackWarning(const FVector& StartPos, const FVector& EndPos, float AttackWidth);
+	void HideAttackWarning();
 
 	//받은 데미지를 증강 라이브러리로 넘김 이게 없으면 체력이 안 깎임
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
@@ -67,6 +80,17 @@ public:
 	UFUNCTION(BlueprintPure, Category= "Monster|Mesh")
 	UMeshComponent* GetMonsterMesh() const;
 
+	//머리 판정용 구 헤드샷을 어디까지 인정할지 눈으로 보고 조절하라고 컴포넌트로 둠
+	//블루프린트에서 Sphere Radius와 위치를 바꾸면 그대로 판정 범위가 바뀜
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Collision")
+	TObjectPtr<USphereComponent> HeadCollisionComponent;
+
+	//이 총알이 머리를 지나갔는지 헤드샷이면 데미지가 올라감
+	//머리 판정을 몬스터가 직접 하는 이유 머리 구의 위치와 크기를 아는 것은 몬스터 자신뿐임
+	//총 적중(UAugmentDamageLibrary::ApplyWeaponHit)만 이걸 물어봄 범위 공격 화염 가시 갑옷은 머리 판정을 하지 않음
+	UFUNCTION(BlueprintPure, Category = "Collision")
+	bool IsHeadshotHit(const FHitResult& HitResult) const;
+
 	UFUNCTION()
 	virtual void OnDeath();
 protected:
@@ -92,6 +116,9 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Attack|Ranged")
 	FVector ProjectileSpawnOffset = FVector(100.0f, 0.0f, 30.0f);
 
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Monster|Attack|Effect")
+	TObjectPtr<UDecalComponent> AttackWarningEffect;
+
 	// 추격을 멈추고 공격을 실행할 거리
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Attack")
 	float MonsterAttackRange;
@@ -113,6 +140,11 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Collision")
 	TObjectPtr<UShapeComponent> MonsterCollisionComponent;
 
+	//머리 구를 붙일 뼈(소켓) 이름 스켈레톤마다 머리 뼈 이름이 달라서 값으로 뺌
+	//이 뼈에 붙여야 고개를 숙이거나 쓰러지는 애니메이션에서도 머리 판정이 같이 움직임
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Collision")
+	FName HeadSocketName = TEXT("head");
+
 	// 체력 컴포넌트에 저장될 수치, 얘는 읽기만 가능
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster|Stats|Health")
 	float MaxHealth;
@@ -132,6 +164,7 @@ protected:
 	float MonsterDamage;
 
 private:
+
 	void PerformMeleeCheck();
 	void SpawnAttackProjectile();
 
