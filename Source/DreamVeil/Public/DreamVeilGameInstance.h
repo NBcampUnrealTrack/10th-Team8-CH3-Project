@@ -67,6 +67,7 @@ public:
 
 	//지금 레벨을 깼을 때 진행도를 올리고 로비로 돌아감 게임모드가 제한 시간 안에 다 잡았거나 보스를 잡았을 때 부름
 	UFUNCTION(BlueprintCallable, Category = "Level")
+	//현재 구조에서는 시간 도달 후 등장한 보스를 처치하면 GameMode가 호출함. 웨이브/시간은 GI에 저장하지 않음
 	void CompleteCurrentLevel();
 
 	//제한 시간 안에 못 깼거나 쉬움 보통에서 죽었을 때 진행도는 그대로 두고 로비로 돌아감 쉬움만 이번 판에 얻은 증강과 인벤토리를 저장함
