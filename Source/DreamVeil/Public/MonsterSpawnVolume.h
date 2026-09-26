@@ -20,20 +20,17 @@ public:
 	UFUNCTION()
 	void ExecuteSpawnActor() override; //호출을 이벤트로 하면 재밌을듯?
 
-	//웨이브가 시작될 때 게임모드가 부름 이 볼륨에서 MonsterCount 마리를 SpawnInterval 간격으로 냄
-	//한꺼번에 쏟아내지 않고 끊어 내려고 타이머를 씀 실제로 한 마리를 내는 건 ExecuteSpawnActor가 함
-	//이미 내보내는 중에 또 불리면 남은 수에 더해져서 겹치지 않음
-	UFUNCTION(BlueprintCallable, Category = "Monster To Spawn")
-	void SpawnWave(int32 MonsterCount, float SpawnInterval);
+	//한 마리 생성에 성공했는지 돌려줘서 실패한 예약은 게임모드가 다음 간격에 재시도함
+	bool TrySpawnMonster();
 
 protected:
 	virtual void BeginPlay() override;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
-	TArray<TObjectPtr<AMonsterBase>> BaseMonsters;
+	TArray<TSubclassOf<AMonsterBase>> BaseMonsters;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
-	TArray<TObjectPtr<AMonsterBase>> EliteMonsters;
+	TArray<TSubclassOf<AMonsterBase>> EliteMonsters;
 
 	// 최대 엘리토 몬스터가 스폰되는 레벨. 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
@@ -55,15 +52,18 @@ protected:
 	float DifficultyCurve;
 
 private:
-	//아직 내보내지 못하고 남은 몬스터 수 웨이브 타이머가 하나씩 줄임
-	int32 PendingSpawnCount = 0;
 
-	//남은 몬스터를 한 마리씩 내보내는 타이머 다 내면 스스로 멈춤
-	FTimerHandle WaveSpawnTimerHandle;
 
-	//타이머가 돌 때마다 한 마리 내보냄 남은 수가 0이 되면 타이머를 멈춤
-	void SpawnOneFromWave();
 
 	float GetEliteRate();
-	TObjectPtr<AMainPlayerCharacter> PlayerPawn;
+	//액터가 교체되거나 파괴되어도 무효 객체를 참조하지 않도록 약한 참조를 사용함
+	TWeakObjectPtr<AMainPlayerCharacter> PlayerPawn;
 };
+
+//이전 구조 학습 메모: 예약과 타이머는 이제 GameMode가 담당함
+//웨이브가 시작될 때 게임모드가 부름 이 볼륨에서 MonsterCount 마리를 SpawnInterval 간격으로 냄
+//한꺼번에 쏟아내지 않고 끊어 내려고 타이머를 씀 실제로 한 마리를 내는 건 ExecuteSpawnActor가 함
+//이미 내보내는 중에 또 불리면 남은 수에 더해져서 겹치지 않음
+//아직 내보내지 못하고 남은 몬스터 수 웨이브 타이머가 하나씩 줄임
+//남은 몬스터를 한 마리씩 내보내는 타이머 다 내면 스스로 멈춤
+//타이머가 돌 때마다 한 마리 내보냄 남은 수가 0이 되면 타이머를 멈춤

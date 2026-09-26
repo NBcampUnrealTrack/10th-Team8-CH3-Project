@@ -60,13 +60,21 @@ const float SPEED_BLEND_TOLERANCE = 1.0f;
 //체력이 이 비율 아래로 내려가면 심장 소리를 재생함
 const float HEARTBEAT_HEALTH_RATIO = 0.3f;
 
+//조준점이 총구에서 이보다 가까우면 방향을 믿지 않고 카메라 정면으로 쏨
+//벽에 붙었을 때 조준점이 총구 코앞에 잡혀 방향이 크게 튀는 것을 막음
+const float MIN_AIM_DISTANCE = 150.0f;
+
+//총구에서 조준점으로 가는 방향이 카메라가 보는 쪽과 이 각도보다 벌어지면 카메라 정면으로 쏨
+//값을 키우면 더 관대해지고 줄이면 더 자주 정면으로 보정함
+const float MAX_AIM_ANGLE_DEGREES = 35.0f;
+
 
 AMainPlayerCharacter::AMainPlayerCharacter()
 {
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> PistolFireAsset(
-		TEXT("/Game/Animation/Pistol/MM_Pistol_Fire_Montage.MM_Pistol_Fire_Montage"));
+		TEXT("/Game/Characters/Mannequins/Anims/Pistol/MM_Pistol_Fire_Montage.MM_Pistol_Fire_Montage"));
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> RifleFireAsset(
-		TEXT("/Game/Animation/Rifle/MM_Rifle_Fire_Montage.MM_Rifle_Fire_Montage"));
+		TEXT("/Game/Characters/Mannequins/Anims/Rifle/MM_Rifle_Fire_Montage.MM_Rifle_Fire_Montage"));
 	PistolFireMontage = PistolFireAsset.Object;
 	RifleFireMontage = RifleFireAsset.Object;
 
@@ -141,6 +149,10 @@ void AMainPlayerCharacter::BeginPlay()
 	}
 
 	UpdateWeaponVisibility();
+
+	//바뀐 무기 칸을 UI에 알림 위에서 로비면 Nothing으로 바꿨는데 그동안 아무도 알려주지 않아서
+	//로비에 와도 HUD 오른쪽 아래에 권총이 그대로 떠 있었음 EquipWeapon만 이 이벤트를 쏘고 있었던 탓
+	OnWeaponChanged.Broadcast(CurrentWeaponSlot);
 
 	//로비에서는 총을 안 들었으므로 맨손 애님 블루프린트로 갈아끼움
 	//로비용 캐릭터 블루프린트를 따로 만들지 않아도 되게 여기서 처리함
@@ -221,6 +233,9 @@ void AMainPlayerCharacter::HandleDead()
 	//못 고른 레벨업 보상은 버림
 	CurrentAugmentChoices.Empty();
 	PendingAugmentChoiceCount = 0;
+
+	//선택 창을 띄운 채로 죽었으면 멈춘 게임을 풀어줌 안 풀면 게임 오버 화면에서 아무것도 못 함
+	SetAugmentChoicePaused(false);
 
 	//게임 오버 전달과 UI 갱신은 이 이벤트를 받는 쪽이 함
 	//증강 인벤토리를 얼마나 남길지는 게임 오버 UI가 GameInstance의 ContinueAfterDeath를 부를 때 난이도로 정해짐 플레이어는 죽었다고 알리기만 함
@@ -395,39 +410,13 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 		return;
 	}
 
-	const FVector MuzzleLocation = CurrentWeapon->GetMuzzleLocation();
-	const FVector CameraLocation = CameraComp->GetComponentLocation();
-	const FVector CameraDirection = CameraComp->GetForwardVector();
-	const FVector CameraTraceEnd = CameraLocation + CameraDirection * CurrentWeapon->GetRange();
+	FVector MuzzleLocation;
+	FVector FireDirection;
 
-	//카메라와 총구 사이에 있는 내 캐릭터가 먼저 잡히지 않도록 제외
-	FCollisionQueryParams AimQueryParams;
-	AimQueryParams.AddIgnoredActor(this);
-
-	//화면 가운데가 실제로 가리키는 지점을 카메라에서 먼저 찾음
-	//사거리 끝을 그냥 조준점으로 쓰면 카메라가 캐릭터에 가깝거나 아래에 있을 때 총구 방향이 조준선과 어긋남
-	FHitResult AimHit;
-	const bool bAimHitSomething = GetWorld()->LineTraceSingleByChannel(
-		AimHit, CameraLocation, CameraTraceEnd, CurrentWeapon->GetTraceChannel(), AimQueryParams
-	);
-
-	FVector AimPoint = bAimHitSomething ? AimHit.ImpactPoint : CameraTraceEnd;
-
-	//벽에 바짝 붙으면 조준점이 총구보다 뒤에 잡힐 수 있음 그대로 쏘면 총알이 뒤로 날아감
-	//내적이 0 이하면 총구에서 조준점으로 가는 방향이 카메라가 보는 쪽과 반대라는 뜻 즉 조준점이 뒤에 있음
-	//이때는 조준점을 총구 앞쪽 사거리 끝으로 다시 잡아서 정면으로 쏨
-	if (FVector::DotProduct(AimPoint - MuzzleLocation, CameraDirection) <= 0.0f)
+	//조준 계산은 조준점 UI와 나눠 쓰는 함수가 함 위에서 무기를 이미 확인해서 여기서는 실패하지 않음
+	if (!CalculateFireAim(MuzzleLocation, FireDirection))
 	{
-		AimPoint = MuzzleLocation + CameraDirection * CurrentWeapon->GetRange();
-	}
-
-	//총구에서 조준점으로 가는 방향 길이는 버리고 방향만 남김
-	FVector FireDirection = (AimPoint - MuzzleLocation).GetSafeNormal();
-
-	//총구와 조준점이 같은 자리면 방향을 못 구해서 0이 나옴 그때는 카메라 정면으로 쏨
-	if (FireDirection.IsNearlyZero())
-	{
-		FireDirection = CameraDirection;
+		return;
 	}
 
 	//여기부터는 무기 담당 총구 위치와 방향만 넘기면 나머지는 무기가 처리
@@ -447,6 +436,96 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 
 	//반동 :사격후 카메라를 위로 올림
 	AddControllerPitchInput(-1.5f);
+}
+
+//총알이 나갈 총구 위치와 방향을 구함
+//사격과 조준점 UI가 나눠 씀 둘이 따로 계산하면 화면의 조준점과 실제 탄착점이 어긋남
+bool AMainPlayerCharacter::CalculateFireAim(FVector& OutMuzzleLocation, FVector& OutFireDirection) const
+{
+	//맨손 상태(로비)면 nullptr이라 조준할 것도 없음
+	const UWeaponBase* CurrentWeapon = GetCurrentWeapon();
+
+	if (!CurrentWeapon || !CameraComp)
+	{
+		return false;
+	}
+
+	OutMuzzleLocation = CurrentWeapon->GetMuzzleLocation();
+
+	const FVector CameraLocation = CameraComp->GetComponentLocation();
+	const FVector CameraDirection = CameraComp->GetForwardVector();
+	const FVector CameraTraceEnd = CameraLocation + CameraDirection * CurrentWeapon->GetRange();
+
+	//카메라와 총구 사이에 있는 내 캐릭터가 먼저 잡히지 않도록 제외
+	FCollisionQueryParams AimQueryParams;
+	AimQueryParams.AddIgnoredActor(this);
+
+	//화면 가운데가 실제로 가리키는 지점을 카메라에서 먼저 찾음
+	//사거리 끝을 그냥 조준점으로 쓰면 카메라가 캐릭터에 가깝거나 아래에 있을 때 총구 방향이 조준선과 어긋남
+	FHitResult AimHit;
+	const bool bAimHitSomething = GetWorld()->LineTraceSingleByChannel(
+		AimHit, CameraLocation, CameraTraceEnd, CurrentWeapon->GetTraceChannel(), AimQueryParams
+	);
+
+	const FVector AimPoint = bAimHitSomething ? FVector(AimHit.ImpactPoint) : CameraTraceEnd;
+
+	//총구에서 조준점으로 가는 방향 길이는 버리고 방향만 남김
+	const FVector MuzzleToAim = AimPoint - OutMuzzleLocation;
+
+	OutFireDirection = MuzzleToAim.GetSafeNormal();
+
+	//벽에 바짝 붙으면 조준점이 총구 바로 옆이나 뒤에 잡혀서 총알이 엉뚱한 데로 나감
+	//세 가지를 한꺼번에 걸러서 이럴 때는 그냥 카메라 정면으로 쏨
+	// 1) 총구와 조준점이 같은 자리라 방향을 못 구한 경우
+	// 2) 조준점이 총구에 너무 가까운 경우 거리가 짧으면 방향이 조금만 흔들려도 크게 튐
+	// 3) 구한 방향이 카메라가 보는 쪽과 많이 벌어진 경우
+	//예전에는 3)을 내적 0 이하(90도 넘게 벌어짐)로만 봤는데 벽에 붙으면 89도쯤에서도 이상하게 나가서 범위를 넓힘
+	const bool bAimTooClose = MuzzleToAim.SizeSquared() < FMath::Square(MIN_AIM_DISTANCE);
+
+	//둘 다 단위 벡터라 내적이 곧 두 방향 사이 각의 코사인 각이 클수록 코사인은 작아짐
+	const bool bAimTooWide = FVector::DotProduct(OutFireDirection, CameraDirection) < FMath::Cos(FMath::DegreesToRadians(MAX_AIM_ANGLE_DEGREES));
+
+	if (OutFireDirection.IsNearlyZero() || bAimTooClose || bAimTooWide)
+	{
+		OutFireDirection = CameraDirection;
+	}
+
+	return true;
+}
+
+//조준점을 그릴 화면 좌표
+bool AMainPlayerCharacter::GetCrosshairScreenPosition(FVector2D& OutScreenPosition) const
+{
+	FVector MuzzleLocation;
+	FVector FireDirection;
+
+	if (!CalculateFireAim(MuzzleLocation, FireDirection))
+	{
+		return false;
+	}
+
+	//조준이 성공했으면 무기는 반드시 있음 사거리와 트레이스 채널을 물어보려고 다시 가져옴
+	const UWeaponBase* CurrentWeapon = GetCurrentWeapon();
+
+	//총구에서 실제로 쏠 방향으로 한 번 더 쏘아봐서 총알이 닿을 지점을 구함
+	//카메라가 보는 곳을 그대로 쓰지 않는 이유 벽에 붙어서 방향이 재조정되면 카메라가 보는 곳과 탄착점이 달라짐
+	const FVector TraceEnd = MuzzleLocation + FireDirection * CurrentWeapon->GetRange();
+
+	FCollisionQueryParams QueryParams;
+	QueryParams.AddIgnoredActor(this);
+
+	FHitResult Hit;
+	const bool bHitSomething = GetWorld()->LineTraceSingleByChannel(
+		Hit, MuzzleLocation, TraceEnd, CurrentWeapon->GetTraceChannel(), QueryParams
+	);
+
+	//아무것도 없으면 사거리 끝에 조준점을 둠 하늘을 봐도 조준점이 사라지지 않게
+	const FVector CrosshairWorldLocation = bHitSomething ? FVector(Hit.ImpactPoint) : TraceEnd;
+
+	//월드 좌표를 화면 좌표로 바꿈 탄착점이 화면 뒤나 밖이면 false가 돌아와서 UI가 조준점을 숨길 수 있음
+	return UGameplayStatics::ProjectWorldToScreen(
+		Cast<APlayerController>(GetController()), CrosshairWorldLocation, OutScreenPosition
+	);
 }
 
 //현재 플레이어 레벨
@@ -512,7 +591,20 @@ void AMainPlayerCharacter::RestoreLevelProgress(int32 SavedLevel, float SavedExp
 	CurrentExperience = FMath::Max(SavedExperience, 0.0f);
 
 	//UI가 처음 뜰 때 옛 값을 보지 않게 바로 알림
+	//레벨도 같이 알려야 함 예전에는 경험치만 알려서 맵을 넘길 때마다 화면의 레벨이 1로 굳어 있었음
+	RefreshProgressUI();
+}
+
+//지금 레벨과 경험치와 무기 칸을 UI에 다시 알림
+void AMainPlayerCharacter::RefreshProgressUI()
+{
+	//레벨이 오른 게 아니어도 같은 이벤트로 알림 UI 입장에서는 둘 다 레벨 숫자를 새로 그리는 일이라 같음
+	OnLevelUp.Broadcast(PlayerLevel);
+
 	OnExperienceChanged.Broadcast(CurrentExperience, GetRequiredExperience());
+
+	//무기 칸도 같이 알림 HUD가 늦게 떠서 BeginPlay의 알림을 놓쳤어도 로비에서 무기 칸이 사라지게 하려는 것
+	OnWeaponChanged.Broadcast(CurrentWeaponSlot);
 }
 
 //지금 떠 있는 증강 선택지
@@ -574,6 +666,28 @@ void AMainPlayerCharacter::GrantAugmentReward()
 	}
 }
 
+//증강을 고르는 동안 게임을 멈추거나 푼다
+void AMainPlayerCharacter::SetAugmentChoicePaused(bool bPaused)
+{
+	//이미 같은 상태면 아무것도 하지 않음 SetGamePaused를 겹쳐 불러도 되지만 의도를 분명히 하려고 막음
+	if (bAugmentChoicePaused == bPaused)
+	{
+		return;
+	}
+
+	//멈추는 일은 컨트롤러가 함 SetGamePaused가 컨트롤러를 필요로 하고 누르고 있던 입력을 버리는 것도 컨트롤러만 할 수 있음
+	//컨트롤러가 없으면 멈추지도 못하므로 상태도 바꾸지 않음
+	AMainPlayerController* PlayerController = Cast<AMainPlayerController>(GetController());
+	if (!PlayerController)
+	{
+		return;
+	}
+
+	PlayerController->SetGameSuspended(bPaused);
+
+	bAugmentChoicePaused = bPaused;
+}
+
 //쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
 void AMainPlayerCharacter::DrawNextAugmentChoices()
 {
@@ -588,6 +702,11 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 
 		if (DispatchTable->DrawAugmentChoices(CurrentAugmentChoices))
 		{
+			//고르는 동안 몬스터가 때리지 못하게 여기서 멈춤
+			//UI가 어떻게 만들어졌든 상관없이 멈추도록 C++에서 처리함 위젯 쪽 배선에 기대지 않으려는 것
+			//위젯은 멈춘 동안에도 입력을 받으므로 버튼은 그대로 눌림
+			SetAugmentChoicePaused(true);
+
 			OnAugmentChoicesReady.Broadcast(CurrentAugmentChoices);
 			return;
 		}
@@ -595,6 +714,9 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 
 	//풀이 비어서 뽑을 증강이 없으면 남은 보상은 버림
 	CurrentAugmentChoices.Empty();
+
+	//더 고를 게 없으니 멈춰둔 게임을 풀어줌
+	SetAugmentChoicePaused(false);
 }
 
 void AMainPlayerCharacter::Tick(float DeltaTime)
@@ -924,6 +1046,33 @@ void AMainPlayerCharacter::CheatPickAugment(int32 ChoiceIndex)
 }
 
 //자기 자신에게 데미지 흡혈과 가시 갑옷은 자기 공격이라 걸리지 않음
+//뽑기를 거치지 않고 원하는 증강을 바로 얻음
+void AMainPlayerCharacter::CheatGiveAugment(int32 AugmentID)
+{
+	if (!DispatchTable)
+	{
+		return;
+	}
+
+	//enum 범위를 벗어난 값이 들어오면 엉뚱한 스킬이 걸리므로 막음
+	const int32 MaxAugmentID = static_cast<int32>(EAugmentID::ContinuousAttack);
+
+	if (AugmentID < 0 || AugmentID > MaxAugmentID)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Cheat] AugmentID는 0~%d 사이여야 함"), MaxAugmentID);
+		return;
+	}
+
+	const EAugmentID TargetAugment = static_cast<EAugmentID>(AugmentID);
+
+	//ApplyAugment는 효과 적용과 기록 추가를 같이 함 반복 획득이 안 되는 증강은 풀에서도 빠짐
+	const bool bApplied = DispatchTable->ApplyAugment(TargetAugment);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] %s 적용 %s"),
+		*UDispatchTableComponent::GetAugmentDisplayName(TargetAugment).ToString(),
+		bApplied ? TEXT("성공") : TEXT("실패"));
+}
+
 void AMainPlayerCharacter::CheatDamageMe(float Amount)
 {
 	UAugmentDamageLibrary::ApplyAugmentDamageToTarget(this, this, Amount);

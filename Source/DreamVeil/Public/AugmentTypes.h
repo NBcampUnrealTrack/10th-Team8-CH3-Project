@@ -89,10 +89,10 @@ const float AREA_ATTACK_RADIUS = 400.0f;
 //범위 공격 데미지 비율 총 데미지 기준 주변 대상 각자의 방어력은 따로 빠짐
 const float AREA_ATTACK_DAMAGE_RATIO = 1.0f;
 
-//지속 공격 독 데미지 간격
+//지속 공격 화염 데미지 간격
 const float CONTINUOUS_ATTACK_INTERVAL = 1.0f;
 
-//지속 공격 독 지속 시간 다시 맞으면 시간만 처음부터 다시
+//지속 공격 화염 지속 시간 다시 맞으면 시간만 처음부터 다시
 const float CONTINUOUS_ATTACK_DURATION = 3.0f;
 
 //지속 공격 틱당 데미지 비율 총 데미지 기준 대상 방어력을 무시하므로 낮게 잡음

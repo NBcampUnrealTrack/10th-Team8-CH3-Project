@@ -21,7 +21,8 @@ AMonsterProjectile::AMonsterProjectile()
 	SetRootComponent(BulletCollision);
 	BulletCollision->InitSphereRadius(10.0f); // 기본값으로 좀 작게만들기
 
-	//Details 패널에서 설정 가능한 Collision 관련 설정 코드에서 해주기
+	//Collision 관련 설정 정해주기. 특정 채널은 통과하고, 특정 채널은 막히도록 설정하는 것들...
+
 	BulletCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
 	BulletCollision->SetCollisionObjectType(ECC_WorldDynamic);
 	BulletCollision->SetCollisionResponseToAllChannels(ECR_Ignore);
@@ -88,6 +89,7 @@ void AMonsterProjectile::HandleHit(UPrimitiveComponent* HitComp, AActor* OtherAc
 	bHitProcessed = true;
 
 	// 예제에서는 Pawn에만 피해 적용
+	// 아근데이거 고장나려나 테스트필요
 	if (Cast<APawn>(OtherActor) && !Cast<AMonsterBase>(OtherActor))
 	{
 		UGameplayStatics::ApplyDamage(

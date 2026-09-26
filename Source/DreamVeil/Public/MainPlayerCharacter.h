@@ -122,6 +122,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	UWeaponBase* GetCurrentWeapon() const;
 
+	//조준점을 그릴 화면 좌표 총알이 실제로 닿을 지점을 화면으로 옮긴 값
+	//화면 한가운데에 조준점을 고정하지 않는 이유 벽에 바짝 붙으면 총구가 카메라 정면으로 재조정돼서 실제 탄착점이 가운데가 아님
+	//사격과 똑같은 계산(CalculateFireAim)을 쓰므로 보이는 곳과 맞는 곳이 항상 같음
+	//화면 밖이거나 무기가 없으면 false 이때 UI는 조준점을 숨기면 됨
+	//돌려주는 값은 뷰포트 픽셀 좌표라 UMG에서는 Get Viewport Scale로 나눠서 Position에 넣을 것
+	//Pure가 아닌 이유 안에서 광선을 한 번 쏘므로 Tick에서 한 번만 부르고 결과를 변수에 담아 쓰게 하려는 것
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	bool GetCrosshairScreenPosition(FVector2D& OutScreenPosition) const;
+
 	//슬롯에 해당하는 무기 컴포넌트
 	//인벤토리가 파츠를 어느 무기에 넘길지 찾을 때도 써서 private에서 public으로 옮김
 	UWeaponBase* GetWeaponInSlot(EWeaponSlot Slot) const;
@@ -181,6 +190,12 @@ public:
 	//증강 복원과 달리 레벨업 보상을 다시 주지 않음 보상은 이미 증강 기록으로 복원되기 때문
 	void RestoreLevelProgress(int32 SavedLevel, float SavedExperience);
 
+	//지금 레벨과 경험치와 무기 칸을 UI에 다시 알림 HUD 위젯의 Event Construct에서 부를 것
+	//필요한 이유 HUD가 만들어지는 시점과 캐릭터가 저장된 레벨을 되돌리는 시점의 순서가 맵마다 달라짐
+	//HUD가 늦게 만들어지면 레벨 알림을 놓쳐서 실제로는 5레벨인데 화면에는 1로 남음 그래서 UI가 직접 한 번 당겨오게 함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void RefreshProgressUI();
+
 	// 레벨업 보상 증강 선택 UI가 씀
 
 	//고를 증강 선택지가 준비됐을 때 이벤트 UI는 이걸 받아서 선택 창을 띄울 것
@@ -223,6 +238,12 @@ public:
 	//떠 있는 증강 선택지 중 하나를 고름 번호는 0부터 예) CheatPickAugment 0
 	UFUNCTION(Exec)
 	void CheatPickAugment(int32 ChoiceIndex);
+
+	//뽑기를 거치지 않고 원하는 증강을 바로 얻음 이펙트 확인용 예) CheatGiveAugment 10
+	//0 공격력 1 방어력 2 체력 3 스태미나 4 광전사 5 가시갑옷 6 흡혈 7 재생력 8 최후의요새
+	//9 감속탄 10 폭발탄 11 화염탄
+	UFUNCTION(Exec)
+	void CheatGiveAugment(int32 AugmentID);
 
 	//자기 자신에게 데미지 사망 흐름 확인용 예) CheatDamageMe 9999
 	UFUNCTION(Exec)
@@ -352,6 +373,17 @@ private:
 
 	//조준점을 계산해서 들고 있는 무기로 한 발 쏨 FireWeapon과 FireWeaponHeld가 같이 씀
 	void FireCurrentWeapon();
+
+	//총알이 나갈 총구 위치와 방향을 구함 무기가 없으면 false
+	//사격과 조준점 UI가 같은 계산을 쓰게 하려고 따로 뺌 둘이 따로 계산하면 조준점과 탄착점이 어긋남
+	bool CalculateFireAim(FVector& OutMuzzleLocation, FVector& OutFireDirection) const;
+
+	//증강 선택 때문에 게임을 멈춘 상태인지 두 번 멈추거나 두 번 푸는 것을 막음
+	bool bAugmentChoicePaused = false;
+
+	//증강을 고르는 동안 게임을 멈추거나 푼다
+	//UI가 블루프린트로 어떻게 짜였든 상관없이 동작하도록 여기(C++)에서 처리함
+	void SetAugmentChoicePaused(bool bPaused);
 
 	//쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
 	void DrawNextAugmentChoices();
