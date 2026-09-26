@@ -153,6 +153,9 @@ bool UDreamVeilGameInstance::OpenLevelByNumber(int32 LevelNumber)
 //지금 레벨을 깼을 때
 void UDreamVeilGameInstance::CompleteCurrentLevel()
 {
+	//소환 시간과 보스 처치 판정은 GameMode에 두고 기존 저장/해금 인터페이스는 유지함
+	//로비나 메뉴의 오래된 UI 호출로 전투 결과를 저장하거나 맵을 다시 열지 않도록 막음
+	if (!IsInLevelMap()) return;
     //이번 레벨에서 얻은 증강과 파츠를 로비로 들고 가야 하므로 맵을 바꾸기 전에 저장
     //저장을 안 하면 새 맵을 로드할 때 플레이어가 새로 만들어지면서 증강이 전부 사라짐
     SaveCurrentPlayerProgress();

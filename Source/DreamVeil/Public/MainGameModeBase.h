@@ -47,6 +47,8 @@ public:
 	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
 	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠
 	static bool IsBossMonster(const AActor* Actor);
+	//구형 SpawnWave 호출이 보스전/종료 후 늦게 와도 일반 몬스터를 다시 예약하지 못하게 스포너가 확인함
+	bool CanSpawnMonsters() const { return LevelTimerHandle.IsValid() && !bBossSpawned; }
 
 	// 웨이브
 
@@ -86,10 +88,12 @@ protected:
 
 	//이 레벨의 전체 웨이브 수 마지막 웨이브를 내고 나면 더 안 나옴
 	//제한 시간과 맞추려면 WaveInterval x WaveCount 가 LevelTimeLimit 이하여야 함
+	//현재는 기존 HUD와 저장값 호환을 위한 표시 상한으로만 사용함. 실제 일반 소환 종료 시각은 BossSpawnTime임
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	int32 WaveCount = 6;
 
 	//웨이브 한 번에 스폰 볼륨 하나가 낼 몬스터 수
+	//현재는 전체 볼륨을 통틀어 처음 예약할 수량임. 여러 볼륨에서 동시에 같은 수량을 생성하지 않음
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	int32 MonstersPerWave = 4;
 
@@ -98,8 +102,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	float WaveSpawnInterval = 0.5f;
 
+	//기존 변수 이름은 BP 저장값과 핀을 보존하려고 유지함. MonstersPerWave는 이제 전체 볼륨의 기본 수량임
+	//WaveInterval마다 이 수만큼 늘린 새 묶음을 예약함. 기본 4, 증가 4라면 4 → 8 → 12마리임
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave", meta = (ClampMin = "0"))
+	int32 MonsterCountIncrease = 4;
+
+	//레벨 시작부터 이 시간이 지나면 보스를 자동 생성함. 기존 제한 시간과 UI 잠식 계산은 별개로 유지함
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss", meta = (ClampMin = "0.1", Units = "s"))
+	float BossSpawnTime = 150.0f;
+
 	//보스로 쓸 몬스터 마지막 레벨에서 도전을 고르면 이걸 냄
 	//비워두면 보스 선택지 자체가 뜨지 않고 웨이브를 다 넘긴 순간 바로 클리어됨
+	//현재는 맵 번호와 무관하게 BossSpawnTime에 자동 생성함. 비어 있으면 그 시각부터 추가 예약을 멈추고 전멸을 기다림
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
 	TSubclassOf<AMonsterBase> BossClass;
 
@@ -108,8 +122,23 @@ protected:
 	float BossSpawnDistance = 800.0f;
 
 	virtual void BeginPlay() override;
+	//맵 종료 시 게임모드와 각 볼륨에 남은 생성 예약을 함께 취소함
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 
 private:
+	friend class FCompatibleTimedSpawnTest;
+	//기존 웨이브 타이머는 수량 증가 주기로 재사용하고 보스 시점과 순차 생성만 별도로 예약함
+	FTimerHandle BossTimerHandle;
+	FTimerHandle MonsterSpawnTimerHandle;
+	int32 PendingSpawnCount = 0;
+	//등록한 월드 이벤트는 EndPlay에서 해제하여 같은 월드 안에서 게임모드가 사라져도 정리함
+	FDelegateHandle ActorSpawnedHandle;
+	void HandleBossTimeReached();
+	void SpawnNextMonster();
+	void CancelMonsterSpawning();
+	//플레이어 사망 직후 예약을 지우고 기존 게임 오버 UI의 이동 처리는 그대로 둠
+	UFUNCTION()
+	void HandlePlayerDead();
 	//웨이브를 차례로 내보내는 타이머 마지막 웨이브를 내면 멈춤
 	FTimerHandle WaveTimerHandle;
 

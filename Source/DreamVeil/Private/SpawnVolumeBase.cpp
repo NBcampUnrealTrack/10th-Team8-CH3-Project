@@ -12,6 +12,9 @@ ASpawnVolumeBase::ASpawnVolumeBase()
 	PrimaryActorTick.bCanEverTick = false;
 	SpawnArea = CreateDefaultSubobject<UBoxComponent>(TEXT("Spawn Area"));
 	SetRootComponent(SpawnArea);
+	//영역 표시 박스 자체가 소환 위치를 가로막지 않도록 충돌과 겹침 이벤트를 끔
+	SpawnArea->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	SpawnArea->SetGenerateOverlapEvents(false);
 	
 }
 

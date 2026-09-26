@@ -26,8 +26,22 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Monster To Spawn")
 	void SpawnWave(int32 MonsterCount, float SpawnInterval);
 
+	//기존 SpawnWave와 ExecuteSpawnActor는 유지하고 게임모드의 전역 순차 생성에 성공 여부를 돌려줌
+	bool TrySpawnMonster();
+	//보스전이나 레벨 종료 시 구형 BP가 직접 예약한 생성도 함께 취소함
+	void CancelPendingSpawns();
+	//보스가 없는 레벨의 클리어가 아직 생성 중인 몬스터보다 먼저 처리되는 것을 막음
+	bool HasPendingSpawns() const { return PendingSpawnCount > 0; }
+
 protected:
 	virtual void BeginPlay() override;
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+
+	//기존 액터 참조 배열의 타입은 바꾸지 않음. 새 BP 클래스 목록이 비어 있으면 기존 참조의 클래스를 사용함
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn|Classes")
+	TArray<TSubclassOf<AMonsterBase>> BaseMonsterClasses;
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn|Classes")
+	TArray<TSubclassOf<AMonsterBase>> EliteMonsterClasses;
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	TArray<TObjectPtr<AMonsterBase>> BaseMonsters;
@@ -65,5 +79,9 @@ private:
 	void SpawnOneFromWave();
 
 	float GetEliteRate();
+	//클래스 목록과 기존 액터 목록을 같은 선택 함수로 처리하여 일반/엘리트 코드가 중복되지 않게 함
+	TSubclassOf<AMonsterBase> SelectMonsterClass(bool bElite) const;
+	//기존 타입을 유지하면서 GC가 플레이어 참조를 추적하도록 함
+	UPROPERTY()
 	TObjectPtr<AMainPlayerCharacter> PlayerPawn;
 };
