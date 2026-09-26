@@ -15,8 +15,6 @@ class UShapeComponent;
 class USphereComponent;
 class UCombatStatsComponent;
 class UDispatchTableComponent;
-class UDecalComponent;
-class UMonsterSkill;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(
 	FOnMonsterAttackFinished,
@@ -43,15 +41,6 @@ public:
 	void CancelAttack();
 
 	FOnMonsterAttackFinished OnAttackFinished;
-
-	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster|Skill")
-	TObjectPtr<UMonsterSkill> MonsterSkill;
-
-	bool IsAttacking() const { return bIsAttacking; }
-
-	// 시각 효과는 몬스터가 소유하고, 스킬 컴포넌트에서 필요할 때 요청한다.
-	void ShowAttackWarning(const FVector& StartPos, const FVector& EndPos, float AttackWidth);
-	void HideAttackWarning();
 
 	//받은 데미지를 증강 라이브러리로 넘김 이게 없으면 체력이 안 깎임
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
@@ -87,7 +76,7 @@ public:
 
 	//이 총알이 머리를 지나갔는지 헤드샷이면 데미지가 올라감
 	//머리 판정을 몬스터가 직접 하는 이유 머리 구의 위치와 크기를 아는 것은 몬스터 자신뿐임
-	//총 적중(UAugmentDamageLibrary::ApplyWeaponHit)만 이걸 물어봄 범위 공격 화염 가시 갑옷은 머리 판정을 하지 않음
+	//총 적중(UAugmentDamageLibrary::ApplyWeaponHit)만 이걸 물어봄 범위 공격 독 가시 갑옷은 머리 판정을 하지 않음
 	UFUNCTION(BlueprintPure, Category = "Collision")
 	bool IsHeadshotHit(const FHitResult& HitResult) const;
 
@@ -115,9 +104,6 @@ protected:
 
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Attack|Ranged")
 	FVector ProjectileSpawnOffset = FVector(100.0f, 0.0f, 30.0f);
-
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category= "Monster|Attack|Effect")
-	TObjectPtr<UDecalComponent> AttackWarningEffect;
 
 	// 추격을 멈추고 공격을 실행할 거리
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Attack")
@@ -164,7 +150,6 @@ protected:
 	float MonsterDamage;
 
 private:
-
 	void PerformMeleeCheck();
 	void SpawnAttackProjectile();
 
