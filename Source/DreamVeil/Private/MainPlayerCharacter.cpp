@@ -72,9 +72,9 @@ const float MAX_AIM_ANGLE_DEGREES = 35.0f;
 AMainPlayerCharacter::AMainPlayerCharacter()
 {
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> PistolFireAsset(
-		TEXT("/Game/Characters/Mannequins/Anims/Pistol/MM_Pistol_DryFire_Montage.MM_Pistol_DryFire_Montage"));
+		TEXT("/Game/Characters/Mannequins/Anims/Pistol/MM_Pistol_Fire_Montage.MM_Pistol_Fire_Montage"));
 	static ConstructorHelpers::FObjectFinder<UAnimMontage> RifleFireAsset(
-		TEXT("/Game/Characters/Mannequins/Anims/Rifle/MM_Rifle_DryFire_Montage.MM_Rifle_DryFire_Montage"));
+		TEXT("/Game/Characters/Mannequins/Anims/Rifle/MM_Rifle_Fire_Montage.MM_Rifle_Fire_Montage"));
 	PistolFireMontage = PistolFireAsset.Object;
 	RifleFireMontage = RifleFireAsset.Object;
 
