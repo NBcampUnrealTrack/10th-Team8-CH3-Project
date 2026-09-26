@@ -60,14 +60,6 @@ const float SPEED_BLEND_TOLERANCE = 1.0f;
 //체력이 이 비율 아래로 내려가면 심장 소리를 재생함
 const float HEARTBEAT_HEALTH_RATIO = 0.3f;
 
-//조준점이 총구에서 이보다 가까우면 방향을 믿지 않고 카메라 정면으로 쏨
-//벽에 붙었을 때 조준점이 총구 코앞에 잡혀 방향이 크게 튀는 것을 막음
-const float MIN_AIM_DISTANCE = 150.0f;
-
-//총구에서 조준점으로 가는 방향이 카메라가 보는 쪽과 이 각도보다 벌어지면 카메라 정면으로 쏨
-//값을 키우면 더 관대해지고 줄이면 더 자주 정면으로 보정함
-const float MAX_AIM_ANGLE_DEGREES = 35.0f;
-
 
 AMainPlayerCharacter::AMainPlayerCharacter()
 {
@@ -229,9 +221,6 @@ void AMainPlayerCharacter::HandleDead()
 	//못 고른 레벨업 보상은 버림
 	CurrentAugmentChoices.Empty();
 	PendingAugmentChoiceCount = 0;
-
-	//선택 창을 띄운 채로 죽었으면 멈춘 게임을 풀어줌 안 풀면 게임 오버 화면에서 아무것도 못 함
-	SetAugmentChoicePaused(false);
 
 	//게임 오버 전달과 UI 갱신은 이 이벤트를 받는 쪽이 함
 	//증강 인벤토리를 얼마나 남길지는 게임 오버 UI가 GameInstance의 ContinueAfterDeath를 부를 때 난이도로 정해짐 플레이어는 죽었다고 알리기만 함
@@ -424,23 +413,19 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 
 	FVector AimPoint = bAimHitSomething ? AimHit.ImpactPoint : CameraTraceEnd;
 
+	//벽에 바짝 붙으면 조준점이 총구보다 뒤에 잡힐 수 있음 그대로 쏘면 총알이 뒤로 날아감
+	//내적이 0 이하면 총구에서 조준점으로 가는 방향이 카메라가 보는 쪽과 반대라는 뜻 즉 조준점이 뒤에 있음
+	//이때는 조준점을 총구 앞쪽 사거리 끝으로 다시 잡아서 정면으로 쏨
+	if (FVector::DotProduct(AimPoint - MuzzleLocation, CameraDirection) <= 0.0f)
+	{
+		AimPoint = MuzzleLocation + CameraDirection * CurrentWeapon->GetRange();
+	}
+
 	//총구에서 조준점으로 가는 방향 길이는 버리고 방향만 남김
-	const FVector MuzzleToAim = AimPoint - MuzzleLocation;
+	FVector FireDirection = (AimPoint - MuzzleLocation).GetSafeNormal();
 
-	FVector FireDirection = MuzzleToAim.GetSafeNormal();
-
-	//벽에 바짝 붙으면 조준점이 총구 바로 옆이나 뒤에 잡혀서 총알이 엉뚱한 데로 나감
-	//세 가지를 한꺼번에 걸러서 이럴 때는 그냥 카메라 정면으로 쏨
-	// 1) 총구와 조준점이 같은 자리라 방향을 못 구한 경우
-	// 2) 조준점이 총구에 너무 가까운 경우 거리가 짧으면 방향이 조금만 흔들려도 크게 튐
-	// 3) 구한 방향이 카메라가 보는 쪽과 많이 벌어진 경우
-	//예전에는 3)을 내적 0 이하(90도 넘게 벌어짐)로만 봤는데 벽에 붙으면 89도쯤에서도 이상하게 나가서 범위를 넓힘
-	const bool bAimTooClose = MuzzleToAim.SizeSquared() < FMath::Square(MIN_AIM_DISTANCE);
-
-	//둘 다 단위 벡터라 내적이 곧 두 방향 사이 각의 코사인 각이 클수록 코사인은 작아짐
-	const bool bAimTooWide = FVector::DotProduct(FireDirection, CameraDirection) < FMath::Cos(FMath::DegreesToRadians(MAX_AIM_ANGLE_DEGREES));
-
-	if (FireDirection.IsNearlyZero() || bAimTooClose || bAimTooWide)
+	//총구와 조준점이 같은 자리면 방향을 못 구해서 0이 나옴 그때는 카메라 정면으로 쏨
+	if (FireDirection.IsNearlyZero())
 	{
 		FireDirection = CameraDirection;
 	}
@@ -589,28 +574,6 @@ void AMainPlayerCharacter::GrantAugmentReward()
 	}
 }
 
-//증강을 고르는 동안 게임을 멈추거나 푼다
-void AMainPlayerCharacter::SetAugmentChoicePaused(bool bPaused)
-{
-	//이미 같은 상태면 아무것도 하지 않음 SetGamePaused를 겹쳐 불러도 되지만 의도를 분명히 하려고 막음
-	if (bAugmentChoicePaused == bPaused)
-	{
-		return;
-	}
-
-	//멈추는 일은 컨트롤러가 함 SetGamePaused가 컨트롤러를 필요로 하고 누르고 있던 입력을 버리는 것도 컨트롤러만 할 수 있음
-	//컨트롤러가 없으면 멈추지도 못하므로 상태도 바꾸지 않음
-	AMainPlayerController* PlayerController = Cast<AMainPlayerController>(GetController());
-	if (!PlayerController)
-	{
-		return;
-	}
-
-	PlayerController->SetGameSuspended(bPaused);
-
-	bAugmentChoicePaused = bPaused;
-}
-
 //쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
 void AMainPlayerCharacter::DrawNextAugmentChoices()
 {
@@ -625,11 +588,6 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 
 		if (DispatchTable->DrawAugmentChoices(CurrentAugmentChoices))
 		{
-			//고르는 동안 몬스터가 때리지 못하게 여기서 멈춤
-			//UI가 어떻게 만들어졌든 상관없이 멈추도록 C++에서 처리함 위젯 쪽 배선에 기대지 않으려는 것
-			//위젯은 멈춘 동안에도 입력을 받으므로 버튼은 그대로 눌림
-			SetAugmentChoicePaused(true);
-
 			OnAugmentChoicesReady.Broadcast(CurrentAugmentChoices);
 			return;
 		}
@@ -637,9 +595,6 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 
 	//풀이 비어서 뽑을 증강이 없으면 남은 보상은 버림
 	CurrentAugmentChoices.Empty();
-
-	//더 고를 게 없으니 멈춰둔 게임을 풀어줌
-	SetAugmentChoicePaused(false);
 }
 
 void AMainPlayerCharacter::Tick(float DeltaTime)
@@ -969,33 +924,6 @@ void AMainPlayerCharacter::CheatPickAugment(int32 ChoiceIndex)
 }
 
 //자기 자신에게 데미지 흡혈과 가시 갑옷은 자기 공격이라 걸리지 않음
-//뽑기를 거치지 않고 원하는 증강을 바로 얻음
-void AMainPlayerCharacter::CheatGiveAugment(int32 AugmentID)
-{
-	if (!DispatchTable)
-	{
-		return;
-	}
-
-	//enum 범위를 벗어난 값이 들어오면 엉뚱한 스킬이 걸리므로 막음
-	const int32 MaxAugmentID = static_cast<int32>(EAugmentID::ContinuousAttack);
-
-	if (AugmentID < 0 || AugmentID > MaxAugmentID)
-	{
-		UE_LOG(LogTemp, Warning, TEXT("[Cheat] AugmentID는 0~%d 사이여야 함"), MaxAugmentID);
-		return;
-	}
-
-	const EAugmentID TargetAugment = static_cast<EAugmentID>(AugmentID);
-
-	//ApplyAugment는 효과 적용과 기록 추가를 같이 함 반복 획득이 안 되는 증강은 풀에서도 빠짐
-	const bool bApplied = DispatchTable->ApplyAugment(TargetAugment);
-
-	UE_LOG(LogTemp, Warning, TEXT("[Cheat] %s 적용 %s"),
-		*UDispatchTableComponent::GetAugmentDisplayName(TargetAugment).ToString(),
-		bApplied ? TEXT("성공") : TEXT("실패"));
-}
-
 void AMainPlayerCharacter::CheatDamageMe(float Amount)
 {
 	UAugmentDamageLibrary::ApplyAugmentDamageToTarget(this, this, Amount);

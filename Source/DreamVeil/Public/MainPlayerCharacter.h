@@ -224,12 +224,6 @@ public:
 	UFUNCTION(Exec)
 	void CheatPickAugment(int32 ChoiceIndex);
 
-	//뽑기를 거치지 않고 원하는 증강을 바로 얻음 이펙트 확인용 예) CheatGiveAugment 10
-	//0 공격력 1 방어력 2 체력 3 스태미나 4 광전사 5 가시갑옷 6 흡혈 7 재생력 8 최후의요새
-	//9 감속탄 10 폭발탄 11 화염탄
-	UFUNCTION(Exec)
-	void CheatGiveAugment(int32 AugmentID);
-
 	//자기 자신에게 데미지 사망 흐름 확인용 예) CheatDamageMe 9999
 	UFUNCTION(Exec)
 	void CheatDamageMe(float Amount);
@@ -358,13 +352,6 @@ private:
 
 	//조준점을 계산해서 들고 있는 무기로 한 발 쏨 FireWeapon과 FireWeaponHeld가 같이 씀
 	void FireCurrentWeapon();
-
-	//증강 선택 때문에 게임을 멈춘 상태인지 두 번 멈추거나 두 번 푸는 것을 막음
-	bool bAugmentChoicePaused = false;
-
-	//증강을 고르는 동안 게임을 멈추거나 푼다
-	//UI가 블루프린트로 어떻게 짜였든 상관없이 동작하도록 여기(C++)에서 처리함
-	void SetAugmentChoicePaused(bool bPaused);
 
 	//쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
 	void DrawNextAugmentChoices();

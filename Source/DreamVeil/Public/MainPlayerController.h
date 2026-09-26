@@ -72,13 +72,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void CloseMenuWidget();
 
-	//게임을 멈추거나 푼다 월드 시간 타이머 몬스터가 전부 같이 멈춤
-	//SetGamePaused만 부르면 멈추기 직전에 들어온 이동 입력이 그대로 남아서 W를 누르고 있으면 계속 앞으로 감
-	//그래서 누르고 있던 키를 버리고 이동 시선 입력까지 막음
-	//멈추는 일을 여기 한 군데로 모은 이유 증강 선택 침대 컴퓨터가 전부 같은 방식으로 멈추고 같은 방식으로 풀려야 함
-	UFUNCTION(BlueprintCallable, Category = "UI")
-	void SetGameSuspended(bool bSuspended);
-
 	virtual void BeginPlay() override;
 
 protected:
@@ -93,8 +86,4 @@ private:
 	//지금 열려 있는 메뉴 위젯 닫을 때 필요해서 들고 있음 없으면 nullptr
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> MenuWidgetInstance;
-
-	//메뉴를 띄우면서 게임을 멈춘 것이 이 컨트롤러인지 CloseMenuWidget이 자기가 멈춘 것만 풀게 하려고 기억함
-	//이게 없으면 증강 선택이 멈춰둔 게임을 다른 메뉴가 닫히면서 풀어버려서 몬스터가 그대로 움직이고 타이머도 계속 감
-	bool bMenuPaused = false;
 };

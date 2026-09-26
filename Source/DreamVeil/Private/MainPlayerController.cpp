@@ -3,8 +3,6 @@
 #include "MainPlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
 #include "Kismet/GameplayStatics.h"
-#include "GameFramework/Character.h"
-#include "GameFramework/CharacterMovementComponent.h"
 
 AMainPlayerController::AMainPlayerController() : 
 InputMappingContext(nullptr),
@@ -115,53 +113,18 @@ UUserWidget* AMainPlayerController::OpenMenuWidgetPaused(TSubclassOf<UUserWidget
 	}
 
 	//위젯은 기본적으로 멈춘 동안에도 입력을 받으므로 버튼이 그대로 눌림
-	//멈춘 것이 나라고 표시해둠 CloseMenuWidget이 이 표시를 보고 풀어줌
-	bMenuPaused = true;
-	SetGameSuspended(true);
+	//SetGamePaused는 플레이어 컨트롤러가 있어야 먹혀서 여기(컨트롤러)에서 부름
+	UGameplayStatics::SetGamePaused(this, true);
 
 	return MenuWidget;
-}
-
-//게임을 멈추거나 푼다
-void AMainPlayerController::SetGameSuspended(bool bSuspended)
-{
-	//월드 시간을 멈춤 이러면 몬스터 움직임 공격 타이머(제한 시간 웨이브)가 전부 같이 멈춤
-	//SetGamePaused는 플레이어 컨트롤러가 있어야 먹혀서 여기(컨트롤러)에서 부름
-	UGameplayStatics::SetGamePaused(this, bSuspended);
-
-	if (bSuspended)
-	{
-		//누르고 있던 키를 버림 안 버리면 W를 누른 상태로 멈춰서 푸는 순간까지 이동 입력이 살아 있음
-		FlushPressedKeys();
-
-		//멈추기 직전까지 쌓인 속도를 지움 멈춘 상태에서 캐릭터가 미끄러지는 것을 막음
-		if (ACharacter* PlayerCharacter = Cast<ACharacter>(GetPawn()))
-		{
-			PlayerCharacter->GetCharacterMovement()->StopMovementImmediately();
-		}
-
-		//UI만 보는 동안에는 캐릭터가 움직이거나 카메라가 돌지 않게 입력 자체를 막음
-		//멈췄는데도 움직이는 일이 생기지 않도록 이중으로 걸어둠
-		SetIgnoreMoveInput(true);
-		SetIgnoreLookInput(true);
-		return;
-	}
-
-	//막아둔 입력을 되돌림 SetIgnore...Input은 겹쳐 부르면 횟수가 쌓이는 값이라 Reset으로 한 번에 0으로 만듦
-	ResetIgnoreMoveInput();
-	ResetIgnoreLookInput();
 }
 
 //열려 있는 메뉴 위젯을 닫음
 void AMainPlayerController::CloseMenuWidget()
 {
-	//내가 멈춘 것만 풀어줌
-	//무조건 풀면 증강 선택처럼 다른 쪽이 멈춰둔 게임까지 같이 풀려서 고르는 동안 몬스터가 움직임
-	if (bMenuPaused)
-	{
-		bMenuPaused = false;
-		SetGameSuspended(false);
-	}
+	//멈춰둔 게임을 먼저 풀어줌 멈추지 않았으면 아무 일도 없음
+	//닫는 쪽에서 항상 풀어주므로 띄운 쪽이 멈췄는지 기억할 필요가 없음
+	UGameplayStatics::SetGamePaused(this, false);
 
     if (MenuWidgetInstance)
     {
