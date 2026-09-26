@@ -5,381 +5,310 @@
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "MonsterBase.h"
-#include "MonsterSpawnVolume.h"
 #include "TimerManager.h"
 
-//보스 몬스터에 붙이는 액터 태그
-//보스 클래스가 아직 없어서 태그로 구분함 보스 블루프린트의 Class Defaults > Actor > Tags에 Boss를 넣을 것
-const FName BOSS_TAG = TEXT("Boss");
+namespace
+{
+	// 보스 구분용 태그. 여기 이름 바꾸면 BP에 넣은 태그도 맞춰야 됨
+	const FName BossTag(TEXT("Boss"));
+}
 
-//레벨이 시작될 때
+// 맵 들어왔을 때 한 번. 설정 확인하고 바로 1웨이브 ㄱㄱ
 void AMainGameModeBase::BeginPlay()
 {
 	Super::BeginPlay();
-
-	//로비와 메인 메뉴도 이 게임모드를 쓰므로 L1~L4가 아니면 제한 시간을 걸지 않음
-	//여기서 거르지 않으면 로비에서도 시간이 다 되면 클리어 처리돼서 진행도가 올라감
-	UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-
-	if (!DreamVeilGameInstance || !DreamVeilGameInstance->IsInLevelMap())
+	// 로비랑 메뉴도 이 게임모드 쓸 수 있으니 전투 맵인지 먼저 봄
+	const UDreamVeilGameInstance* GI = GetGameInstance<UDreamVeilGameInstance>();
+	if (!GI || !GI->IsInLevelMap()) return;
+	// 일반 1회 + 보스 1회는 있어야 됨. 전투 시간이 0이면 타이머 안 돌아서 최소값 잡음
+	StageProperties.TotalWaves = FMath::Max(StageProperties.TotalWaves, 2);
+	StageProperties.WaveDuration = FMath::Max(StageProperties.WaveDuration, 0.1f);
+	StageProperties.RestDuration = FMath::Max(StageProperties.RestDuration, 0.0f);
+	// 마지막은 보스라 일반 수량 배열은 총 횟수보다 한 칸 적어야 됨 걍 원하는 일반페이즈+1하셈
+	// 보스 클래스 안 넣었거나 배열 안 맞으면 일단 진행 안 함. BP 설정 확인하세요
+	if (StageProperties.NormalWaveMonsterCounts.Num() != StageProperties.TotalWaves - 1 || !StageProperties.BossClass)
 	{
+		SetStagePhase(EStagePhase::Finished);
 		return;
 	}
-
-	//제한 시간이 끝날 때까지 못 깨면 실패
-	GetWorldTimerManager().SetTimer(LevelTimerHandle, this, &AMainGameModeBase::FailLevel, LevelTimeLimit, false);
-
-	//맵에 미리 배치해둔 몬스터 등록
-	for (TActorIterator<AMonsterBase> MonsterIterator(GetWorld()); MonsterIterator; ++MonsterIterator)
+	for (int32& Count : StageProperties.NormalWaveMonsterCounts) Count = FMath::Max(Count, 0);
+	bStageActive = true;
+	// 이미 맵에 놓여 있는 애들도 카운트 세고, 앞으로 생길 애들은 생성 알림으로 받음
+	for (TActorIterator<AMonsterBase> It(GetWorld()); It; ++It) RegisterMonster(*It);
+	ActorSpawnedHandle = GetWorld()->AddOnActorSpawnedHandler(
+		FOnActorSpawned::FDelegate::CreateUObject(this, &AMainGameModeBase::HandleActorSpawned));
+	// 전체 제한 시간은 별도 옵션. 이거 꺼도 웨이브 시간은 정상적으로 돌아감
+	if (bUseLevelTimeLimit)
 	{
-		RegisterMonster(*MonsterIterator);
+		GetWorldTimerManager().SetTimer(LevelTimerHandle, this, &AMainGameModeBase::FailLevel,
+			FMath::Max(LevelTimeLimit, 0.1f), false);
 	}
-
-	//앞으로 스폰될 몬스터도 등록 스포너 코드를 고치지 않고 게임모드가 알아서 셀 수 있게 월드의 스폰 알림을 받음
-	//핸들러를 따로 해제하지 않는 이유 레벨이 바뀌면 월드와 함께 사라지고 CreateUObject라 게임모드가 먼저 사라져도 안전함
-	GetWorld()->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &AMainGameModeBase::HandleActorSpawned));
-
-	//첫 웨이브는 레벨이 시작되자마자 바로 내보냄
 	StartNextWave();
 }
 
-// 웨이브
-// 30초마다 한 번씩 스폰 볼륨들에게 몬스터를 내라고 시킴
-// 마지막 웨이브를 내면 bAllMonstersSpawned를 켜서 기존 클리어 판정(TryClearLevel)이 그대로 동작함
+// 맵 나가는데 타이머나 생성 알림 남아 있으면 곤란하니 여서 정리함
+void AMainGameModeBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+	bStageActive = false;
+	StopStageTimers();
+	GetWorld()->RemoveOnActorSpawnedHandler(ActorSpawnedHandle);
+	Super::EndPlay(EndPlayReason);
+}
 
-//다음 웨이브를 내보냄
+// 상태 변경은 여기로 모음. 같은 상태 또 들어왔다고 UI 알림 두 번 보내진 않음
+void AMainGameModeBase::SetStagePhase(EStagePhase NewPhase)
+{
+	if (StagePhase == NewPhase) return;
+	StagePhase = NewPhase;
+	OnStagePhaseChanged.Broadcast(StagePhase);
+}
+
+// 다음 번호로 진행. 마지막 번호면 일반몹 웨이브 대신 보스전으로 감
 void AMainGameModeBase::StartNextWave()
 {
-	CurrentWave++;
-
-	RequestWaveSpawn();
-
-	OnWaveChanged.Broadcast(CurrentWave, WaveCount);
-
-	//마지막 웨이브를 냈으면 더 낼 게 없다고 알림
-	//이걸 켜야 남은 몬스터를 다 잡았을 때 TryClearLevel이 클리어로 넘어감
-	if (CurrentWave >= WaveCount)
+	if (!bStageActive || CurrentWave >= StageProperties.TotalWaves) return;
+	// 쉬는 동안 죽었을 수도 있으니 다음 전투 열기 전에 확인
+	if (IsPlayerDead())
 	{
-		GetWorldTimerManager().ClearTimer(WaveTimerHandle);
-
-		NotifyAllMonstersSpawned();
-
+		bStageActive = false;
+		SetStagePhase(EStagePhase::Finished);
+		StopStageTimers();
 		return;
 	}
-
-	//다음 웨이브 예약 이미 돌고 있으면 다시 걸지 않아도 되지만
-	//첫 웨이브는 타이머 없이 들어오므로 여기서 한 번 걸어둠
-	if (!GetWorldTimerManager().IsTimerActive(WaveTimerHandle))
-	{
-		GetWorldTimerManager().SetTimer(WaveTimerHandle, this, &AMainGameModeBase::StartNextWave, WaveInterval, true);
-	}
+	++CurrentWave;
+	if (CurrentWave == StageProperties.TotalWaves) StartBossWave();
+	else StartNormalWave();
 }
 
-//맵에 있는 스폰 볼륨 전부에게 이번 웨이브 몬스터를 내라고 시킴
+// 일반 전투 시작. 반복 타이머 안 쓰고 이번 전투 끝나는 시각만 한 번 예약함
+void AMainGameModeBase::StartNormalWave()
+{
+	SetStagePhase(EStagePhase::NormalWave);
+	GetWorldTimerManager().SetTimer(WaveTimerHandle, this, &AMainGameModeBase::OnWaveTimeExpired,
+		StageProperties.WaveDuration, false);
+	OnWaveChanged.Broadcast(CurrentWave, StageProperties.TotalWaves);
+	RequestWaveSpawn();
+	// 수량이 0이거나 요청이 바로 끝난 경우도 있으니 한 번 확인해줌
+	TryFinishNormalWaveEarly();
+}
+
+// 이번 웨이브 수량 전달. 실제 생성이랑 스포너별 분배는 아직 구현 안 한 자리임
 void AMainGameModeBase::RequestWaveSpawn()
 {
-	//볼륨을 미리 모아두지 않고 매번 찾는 이유
-	//웨이브 도중에 볼륨이 생기거나 사라져도 알아서 반영되고 목록을 관리할 필요가 없음
-	for (TActorIterator<AMonsterSpawnVolume> VolumeIterator(GetWorld()); VolumeIterator; ++VolumeIterator)
-	{
-		VolumeIterator->SpawnWave(MonstersPerWave, WaveSpawnInterval);
-	}
+	const int32 Total = StageProperties.NormalWaveMonsterCounts[CurrentWave - 1];
+	// 요청 받자마자 완료 답이 올 수도 있으니 ID부터 넣어놔야 됨
+	// 0마리면 새 요청 안 만들고 이전 웨이브에 남은 애들만 기다림
+	const int32 RequestId = Total > 0 ? ++NextSpawnRequestId : INDEX_NONE;
+	if (RequestId != INDEX_NONE) PendingSpawnRequests.Add(RequestId);
+	// 휴식 때문에 멈춰뒀던 생성 요청도 다시 이어가라고 알림
+	OnWaveSpawningPausedChanged.Broadcast(false);
+	if (RequestId != INDEX_NONE)
+		OnWaveSpawnRequested.Broadcast(RequestId, Total, WaveSpawnInterval, StageProperties);
 }
 
-//지금 몇 번째 웨이브인지
-int32 AMainGameModeBase::GetCurrentWave() const
+// 스포너가 생성 처리 다 끝냈을 때 부를 함수. 실제 연결은 스포너 쪽에서 해줘야 됨
+// 모르는 ID나 이미 끝난 ID면 무시해서 같은 완료 알림 두 번 와도 괜찮음
+void AMainGameModeBase::NotifySpawnRequestFinished(int32 RequestId)
 {
-	return CurrentWave;
+	if (PendingSpawnRequests.Remove(RequestId) > 0) TryFinishNormalWaveEarly();
 }
 
-//전체 웨이브 수
-int32 AMainGameModeBase::GetWaveCount() const
-{
-	return WaveCount;
-}
-
-//지금 맵이 마지막 레벨인지
-bool AMainGameModeBase::IsFinalLevel() const
-{
-	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-
-	if (!DreamVeilGameInstance)
-	{
-		return false;
-	}
-
-	//레벨 번호가 0이면 로비나 메인 메뉴라 마지막 레벨이 아님
-	const int32 LevelNumber = DreamVeilGameInstance->GetCurrentLevelNumber();
-
-	return LevelNumber > 0 && LevelNumber >= DreamVeilGameInstance->GetLevelCount();
-}
-
-//보스에 도전
-void AMainGameModeBase::AcceptBossChallenge()
-{
-	//선택 창이 떠 있지 않은데 불리면 무시 버튼을 두 번 눌러도 보스가 둘 나오지 않음
-	if (!bBossChoicePending)
-	{
-		return;
-	}
-
-	bBossChoicePending = false;
-	bBossSpawned = true;
-
-	SpawnBoss();
-
-	//보스전에도 잡몹이 계속 나오게 웨이브를 다시 돌림
-	//웨이브 수를 세는 CurrentWave는 그대로 둬서 HUD에는 마지막 웨이브로 표시됨
-	GetWorldTimerManager().SetTimer(WaveTimerHandle, this, &AMainGameModeBase::RequestWaveSpawn, WaveInterval, true);
-}
-
-//보스를 넘기고 로비로
-void AMainGameModeBase::DeclineBossChallenge()
-{
-	if (!bBossChoicePending)
-	{
-		return;
-	}
-
-	bBossChoicePending = false;
-
-	ClearLevel();
-}
-
-//보스를 냄
-void AMainGameModeBase::SpawnBoss()
-{
-	if (!BossClass)
-	{
-		return;
-	}
-
-	//플레이어 위치를 기준으로 앞쪽에 냄 보스 전용 스폰 지점이 생기면 그쪽으로 바꿀 것
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-
-	if (!PlayerPawn)
-	{
-		return;
-	}
-
-	const FVector SpawnLocation = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector() * BossSpawnDistance;
-
-	FActorSpawnParameters SpawnParameters;
-
-	//바닥이나 벽에 조금 겹쳐도 일단 나오게 함 안 그러면 보스가 안 나와서 레벨이 끝나지 않음
-	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
-
-	AMonsterBase* Boss = GetWorld()->SpawnActor<AMonsterBase>(BossClass, SpawnLocation, PlayerPawn->GetActorRotation(), SpawnParameters);
-
-	//보스 판정은 액터 태그로 하므로 블루프린트에서 태그를 빠뜨렸어도 여기서 달아줌
-	//이게 없으면 보스를 잡아도 클리어가 안 됨
-	if (Boss && !Boss->ActorHasTag(BOSS_TAG))
-	{
-		Boss->Tags.Add(BOSS_TAG);
-
-		//태그가 없는 채로 등록됐으니 보스 사망 구독을 여기서 걸어줌
-		if (UCombatStatsComponent* BossStats = Boss->FindComponentByClass<UCombatStatsComponent>())
-		{
-			BossStats->OnDead.AddDynamic(this, &AMainGameModeBase::HandleBossDead);
-		}
-	}
-}
-
-//스포너가 이번 레벨에 낼 몬스터를 다 냈을 때
+// 예전 BP 호출 받아주는 용도. 대기 요청을 강제로 비우는 건 안 함
 void AMainGameModeBase::NotifyAllMonstersSpawned()
 {
-	bAllMonstersSpawned = true;
-
-	//마지막 몬스터가 알림보다 먼저 죽었을 수도 있으니 바로 한 번 확인
-	TryClearLevel();
+	TryFinishNormalWaveEarly();
 }
 
-//몬스터의 사망 이벤트를 구독하고 살아있는 수에 더함
+// 전투 시간 다 됨. 몬스터 남아 있어도 일단 쉬는 시간으로 넘어감
+void AMainGameModeBase::OnWaveTimeExpired()
+{
+	BeginRest();
+}
+
+// 몬스터 다 잡았다고 바로 넘기면 아직 생성 중인 애들 빠질 수 있음
+// 생성 대기랑 살아 있는 수 둘 다 0이어야 남은 전투 시간 스킵함
+void AMainGameModeBase::TryFinishNormalWaveEarly()
+{
+	if (bStageActive && StagePhase == EStagePhase::NormalWave
+		&& PendingSpawnRequests.IsEmpty() && AliveNormalMonsterCount == 0) BeginRest();
+}
+
+// 휴식 시작. 시간 만료랑 마지막 처치가 같이 와도 한 번만 들어오게 상태로 막음
+void AMainGameModeBase::BeginRest()
+{
+	if (!bStageActive || StagePhase != EStagePhase::NormalWave) return;
+	if (IsPlayerDead())
+	{
+		bStageActive = false;
+		SetStagePhase(EStagePhase::Finished);
+		StopStageTimers();
+		return;
+	}
+	SetStagePhase(EStagePhase::Rest);
+	// 전멸로 일찍 왔으면 남은 전투 타이머 버림. 이거 안 끄면 휴식 중에 또 호출됨
+	GetWorldTimerManager().ClearTimer(WaveTimerHandle);
+	OnWaveSpawningPausedChanged.Broadcast(true);
+	// 휴식 0초로 설정했어도 다음 틱으로 넘김. 여기서 바로 재귀 호출하지 않으려고 둠
+	if (StageProperties.RestDuration <= 0.0f)
+	{
+		RestTimerHandle = GetWorldTimerManager().SetTimerForNextTick(this, &AMainGameModeBase::OnRestFinished);
+	}
+	else
+	{
+		GetWorldTimerManager().SetTimer(RestTimerHandle, this, &AMainGameModeBase::OnRestFinished,
+			StageProperties.RestDuration, false);
+	}
+}
+
+// 쉬는 시간 끝. 이미 다른 상태면 옛 타이머 알림이니 무시함
+void AMainGameModeBase::OnRestFinished()
+{
+	if (bStageActive && StagePhase == EStagePhase::Rest) StartNextWave();
+}
+
+// 마지막 웨이브는 보스 자동 등장. 별도의 잡몹 반복 웨이브는 안 걸어둠
+void AMainGameModeBase::StartBossWave()
+{
+	SetStagePhase(EStagePhase::BossWave);
+	OnWaveChanged.Broadcast(CurrentWave, StageProperties.TotalWaves);
+	OnWaveSpawningPausedChanged.Broadcast(false);
+	// 일단 플레이어 앞에 둠. 보스 전용 스폰 지점 생기면 여기를 바꾸세요
+	APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
+	const FTransform Transform = Player ? FTransform(Player->GetActorRotation(),
+		Player->GetActorLocation() + Player->GetActorForwardVector() * BossSpawnDistance) : FTransform::Identity;
+	// 바로 BeginPlay 돌리지 않고 태그랑 사망 알림부터 붙이려고 Deferred로 생성함
+	AMonsterBase* Boss = Player ? GetWorld()->SpawnActorDeferred<AMonsterBase>(StageProperties.BossClass,
+		Transform, nullptr, nullptr, ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn) : nullptr;
+	if (!Boss)
+	{
+		// 생성 실패했다고 클리어시키면 안 됨. 진행 멈추고 설정 확인할 로그만 남김
+		UE_LOG(LogTemp, Error, TEXT("Failed to spawn stage boss. Check BossClass and player pawn."));
+		bStageActive = false;
+		SetStagePhase(EStagePhase::Finished);
+		StopStageTimers();
+		return;
+	}
+	StageBoss = Boss;
+	Boss->Tags.AddUnique(BossTag);
+	// 태그 붙이기 전에 생성 알림이 먼저 와서 일반몹으로 셌을 수도 있음
+	// 그 경우 일반 사망 연결이랑 수량 빼고 보스 사망 연결로 바꿔줌
+	if (UCombatStatsComponent* Stats = Boss->FindComponentByClass<UCombatStatsComponent>())
+	{
+		if (Stats->OnDead.IsAlreadyBound(this, &AMainGameModeBase::HandleMonsterDead))
+		{
+			Stats->OnDead.RemoveDynamic(this, &AMainGameModeBase::HandleMonsterDead);
+			AliveNormalMonsterCount = FMath::Max(AliveNormalMonsterCount - 1, 0);
+		}
+		Stats->OnDead.AddUniqueDynamic(this, &AMainGameModeBase::HandleBossDead);
+	}
+	// 설정 붙였으니 이제 생성 마무리. AI 컨트롤러 안 생겼으면 기본 걸로 붙임
+	UGameplayStatics::FinishSpawningActor(Boss, Transform);
+	if (IsValid(Boss) && !Boss->GetController()) Boss->SpawnDefaultController();
+}
+
+// 살아 있는 일반 / 정예 몬스터 세는 곳. 보스는 전멸 조건에서 빼둠
 void AMainGameModeBase::RegisterMonster(AMonsterBase* Monster)
 {
-	if (!Monster)
-	{
-		return;
-	}
-
-	//몬스터 헤더의 변수 이름에 기대지 않고 컴포넌트로 찾음 몬스터 쪽 코드가 바뀌어도 여기는 안 고쳐도 됨
-	UCombatStatsComponent* MonsterStats = Monster->FindComponentByClass<UCombatStatsComponent>();
-
-	if (!MonsterStats || MonsterStats->IsDead())
-	{
-		return;
-	}
-
-	AliveMonsterCount++;
-
-	MonsterStats->OnDead.AddDynamic(this, &AMainGameModeBase::HandleMonsterDead);
-
-	//보스는 죽는 순간 따로 클리어 처리 L4는 보스를 잡아야 Endless가 열림
-	//살아있는 수에서도 빠져야 하므로 위의 HandleMonsterDead 구독은 그대로 둠
-	if (IsBossMonster(Monster))
-	{
-		MonsterStats->OnDead.AddDynamic(this, &AMainGameModeBase::HandleBossDead);
-	}
+	if (!bStageActive || !IsValid(Monster) || RegisteredMonsters.Contains(Monster)) return;
+	// 스탯 없거나 이미 죽어 있으면 셀 필요 없음. 중복 등록도 위에서 막음
+	UCombatStatsComponent* Stats = Monster->FindComponentByClass<UCombatStatsComponent>();
+	if (!Stats || Stats->IsDead()) return;
+	RegisteredMonsters.Add(Monster);
+	if (IsBossMonster(Monster)) return;
+	++AliveNormalMonsterCount;
+	Stats->OnDead.AddUniqueDynamic(this, &AMainGameModeBase::HandleMonsterDead);
 }
 
-//월드에 액터가 스폰될 때마다 불림
+// 월드 생성 알림은 몬스터 말고도 오니까 캐스팅해서 넘김. 아니면 nullptr라 그냥 무시됨
 void AMainGameModeBase::HandleActorSpawned(AActor* SpawnedActor)
 {
-	//몬스터가 아니면 Cast가 nullptr를 돌려주고 RegisterMonster가 바로 돌아감
 	RegisterMonster(Cast<AMonsterBase>(SpawnedActor));
 }
 
-//등록한 몬스터가 죽었을 때
+// 한 마리 죽었으니 빼고 전멸인지 봄. 이전 웨이브 잔여몹도 같은 수량에서 빠짐
 void AMainGameModeBase::HandleMonsterDead()
 {
-	AliveMonsterCount = FMath::Max(AliveMonsterCount - 1, 0);
-
-	TryClearLevel();
+	AliveNormalMonsterCount = FMath::Max(AliveNormalMonsterCount - 1, 0);
+	TryFinishNormalWaveEarly();
 }
 
-//보스가 죽었을 때
+// 보스전 중 보스 죽었을 때만 클리어. 다른 상태에서는 건너뜀
 void AMainGameModeBase::HandleBossDead()
 {
-	ClearLevel();
+	if (StagePhase == EStagePhase::BossWave) CompleteStage();
 }
 
-//스포너가 다 냈고 살아있는 몬스터가 없으면 클리어
-void AMainGameModeBase::TryClearLevel()
+// 진행 타이머 전부 정리. 스포너에는 취소 알림만 보내니 실제 취소는 거기서 연결해야 됨
+void AMainGameModeBase::StopStageTimers()
 {
-	//아직 더 나올 몬스터가 있으면 0마리여도 클리어가 아님 스폰 사이 빈틈에 레벨이 끝나버리는 걸 막음
-	if (!bAllMonstersSpawned || AliveMonsterCount > 0)
-	{
-		return;
-	}
-
-	//마지막 레벨에서 보스를 아직 안 냈으면 바로 끝내지 않고 도전할지 물음
-	//BossClass를 안 넣었으면 물을 것이 없으므로 평소처럼 클리어됨
-	if (IsFinalLevel() && BossClass && !bBossSpawned && !bBossChoicePending)
-	{
-		bBossChoicePending = true;
-
-		//고르는 동안 시간이 흘러 실패 처리되면 안 되므로 제한 시간을 멈춤
-		//ClearTimer가 아니라 PauseTimer인 이유 핸들이 살아 있어야 나중에 StopLevel이 동작함
-		GetWorldTimerManager().PauseTimer(LevelTimerHandle);
-
-		//잡몹도 그만 나오게 웨이브를 멈춤 도전을 고르면 AcceptBossChallenge가 다시 켬
-		GetWorldTimerManager().ClearTimer(WaveTimerHandle);
-
-		OnBossChoiceReady.Broadcast();
-
-		return;
-	}
-
-	ClearLevel();
-}
-
-//레벨 타이머를 멈춤
-bool AMainGameModeBase::StopLevel()
-{
-	//타이머를 건 적이 없는 맵(로비 메인 메뉴)이거나 이미 끝낸 레벨이면 false
-	//시간 초과와 마지막 처치가 같은 프레임에 겹쳐도 레벨이 두 번 끝나지 않게 막음
-	if (!LevelTimerHandle.IsValid())
-	{
-		return false;
-	}
-
-	//ClearTimer가 핸들을 무효로 만들어서 위 검사가 다음 호출을 막아줌 타이머 콜백 안에서 불러도 안전함
+	GetWorldTimerManager().ClearTimer(WaveTimerHandle);
+	GetWorldTimerManager().ClearTimer(RestTimerHandle);
 	GetWorldTimerManager().ClearTimer(LevelTimerHandle);
-
-	return true;
+	PendingSpawnRequests.Empty();
+	OnWaveSpawningCancelled.Broadcast();
 }
 
-//플레이어가 죽었는지
-bool AMainGameModeBase::IsPlayerDead() const
+// 클리어는 한 번만 처리. 먼저 진행 끄고 나서 저장이랑 맵 이동 쪽에 넘김
+void AMainGameModeBase::CompleteStage()
 {
-	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(this, 0);
-	UCombatStatsComponent* PlayerStats = PlayerPawn ? PlayerPawn->FindComponentByClass<UCombatStatsComponent>() : nullptr;
-
-	return PlayerStats && PlayerStats->IsDead();
+	if (!bStageActive) return;
+	bStageActive = false;
+	SetStagePhase(EStagePhase::Finished);
+	StopStageTimers();
+	if (IsPlayerDead()) return;
+	// 지금 GameInstance는 클리어 후 로비로 감. 다음 맵 직행은 그쪽 수정할 때 연결할 예정
+	if (UDreamVeilGameInstance* GI = GetGameInstance<UDreamVeilGameInstance>()) GI->CompleteCurrentLevel();
 }
 
-//클리어 다음 레벨이 열림
-void AMainGameModeBase::ClearLevel()
-{
-	if (!StopLevel())
-	{
-		return;
-	}
-
-	//타이머를 먼저 멈추고 확인하는 이유 죽은 뒤에 화염 데미지로 마지막 몬스터가 죽어도 클리어되지 않게
-	if (IsPlayerDead())
-	{
-		return;
-	}
-
-	UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-
-	if (!DreamVeilGameInstance)
-	{
-		return;
-	}
-
-	//증강 저장 진행도 올리기 로비 이동은 GameInstance가 한 번에 함
-	DreamVeilGameInstance->CompleteCurrentLevel();
-}
-
-//제한 시간 초과
+// 전체 제한 시간 켜뒀을 때 시간 초과 처리. 죽은 상태면 게임 오버 흐름에 맡김
 void AMainGameModeBase::FailLevel()
 {
-	if (!StopLevel())
-	{
-		return;
-	}
-
-	//죽은 뒤에 시간이 끝났으면 로비로 보내지 않음 게임 오버 쪽 흐름과 겹치지 않게
-	if (IsPlayerDead())
-	{
-		return;
-	}
-
-	UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-
-	if (!DreamVeilGameInstance)
-	{
-		return;
-	}
-
-	DreamVeilGameInstance->FailCurrentLevel();
+	if (!bStageActive) return;
+	bStageActive = false;
+	SetStagePhase(EStagePhase::Finished);
+	StopStageTimers();
+	if (IsPlayerDead()) return;
+	if (UDreamVeilGameInstance* GI = GetGameInstance<UDreamVeilGameInstance>()) GI->FailCurrentLevel();
 }
 
-//보스 몬스터인지
+// 플레이어 체력 컴포넌트에 물어봄. 폰이나 컴포넌트 없다고 죽었다고 보지는 않음
+bool AMainGameModeBase::IsPlayerDead() const
+{
+	const APawn* Player = UGameplayStatics::GetPlayerPawn(this, 0);
+	const UCombatStatsComponent* Stats = Player ? Player->FindComponentByClass<UCombatStatsComponent>() : nullptr;
+	return Stats && Stats->IsDead();
+}
+
+// 보스 클래스 따로 비교하지 않고 태그로 판정. 다른 코드에서도 이거 쓰세요
 bool AMainGameModeBase::IsBossMonster(const AActor* Actor)
 {
-	return Actor && Actor->ActorHasTag(BOSS_TAG);
+	return Actor && Actor->ActorHasTag(BossTag);
 }
 
+// UI에서 현재 구간 카운트다운 띄울 때 쓰는 거. 보스전은 별도 시간 없어서 0
+float AMainGameModeBase::GetPhaseTimeRemaining() const
+{
+	if (!bStageActive) return 0.0f;
+	if (StagePhase == EStagePhase::NormalWave) return FMath::Max(0.0f, GetWorldTimerManager().GetTimerRemaining(WaveTimerHandle));
+	if (StagePhase == EStagePhase::Rest) return FMath::Max(0.0f, GetWorldTimerManager().GetTimerRemaining(RestTimerHandle));
+	return 0.0f;
+}
+
+// 전체 제한 시간 남은 초. 타이머 없을 때 엔진이 음수 줄 수 있어서 0으로 막음
 float AMainGameModeBase::GetLevelTimeRemaining() const
 {
-	// 타이머가 없으면 0
-	if (!LevelTimerHandle.IsValid())
-	{
-		return 0.0f;
-	}
-	// 현재 남은 시간
-	return GetWorldTimerManager().GetTimerRemaining(LevelTimerHandle);
+	return FMath::Max(0.0f, GetWorldTimerManager().GetTimerRemaining(LevelTimerHandle));
 }
+
+// 전체 제한 안 쓰면 0 반환. 켜뒀을 때는 실제 타이머에 넣은 최소값하고 맞춤
 float AMainGameModeBase::GetLevelTimeLimit() const
 {
-	// 전체 제한 시간
-	return LevelTimeLimit;
+	return bUseLevelTimeLimit ? FMath::Max(LevelTimeLimit, 0.1f) : 0.0f;
 }
+
+// 전체 시간 기준 잠식 비율. 제한 시간 꺼뒀으면 0이고 켜뒀으면 지날수록 1에 가까워짐
 float AMainGameModeBase::GetLevelTimeProgress() const
 {
-	// 잘못된 값 방지
-	if (LevelTimeLimit <= 0.0f)
-	{
-		return 0.0f;
-	}
-	const float RemainingTime = GetLevelTimeRemaining();
-	// 시간이 줄수록 0 → 1
-	return FMath::Clamp(
-		1.0f - (RemainingTime / LevelTimeLimit),
-		0.0f,
-		1.0f
-	);
+	const float Limit = GetLevelTimeLimit();
+	return Limit > 0.0f ? FMath::Clamp(1.0f - GetLevelTimeRemaining() / Limit, 0.0f, 1.0f) : 0.0f;
 }
