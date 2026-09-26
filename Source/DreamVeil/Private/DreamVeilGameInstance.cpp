@@ -1,3 +1,6 @@
+    //L4까지 다 깼으면 열 레벨이 없음 이때 로비 UI는 Endless 버튼을 보여줘야 함
+    //깬 레벨 수가 곧 다음 레벨의 인덱스 하나도 안 깼으면 0번인 L1
+    //실수로 두 번 불려도 레벨 개수를 넘지 않게 막음
 #include "DreamVeilGameInstance.h"
 
 #include "DispatchTableComponent.h"
@@ -125,8 +128,17 @@ void UDreamVeilGameInstance::OpenLobbyWithAutoSave()
 //로비에서 게임 시작
 bool UDreamVeilGameInstance::OpenNextLevel()
 {
-    //L4까지 다 깼으면 열 레벨이 없음 이때 로비 UI는 Endless 버튼을 보여줘야 함
-    if (IsEndlessUnlocked())
+    //깬 레벨 수 + 1이 다음에 들어갈 레벨 번호 하나도 안 깼으면 1번인 L1
+    //다 깼으면 그 번호가 안 열린 레벨이라 OpenLevelByNumber가 false를 돌려줌 이때 로비 UI는 Endless 버튼을 보여줘야 함
+    //여는 처리를 직접 하지 않고 넘기는 이유 침대의 레벨 선택과 규칙이 갈라지지 않게 하려는 것
+    return OpenLevelByNumber(ClearedLevelCount + 1);
+}
+
+//고른 레벨로 들어감
+bool UDreamVeilGameInstance::OpenLevelByNumber(int32 LevelNumber)
+{
+    //아직 안 깬 다음 레벨보다 뒤는 못 고름 웨이브를 다 넘기고 몬스터를 전부 잡아야(CompleteCurrentLevel) 다음 번호가 열림
+    if (!IsLevelUnlocked(LevelNumber))
     {
         return false;
     }
@@ -135,8 +147,8 @@ bool UDreamVeilGameInstance::OpenNextLevel()
     //이때 저장한 것이 레벨에 들어가기 전 상태가 되어 보통 난이도에서 실패하면 여기로 돌아옴
     SaveCurrentPlayerProgress();
 
-    //깬 레벨 수가 곧 다음 레벨의 인덱스 하나도 안 깼으면 0번인 L1
-    UGameplayStatics::OpenLevel(this, LEVEL_MAP_PATHS[ClearedLevelCount]);
+    //레벨 번호는 1부터 세고 배열은 0부터라 하나를 뺌
+    UGameplayStatics::OpenLevel(this, LEVEL_MAP_PATHS[LevelNumber - 1]);
 
     return true;
 }
@@ -148,8 +160,11 @@ void UDreamVeilGameInstance::CompleteCurrentLevel()
     //저장을 안 하면 새 맵을 로드할 때 플레이어가 새로 만들어지면서 증강이 전부 사라짐
     SaveCurrentPlayerProgress();
 
-    //실수로 두 번 불려도 레벨 개수를 넘지 않게 막음
-    ClearedLevelCount = FMath::Min(ClearedLevelCount + 1, LEVEL_COUNT);
+    //진행도는 지금 깬 레벨 번호와 이미 깬 수 중 큰 쪽으로 둠
+    //무조건 +1을 하지 않는 이유 침대에서 이미 깬 꿈을 다시 고를 수 있게 되면서
+    //3번 꿈까지 깬 사람이 1번 꿈을 다시 깼을 뿐인데 진행도가 4로 올라가 전부 해금되는 문제가 생김
+    //레벨 맵이 아니면 GetCurrentLevelNumber가 0이라 진행도가 그대로 유지됨 실수로 불려도 안전함
+    ClearedLevelCount = FMath::Min(FMath::Max(ClearedLevelCount, GetCurrentLevelNumber()), LEVEL_COUNT);
 
     OpenLobbyWithAutoSave();
 }
@@ -389,6 +404,13 @@ bool UDreamVeilGameInstance::IsLevelUnlocked(int32 LevelNumber) const
 {
     //깬 레벨 수 + 1번 레벨까지 열려 있음 하나도 안 깼으면 L1만
     return LevelNumber >= 1 && LevelNumber <= LEVEL_COUNT && LevelNumber <= ClearedLevelCount + 1;
+}
+
+//그 레벨을 이미 깼는지
+bool UDreamVeilGameInstance::IsLevelCleared(int32 LevelNumber) const
+{
+    //깬 레벨 수까지가 이미 깬 레벨 해금은 여기서 한 칸 더 나간 번호까지라 조건이 하나 다름
+    return LevelNumber >= 1 && LevelNumber <= ClearedLevelCount;
 }
 
 //난이도를 정함

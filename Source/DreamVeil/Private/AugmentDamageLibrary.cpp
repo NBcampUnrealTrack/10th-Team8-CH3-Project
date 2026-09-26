@@ -1,3 +1,8 @@
+    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴 독 데미지는 방어력을 무시함
+    //독이나 가시 갑옷 반사로 죽어도 보상이 나가야 해서 아래 조기 반환들보다 먼저 확인
+    //독 데미지는 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않게 여기서 끝냄
+//지속 공격 독 데미지를 보냄 독 표식이 붙어서 흡혈과 가시 갑옷 반사가 일어나지 않음
+//독으로 들어온 데미지인지 확인
  // Fill out your copyright notice in the Description page of Project Settings.
 
 
@@ -72,8 +77,8 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         return 0.0f;
     }
 
-    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴 독 데미지는 방어력을 무시함
-    const float FinalDamage = DamagedStats->ApplyIncomingDamage(Damage, IsPoisonDamage(DamageTypeClass));
+    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴 화염 데미지는 방어력을 무시함
+    const float FinalDamage = DamagedStats->ApplyIncomingDamage(Damage, IsFireDamage(DamageTypeClass));
 
     if (FinalDamage <= 0.0f)
     {
@@ -82,7 +87,7 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
 
     //이번 데미지로 죽었으면 잡은 쪽에게 처치 보상(꿈의 조각 확률 파츠)
     //이미 죽어 있던 대상은 위에서 0이 돌아와 여기까지 못 오므로 여기서 죽어 있으면 이번 한 방에 죽은 것
-    //독이나 가시 갑옷 반사로 죽어도 보상이 나가야 해서 아래 조기 반환들보다 먼저 확인
+    //화염이나 가시 갑옷 반사로 죽어도 보상이 나가야 해서 아래 조기 반환들보다 먼저 확인
     if (DamagedStats->IsDead())
     {
         AActor* Killer = FindAttacker(EventInstigator, DamageCauser);
@@ -106,8 +111,8 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         return FinalDamage;
     }
 
-    //독 데미지는 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않게 여기서 끝냄
-    if (IsPoisonDamage(DamageTypeClass))
+    //화염 데미지는 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않게 여기서 끝냄
+    if (IsFireDamage(DamageTypeClass))
     {
         return FinalDamage;
     }
@@ -217,8 +222,8 @@ bool UAugmentDamageLibrary::IsThornReflectDamage(TSubclassOf<UDamageType> Damage
     return DamageTypeClass->IsChildOf(UThornReflectDamageType::StaticClass());
 }
 
-//지속 공격 독 데미지를 보냄 독 표식이 붙어서 흡혈과 가시 갑옷 반사가 일어나지 않음
-float UAugmentDamageLibrary::ApplyPoisonDamage(AActor* DamageCauser, AActor* Target, float Damage)
+//지속 공격 화염 데미지를 보냄 화염 표식이 붙어서 흡혈과 가시 갑옷 반사가 일어나지 않음
+float UAugmentDamageLibrary::ApplyFireDamage(AActor* DamageCauser, AActor* Target, float Damage)
 {
     if (!Target)
     {
@@ -235,19 +240,19 @@ float UAugmentDamageLibrary::ApplyPoisonDamage(AActor* DamageCauser, AActor* Tar
         Damage,
         FindEventInstigator(DamageCauser),
         DamageCauser,
-        UPoisonDamageType::StaticClass()
+        UFireDamageType::StaticClass()
     );
 }
 
-//독으로 들어온 데미지인지 확인
-bool UAugmentDamageLibrary::IsPoisonDamage(TSubclassOf<UDamageType> DamageTypeClass)
+//화염으로 들어온 데미지인지 확인
+bool UAugmentDamageLibrary::IsFireDamage(TSubclassOf<UDamageType> DamageTypeClass)
 {
     if (!DamageTypeClass)
     {
         return false;
     }
 
-    return DamageTypeClass->IsChildOf(UPoisonDamageType::StaticClass());
+    return DamageTypeClass->IsChildOf(UFireDamageType::StaticClass());
 }
 
 //공격자의 현재 공격력을 가져옴 평타 데미지를 만들 때 씀
@@ -303,8 +308,13 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
         WeaponHitResult.Location = WeaponHitResult.ImpactPoint;
     }
 
+    //머리를 맞혔으면 데미지를 올림 머리 판정은 몬스터가 자기 머리 구로 직접 함
+    //여기(총 적중)에서만 배율을 거는 이유 범위 공격 화염 가시 갑옷 반사는 조준해서 맞히는 공격이 아니라 평타로 들어가야 함
+    const AMonsterBase* HitMonster = Cast<AMonsterBase>(HitActor);
+    const float HeadshotDamage = (HitMonster && HitMonster->IsHeadshotHit(HitResult)) ? Damage * HEADSHOT_DAMAGE_MULTIPLIER : Damage;
+
     //맞은 대상에게 먼저 데미지 벽이나 바닥을 맞혔으면 스탯이 없어서 0
-    const float AppliedDamage = ApplyAugmentDamageToTarget(DamageCauser, HitActor, Damage);
+    const float AppliedDamage = ApplyAugmentDamageToTarget(DamageCauser, HitActor, HeadshotDamage);
 
     if (!Shooter)
     {
@@ -319,6 +329,7 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
     }
 
     //벽을 맞혀도 적중 지점 주변에 범위 공격이 터지도록 대상 유무와 상관없이 부름
+    //헤드샷 배율을 뺀 원래 데미지를 넘김 범위 공격의 폭발 데미지까지 머리 배율을 타면 안 됨
     ShooterTable->ProcessWeaponHit(WeaponHitResult, Damage);
 
     return AppliedDamage;

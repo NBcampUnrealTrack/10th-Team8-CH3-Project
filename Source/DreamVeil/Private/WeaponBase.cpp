@@ -129,15 +129,27 @@ void UWeaponBase::PlayImpactEffect(const FHitResult& Hit)
 {
 	//맞은 게 폰이면 피 벽 바닥 물건이면 파편
 	//몬스터 클래스가 아니라 폰으로 나누는 이유 나중에 몬스터가 총을 써서 플레이어가 맞아도 무기 코드를 안 고치고 피가 나게 하려고
-	UNiagaraSystem* EffectToPlay = Cast<APawn>(Hit.GetActor()) ? BloodEffect : ImpactEffect;
+	const bool bHitPawn = Cast<APawn>(Hit.GetActor()) != nullptr;
 
-	if (!EffectToPlay)
+	//맞은 면의 바깥 방향(법선)을 이펙트의 앞(X축)으로 삼아서 표면 밖으로 튀게 함
+	const FRotator ImpactRotation = Hit.ImpactNormal.Rotation();
+
+	//같은 자리에 두 개를 겹쳐서 재생
+	//맞은 대상에 따라 달라지는 연출(피 파편)과 어디를 맞았든 공통으로 나는 탄착 연출을 나눠서 관리하려는 것
+	SpawnImpactEffect(bHitPawn ? BloodEffect : ImpactEffect, Hit.ImpactPoint, ImpactRotation);
+	SpawnImpactEffect(bHitPawn ? BloodPointEffect : ImpactPointEffect, Hit.ImpactPoint, ImpactRotation);
+}
+
+//이펙트 하나를 탄착점에 재생
+void UWeaponBase::SpawnImpactEffect(UNiagaraSystem* Effect, const FVector& Location, const FRotator& Rotation)
+{
+	//안 넣은 칸은 그냥 건너뜀 네 칸을 전부 채우지 않아도 되게 함
+	if (!Effect)
 	{
 		return;
 	}
 
-	//맞은 면의 바깥 방향(법선)을 이펙트의 앞(X축)으로 삼아서 표면 밖으로 튀게 함
-	UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, EffectToPlay, Hit.ImpactPoint, Hit.ImpactNormal.Rotation());
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Effect, Location, Rotation);
 }
 
 //이 총에 끼울 수 있는 칸

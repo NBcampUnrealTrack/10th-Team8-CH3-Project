@@ -1,3 +1,4 @@
+	//맞은 곳에 이펙트를 재생 폰이면 피 아니면 파편
 #pragma once
 
 #include "CoreMinimal.h"
@@ -110,6 +111,16 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
 	TObjectPtr<UNiagaraSystem> BloodEffect;
 
+	//폰이 아닌 곳에 맞았을 때 파편과 같이 겹쳐 재생할 탄착 이펙트
+	//파편과 따로 두는 이유 파편은 무엇을 맞혔는지(돌 나무)를 보여주고 이쪽은 어디를 맞혔는지를 보여줘서 역할이 다름
+	//같은 에셋을 두 칸에 넣어도 되고 비워두면 기존처럼 하나만 재생됨
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
+	TObjectPtr<UNiagaraSystem> ImpactPointEffect;
+
+	//폰에 맞았을 때 피와 같이 겹쳐 재생할 탄착 이펙트
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
+	TObjectPtr<UNiagaraSystem> BloodPointEffect;
+
 private:
 	//마지막으로 쏜 시각 게임 시작 직후 첫 발이 바로 나가도록 아주 옛날 시각으로 시작
 	float LastFireTime = -100.0f;
@@ -121,6 +132,10 @@ private:
 	//총구 불꽃과 발사음을 재생
 	void PlayMuzzleEffects(const FVector& MuzzleLocation);
 
-	//맞은 곳에 이펙트를 재생 폰이면 피 아니면 파편
+	//맞은 곳에 이펙트를 재생 폰이면 피 아니면 파편 거기에 탄착 이펙트를 겹쳐서 둘씩 재생
 	void PlayImpactEffect(const FHitResult& Hit);
+
+	//이펙트 하나를 탄착점에 재생 비어 있으면 아무것도 하지 않음
+	//네 칸을 같은 규칙으로 재생하려고 뺌 빈 칸 검사를 칸마다 쓰지 않게 됨
+	void SpawnImpactEffect(UNiagaraSystem* Effect, const FVector& Location, const FRotator& Rotation);
 };

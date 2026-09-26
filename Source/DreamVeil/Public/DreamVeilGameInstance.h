@@ -60,6 +60,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	bool OpenNextLevel();
 
+	//고른 레벨로 들어감 침대의 레벨 선택 UI가 버튼마다 이걸 부를 것
+	//아직 안 열린 레벨(IsLevelUnlocked가 false)이면 아무것도 하지 않고 false라서 UI가 버튼을 막지 못해도 안전함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	bool OpenLevelByNumber(int32 LevelNumber);
+
 	//지금 레벨을 깼을 때 진행도를 올리고 로비로 돌아감 게임모드가 제한 시간 안에 다 잡았거나 보스를 잡았을 때 부름
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void CompleteCurrentLevel();
@@ -98,6 +103,12 @@ public:
 	//그 레벨에 들어갈 수 있는지 L1은 처음부터 열려 있고 하나 깰 때마다 다음 레벨이 열림 상점 등급 해금에도 씀
 	UFUNCTION(BlueprintPure, Category = "Level")
 	bool IsLevelUnlocked(int32 LevelNumber) const;
+
+	//그 레벨을 이미 깼는지 침대의 꿈 선택 UI가 깬 꿈에 표시를 달 때 씀
+	//IsLevelUnlocked만으로는 "열렸지만 아직 안 깬 꿈"과 "이미 깬 꿈"을 구분할 수 없어서 따로 둠
+	//깬 레벨 수를 그대로 열어주지 않는 이유 UI가 진행도 숫자를 직접 다루기 시작하면 해금 규칙이 두 군데로 갈라짐
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsLevelCleared(int32 LevelNumber) const;
 
 	// 난이도
 
