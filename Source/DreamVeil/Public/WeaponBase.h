@@ -1,4 +1,3 @@
-	//맞은 곳에 이펙트를 재생 폰이면 피 아니면 파편
 #pragma once
 
 #include "CoreMinimal.h"

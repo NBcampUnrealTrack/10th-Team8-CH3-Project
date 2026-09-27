@@ -34,23 +34,8 @@ void ABossMonster::MonsterInit()
 	//시작은 항상 1페이즈
 	CurrentPhase = 1;
 
-	//스킬 컴포넌트에 지금 페이즈와 레벨을 알려줌
 	//스킬마다 RequiredPhase RequiredLevel이 있어서 이 값이 낮으면 뒤 스킬이 잠겨 있음
-	//레벨을 같이 넘기는 이유 같은 보스라도 L1에서는 기본 패턴만 L4에서는 전부 쓰게 하려는 것
-	if (IsValid(MonsterSkill))
-	{
-		const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-
-		//Endless는 레벨 번호가 없으므로 마지막 레벨로 취급함 L4를 깨야 열리는 곳이라 그보다 낮을 이유가 없음
-		int32 LevelNumber = DreamVeilGameInstance ? DreamVeilGameInstance->GetCurrentLevelNumber() : 1;
-
-		if (DreamVeilGameInstance && DreamVeilGameInstance->IsInEndless())
-		{
-			LevelNumber = DreamVeilGameInstance->GetLevelCount();
-		}
-
-		MonsterSkill->SetProgression(CurrentPhase, FMath::Max(LevelNumber, 1));
-	}
+	ApplySkillProgression();
 }
 
 int32 ABossMonster::GetCurrentPhase() const
@@ -104,25 +89,34 @@ void ABossMonster::UpdatePhase(float HealthPercentage)
 		GetCharacterMovement()->MaxWalkSpeed = MonsterWalkSpeed;
 	}
 
-	//새 페이즈에서 열리는 스킬이 있으면 여기서 풀림 레벨은 그대로 둠
-	if (IsValid(MonsterSkill))
-	{
-		const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-
-		int32 LevelNumber = DreamVeilGameInstance ? DreamVeilGameInstance->GetCurrentLevelNumber() : 1;
-
-		if (DreamVeilGameInstance && DreamVeilGameInstance->IsInEndless())
-		{
-			LevelNumber = DreamVeilGameInstance->GetLevelCount();
-		}
-
-		MonsterSkill->SetProgression(CurrentPhase, FMath::Max(LevelNumber, 1));
-	}
+	//새 페이즈에서 열리는 스킬이 있으면 여기서 풀림
+	ApplySkillProgression();
 
 	//페이즈가 오르면 스킬이 더 잦아지므로 타이머 간격도 다시 계산함
 	RestartSkillTimer();
 
 	OnBossPhaseChanged.Broadcast(CurrentPhase, BOSS_PHASE_COUNT);
+}
+
+void ABossMonster::ApplySkillProgression()
+{
+	if (!IsValid(MonsterSkill))
+	{
+		return;
+	}
+
+	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+	int32 LevelNumber = DreamVeilGameInstance ? DreamVeilGameInstance->GetCurrentLevelNumber() : 1;
+
+	//Endless는 레벨 번호가 없으므로 마지막 레벨로 취급함 L4를 깨야 열리는 곳이라 그보다 낮을 이유가 없음
+	if (DreamVeilGameInstance && DreamVeilGameInstance->IsInEndless())
+	{
+		LevelNumber = DreamVeilGameInstance->GetLevelCount();
+	}
+
+	//레벨을 같이 넘기는 이유 같은 보스라도 L1에서는 기본 패턴만 L4에서는 전부 쓰게 하려는 것
+	MonsterSkill->SetProgression(CurrentPhase, FMath::Max(LevelNumber, 1));
 }
 
 void ABossMonster::RestartSkillTimer()

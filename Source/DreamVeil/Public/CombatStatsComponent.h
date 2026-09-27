@@ -1,4 +1,3 @@
-	//bIgnoreDefence가 true면 방어력을 빼지 않음 독 데미지용
 #pragma once
 
 #include "CoreMinimal.h"

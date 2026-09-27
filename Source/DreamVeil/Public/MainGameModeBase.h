@@ -15,11 +15,6 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 	int32, TotalWaves
 );
 
-//마지막 레벨에서 웨이브를 다 넘기고 몬스터도 다 잡았을 때 한 번
-//UI는 이걸 받아서 보스에 도전할지 로비로 돌아갈지 묻는 창을 띄울 것
-DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnBossChoiceReady);
-
-
 //레벨이 끝나는 조건을 정함
 //제한 시간 안에 몬스터를 다 잡으면 클리어해서 다음 레벨이 열림 시간을 넘기면 실패하고 로비로 돌아감
 //보스가 있는 레벨(L4)은 보스를 잡는 순간 클리어 L4를 깨야 Endless가 열림
@@ -54,10 +49,6 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Level|Wave")
 	FOnWaveChanged OnWaveChanged;
 
-	//마지막 레벨에서 보스 도전 여부를 물어야 할 때 알림
-	UPROPERTY(BlueprintAssignable, Category = "Level|Boss")
-	FOnBossChoiceReady OnBossChoiceReady;
-
 	//지금 몇 번째 웨이브인지 아직 시작 전이면 0
 	UFUNCTION(BlueprintPure, Category = "Level|Wave")
 	int32 GetCurrentWave() const;
@@ -65,15 +56,6 @@ public:
 	//이 레벨의 전체 웨이브 수
 	UFUNCTION(BlueprintPure, Category = "Level|Wave")
 	int32 GetWaveCount() const;
-
-	//보스에 도전 보스 선택 UI의 도전 버튼이 부를 것
-	//보스를 내고 웨이브도 계속 돌려서 보스전 중에도 잡몹이 나옴
-	UFUNCTION(BlueprintCallable, Category = "Level|Boss")
-	void AcceptBossChallenge();
-
-	//보스를 넘기고 로비로 보스 선택 UI의 돌아가기 버튼이 부를 것
-	UFUNCTION(BlueprintCallable, Category = "Level|Boss")
-	void DeclineBossChallenge();
 
 protected:
 	//레벨 제한 시간 초 이 안에 다 잡아야 클리어 넘기면 실패 블루프린트 게임모드에서 바꿀 수 있음
@@ -88,15 +70,6 @@ protected:
 	//제한 시간과 맞추려면 WaveInterval x WaveCount 가 LevelTimeLimit 이하여야 함
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	int32 WaveCount = 6;
-
-	//웨이브 한 번에 스폰 볼륨 하나가 낼 몬스터 수
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
-	int32 MonstersPerWave = 4;
-
-	//한 마리씩 낼 때 사이 간격 초 0.5면 4마리가 1.5초에 걸쳐 나옴
-	//한꺼번에 쏟아지지 않게 끊어 내려는 것
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
-	float WaveSpawnInterval = 0.5f;
 
 	//스폰 볼륨에게 내라고 신호를 보내는 주기 초
 	//웨이브마다 몰아서 내지 않고 이 주기로 꾸준히 내보냄 몇 마리를 낼지는 볼륨이 정함
@@ -127,9 +100,6 @@ private:
 	//지금까지 내보낸 웨이브 수 아직 시작 전이면 0
 	int32 CurrentWave = 0;
 
-	//보스 도전 여부를 묻는 창이 떠 있는지 답을 두 번 받지 않으려고 둠
-	bool bBossChoicePending = false;
-
 	//보스를 이미 냈는지 보스를 내고 나면 잡몹이 다 죽어도 선택지를 다시 묻지 않음
 	bool bBossSpawned = false;
 
@@ -153,9 +123,6 @@ private:
 
 	//보스를 냄 도전을 고른 뒤에 불림
 	void SpawnBoss();
-
-	//지금 맵이 마지막 레벨(보스가 있는 곳)인지
-	bool IsFinalLevel() const;
 
 	//레벨 제한 시간 타이머 L1~L4에서만 걸림
 	//타이머를 건 적이 없거나 레벨을 이미 끝냈으면 무효 상태라서 레벨이 두 번 끝나는 걸 막는 표시로도 씀

@@ -71,6 +71,10 @@ private:
 	//회복 수단이 생겨도 페이즈가 되돌아가면 연출과 스킬이 오락가락해서 올라가기만 하게 막음
 	void UpdatePhase(float HealthPercentage);
 
+	//스킬 컴포넌트에 지금 페이즈와 레벨을 알려줌
+	//레벨을 구하는 방법(Endless면 마지막 레벨로 취급)이 시작할 때와 페이즈가 오를 때 똑같아서 한 곳에 둠
+	void ApplySkillProgression();
+
 	//쓸 수 있는 스킬 중 하나를 무작위로 씀 없으면 아무 일도 안 함
 	void TryUseRandomSkill();
 

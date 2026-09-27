@@ -156,54 +156,6 @@ int32 AMainGameModeBase::GetWaveCount() const
 	return WaveCount;
 }
 
-//지금 맵이 마지막 레벨인지
-bool AMainGameModeBase::IsFinalLevel() const
-{
-	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-
-	if (!DreamVeilGameInstance)
-	{
-		return false;
-	}
-
-	//레벨 번호가 0이면 로비나 메인 메뉴라 마지막 레벨이 아님
-	const int32 LevelNumber = DreamVeilGameInstance->GetCurrentLevelNumber();
-
-	return LevelNumber > 0 && LevelNumber >= DreamVeilGameInstance->GetLevelCount();
-}
-
-//보스에 도전
-void AMainGameModeBase::AcceptBossChallenge()
-{
-	//선택 창이 떠 있지 않은데 불리면 무시 버튼을 두 번 눌러도 보스가 둘 나오지 않음
-	if (!bBossChoicePending)
-	{
-		return;
-	}
-
-	bBossChoicePending = false;
-	bBossSpawned = true;
-
-	SpawnBoss();
-
-	//보스전에도 잡몹이 계속 나오게 스폰 신호를 다시 돌림
-	//웨이브 수를 세는 CurrentWave는 그대로 둬서 HUD에는 마지막 웨이브로 표시됨
-	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, FMath::Max(ContinuousSpawnInterval, 0.1f), true);
-}
-
-//보스를 넘기고 로비로
-void AMainGameModeBase::DeclineBossChallenge()
-{
-	if (!bBossChoicePending)
-	{
-		return;
-	}
-
-	bBossChoicePending = false;
-
-	ClearLevel();
-}
-
 //보스를 냄
 void AMainGameModeBase::SpawnBoss()
 {

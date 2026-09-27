@@ -1,6 +1,3 @@
-//지속 공격 독 데미지에 붙이는 표식
-	//지속 공격 독 데미지를 보냄 독 표식이 붙어서 흡혈과 가시 갑옷 반사가 일어나지 않음
-	//독으로 들어온 데미지인지 확인
 // Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
