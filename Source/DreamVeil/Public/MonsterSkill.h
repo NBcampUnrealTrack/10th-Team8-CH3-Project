@@ -2,7 +2,12 @@
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "SingleAnimationPlayData.h"
+#include "TimerManager.h"
 #include "MonsterSkill.generated.h"
+
+class UAnimSequence;
 
 // 새 패턴은 여기에 추가하고 컴포넌트의 실행 분기에 구현한다.
 UENUM(BlueprintType)
@@ -66,7 +71,27 @@ public:
     UFUNCTION(BlueprintPure, Category = "Monster|Skill")
     bool IsUsingSkill() const { return bIsUsingSkill; }
 
+    //기존 BeginSkill은 상태만 설정한다. 실제 패턴 실행은 이 진입점에서 연결한다.
+    UFUNCTION(BlueprintCallable, Category = "Monster|Skill")
+    bool TryUseSkill(EMonsterSkillType Skill);
+
+    //플레이어에게 적용할 기본 피해량이며 기존 피해 처리에서 방어력 등이 반영된다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "0"))
+    float ChargeDamage = 30.0f;
+
+    //아직 모션이 없으면 비워 둔다. 준비 중에는 이 제자리 걷기를 반복 재생한다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|Charge")
+    TObjectPtr<UAnimSequence> ChargeReadyAnimation;
+
+    //돌진 중 반복 재생할 달리기 모션. 이동 거리는 애니메이션이 아니라 코드가 결정한다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|Charge")
+    TObjectPtr<UAnimSequence> ChargeRunAnimation;
+
 protected:
+    virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill", meta = (ClampMin = "1"))
     int32 CurrentPhase = 1;
 
@@ -74,6 +99,30 @@ protected:
     int32 CurrentLevel = 1;
 
 private:
+    //엘리트는 짧은 간격으로 거리와 쿨타임을 확인하고, 보스는 기존 선택 타이머를 사용한다.
+    void CheckChargeRange();
+    void StartCharge();
+    void CheckChargeHits(const FVector& Start, const FVector& End);
+    void CleanupCharge();
+    void PlayChargeAnimation(UAnimSequence* Animation);
+
+    FTimerHandle ChargeCheckTimer;
+    FTimerHandle ChargeReadyTimer;
+    FVector ChargeDirection = FVector::ZeroVector;
+    FVector ChargeStart = FVector::ZeroVector;
+    FVector PreviousChargeLocation = FVector::ZeroVector;
+    double ChargeEndTime = 0.0;
+    bool bChargePrepared = false;
+    bool bCharging = false;
+    bool bSavedAvoidance = false;
+    //액터가 파괴돼도 참조를 붙잡지 않으면서 한 번의 돌진에 중복 적중을 막는다.
+    TSet<TWeakObjectPtr<AActor>> ChargeHitActors;
+    FCollisionResponseContainer SavedCapsuleResponses;
+    bool bAnimationOverridden = false;
+    EAnimationMode::Type SavedAnimationMode = EAnimationMode::AnimationBlueprint;
+    UPROPERTY(Transient)
+    FSingleAnimationPlayData SavedAnimationData;
+
     const FMonsterSkillSettings* FindSettings(EMonsterSkillType Skill) const;
     TMap<EMonsterSkillType, double> NextUseTimes;
     bool bIsUsingSkill = false;
