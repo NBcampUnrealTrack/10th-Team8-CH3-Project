@@ -722,10 +722,43 @@ void AMainPlayerCharacter::SetAugmentChoicePaused(bool bPaused)
 }
 
 //쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
+//놓친 증강 선택지를 다시 띄움
+void AMainPlayerCharacter::RefreshAugmentChoices()
+{
+	//이미 뽑아둔 선택지가 있으면 새로 뽑지 않고 그것부터 다시 알림
+	//새로 뽑으면 플레이어가 보던 선택지가 바뀌고 보상 한 칸이 그냥 사라짐
+	if (CurrentAugmentChoices.Num() > 0)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Augment] 떠 있던 선택지 %d개를 다시 방송"), CurrentAugmentChoices.Num());
+
+		SetAugmentChoicePaused(true);
+
+		OnAugmentChoicesReady.Broadcast(CurrentAugmentChoices);
+
+		return;
+	}
+
+	//밀린 보상이 있으면 여기서 뽑아서 띄움 없으면 아무 일도 안 일어남
+	DrawNextAugmentChoices();
+}
+
 void AMainPlayerCharacter::DrawNextAugmentChoices()
 {
 	if (!DispatchTable)
 	{
+		return;
+	}
+
+	//띄울 쪽이 아무도 없으면 뽑지도 않고 그대로 둠
+	//뽑아놓고 돌아가면 CurrentAugmentChoices가 채워진 채로 남아서
+	//AddExperience의 "이미 창이 떠 있으면 건너뛴다" 검사에 걸려 다음 레벨업부터 영영 안 뜸
+	//여기서 멈추면 보상 개수가 그대로 남아 위젯이 붙은 뒤 다음 레벨업에 한꺼번에 나옴
+	if (PendingAugmentChoiceCount > 0 && !OnAugmentChoicesReady.IsBound())
+	{
+		UE_LOG(LogTemp, Warning,
+			TEXT("[Augment] 쌓인 보상 %d개가 있는데 OnAugmentChoicesReady에 붙은 위젯이 없음 아무것도 안 하고 넘어감"),
+			PendingAugmentChoiceCount);
+
 		return;
 	}
 
@@ -735,17 +768,6 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 
 		if (DispatchTable->DrawAugmentChoices(CurrentAugmentChoices))
 		{
-			//선택창을 띄울 쪽이 아무도 없으면 멈추지 않음
-			//멈춰놓고 창이 안 뜨면 입력까지 막혀서 플레이어가 아무것도 못 하는 상태로 갇힘
-			//뽑은 선택지는 버리지 않고 남겨둬서 위젯이 붙거나 CheatPickAugment로 고를 수 있게 함
-			if (!OnAugmentChoicesReady.IsBound())
-			{
-				UE_LOG(LogTemp, Warning,
-					TEXT("[Augment] 선택지 %d개를 뽑았지만 OnAugmentChoicesReady에 붙은 위젯이 없음 게임을 멈추지 않고 넘어감 CheatPickAugment 0으로 고를 수 있음"),
-					CurrentAugmentChoices.Num());
-
-				return;
-			}
 
 			//고르는 동안 몬스터가 때리지 못하게 여기서 멈춤
 			//UI가 어떻게 만들어졌든 상관없이 멈추도록 C++에서 처리함 위젯 쪽 배선에 기대지 않으려는 것
@@ -759,6 +781,10 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 			return;
 		}
 	}
+
+	//여기까지 왔다는 건 뽑기가 한 번도 성공하지 못했다는 뜻
+	//조용히 버리면 레벨업만 되고 창은 안 뜨는데 원인을 알 길이 없음
+	UE_LOG(LogTemp, Error, TEXT("[Augment] 뽑을 증강이 없어 보상을 버림 증강 풀이 비었는지 확인할 것"));
 
 	//풀이 비어서 뽑을 증강이 없으면 남은 보상은 버림
 	CurrentAugmentChoices.Empty();

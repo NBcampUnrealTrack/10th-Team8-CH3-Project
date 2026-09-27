@@ -20,7 +20,8 @@ UDispatchTableComponent::UDispatchTableComponent()
 
     RegisterSkillClasses();
 
-    //블루프린트에서 목록을 따로 채워두면 저장된 값이 이걸 덮어씀
+    //여기서 채운 값은 블루프린트에 저장된 값이 덮어씀
+    //그래서 BeginPlay에서 한 번 더 확인함 비어 있으면 그때 다시 채움
     AugmentPool.BuildDefault();
 }
 
@@ -385,6 +386,16 @@ UAugmentSkillBase* UDispatchTableComponent::FindOrCreateSkill(EAugmentID Augment
 void UDispatchTableComponent::BeginPlay()
 {
     Super::BeginPlay();
+
+    //생성자에서 채운 풀을 블루프린트 저장값이 빈 배열로 덮어쓰는 경우가 있음
+    //그러면 레벨업을 해도 뽑을 증강이 없어서 보상만 조용히 사라짐
+    //BuildDefault는 이미 차 있으면 건너뛰므로 블루프린트에서 일부러 채운 목록은 그대로 둠
+    AugmentPool.BuildDefault();
+
+    if (AugmentPool.Augments.Num() == 0)
+    {
+        UE_LOG(LogTemp, Error, TEXT("[Augment] 증강 풀이 비어 있음 레벨업을 해도 선택지가 안 나옴"));
+    }
 
     AActor* OwnerActor = GetOwner();
 

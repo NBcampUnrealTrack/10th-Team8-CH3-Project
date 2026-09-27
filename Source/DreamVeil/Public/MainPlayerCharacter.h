@@ -207,6 +207,13 @@ public:
 
 	// 레벨업 보상 증강 선택 UI가 씀
 
+	//놓친 증강 선택지를 다시 띄움 위젯이 바인딩한 직후에 한 번 부를 것
+	//컨트롤러나 HUD가 바인딩하기 전에 레벨업이 일어나면 방송을 놓침
+	//레벨을 넘어오면서 캐릭터가 새로 만들어지는 구조라 누가 먼저 준비되는지가 판마다 다름
+	//이걸 부르면 떠 있던 선택지는 다시 알리고 밀린 보상이 있으면 새로 뽑아서 띄움
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	void RefreshAugmentChoices();
+
 	//고를 증강 선택지가 준비됐을 때 이벤트 UI는 이걸 받아서 선택 창을 띄울 것
 	UPROPERTY(BlueprintAssignable, Category = "Augment")
 	FOnAugmentChoicesReady OnAugmentChoicesReady;
