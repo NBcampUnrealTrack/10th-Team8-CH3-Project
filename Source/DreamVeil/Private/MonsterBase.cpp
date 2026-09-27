@@ -22,6 +22,7 @@
 #include "MainPlayerCharacter.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "MonsterCollision.h"
+#include "AI/Navigation/AvoidanceManager.h"
 
 AMonsterBase::AMonsterBase()
 {
@@ -144,6 +145,8 @@ void AMonsterBase::BeginPlay()
 	// 여기서 자식클래스가 재구성한 MonsterInit이 호출될거니 나머지 BeginPlay에선 호출 ㄴㄴ
 	MonsterInit();
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// 레그돌에서 일어날 때 메시를 캡슐의 원래 자리에 다시 붙이기 위해 기억해둠
+	CachedMeshRelativeTransform = GetMesh()->GetRelativeTransform();
 	GetMesh()->SetCanEverAffectNavigation(false);
 	//서로 피해 가기(RVO)를 켬 끄면 몬스터들이 플레이어까지 최단 경로 하나에 전부 몰려서
 	//한 줄로 줄지어 오거나 한 지점에서 서로 밀며 겹쳐 보임 캡슐끼리 막기만으로는 이게 안 풀림
@@ -330,6 +333,8 @@ float AMonsterBase::GetMonsterAttackRange() const
 // 이 함수에 변수명이 겹칠 사항들이 많이 보여서 구분을 위해 겹칠만한 변수명 앞에 다 Temp붙여뒀음.
 bool AMonsterBase::StartAttack(AActor* Target)
 {
+	// 레그돌 중이거나 일어나는 중에는 공격 금지
+	if (bIsRagdoll) return false;
 	if (MonsterSkill && MonsterSkill->IsUsingSkill()) return false;
 	// 공격 조건 충족 여부 확인
 	if (bIsAttacking || !IsValid(Target) || Target == this) return false;
@@ -411,7 +416,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 // 공격판정 여기서 
 void AMonsterBase::ExecuteAttack()
 {
-	if (!bIsAttacking || bAttackExecuted) return;
+	if (bIsRagdoll || !bIsAttacking || bAttackExecuted) return;
 
 	bAttackExecuted = true;
 
@@ -523,6 +528,19 @@ void AMonsterBase::BeginRagdoll(const FVector& LaunchVelocity)
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
 
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	Movement->SetAvoidanceEnabled(false);
+
+	//이 밑 if문은 피하는 로직의 값이 레그돌 됐을 때 그대로 남아있는 걸 삭제하는 로직.
+	if (UAvoidanceManager* AvoidanceManager = GetWorld()->GetAvoidanceManager())
+	{
+		if (Movement->AvoidanceUID != 0)
+		{
+			AvoidanceManager->RemoveAvoidanceObject(Movement->AvoidanceUID);
+			Movement->AvoidanceUID = 0;
+		}
+	}
+
 	// Character Class 기본으로 들어있는 캡슐 컴포넌트만 플레이어랑 충돌하니까 그거 꺼버리는거임
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	// 피격 콜리전도 꺼버릴까 해서 일단 여따 적어둡니다
@@ -553,6 +571,117 @@ void AMonsterBase::BeginRagdoll(const FVector& LaunchVelocity)
 		true,			//false면 질량을 반영, true면 질량을 무시한 절대 속도값을 적용.
 		true			//false면 해당 자식의 몸체에만 적용, true면 지정한 시작 뼈의 물리 몸체도 포함함.
 	);
+
+	// 일정 시간 뒤 기상 시도
+	GetWorldTimerManager().SetTimer(RagdollRecoverTimer, this, &AMonsterBase::TryEndRagdoll, FMath::Max(0.1f, RagdollRecoverDelay), false);
+}
+
+void AMonsterBase::TryEndRagdoll()
+{
+	USkeletalMeshComponent* SkeletalMesh = GetMesh();
+	if (!bIsRagdoll || bIsGettingUp || !SkeletalMesh || !MonsterCombatStats || MonsterCombatStats->IsDead()) return;
+
+	// 골반 뼈가 없으면 루트 뼈 기준으로 처리
+	const FName PelvisBone = SkeletalMesh->DoesSocketExist(PelvisBoneName) ? PelvisBoneName : SkeletalMesh->GetBoneName(0);
+
+	// 아직 굴러가거나 날아가는 중이면 조금 뒤에 다시 시도. 너무 오래 안 멈추면 그냥 일으킴
+	RagdollSettleWaitTime += RagdollSettleRetryInterval;
+	const bool bStillMoving = SkeletalMesh->GetPhysicsLinearVelocity(PelvisBone).SizeSquared() > FMath::Square(RagdollSettleSpeed);
+	if (bStillMoving && RagdollSettleWaitTime < RagdollMaxSettleWait)
+	{
+		GetWorldTimerManager().SetTimer(RagdollRecoverTimer, this, &AMonsterBase::TryEndRagdoll, RagdollSettleRetryInterval, false);
+		return;
+	}
+	RagdollSettleWaitTime = 0.0f;
+
+	// 1) 쓰러진 자세 판단. 반드시 물리를 끄기 전에 뼈 위치를 읽어야 함
+	const FVector PelvisLocation = SkeletalMesh->GetSocketLocation(PelvisBone);
+	const FRotator PelvisRotation = SkeletalMesh->GetSocketRotation(PelvisBone);
+	// 스켈레톤마다 골반 뼈의 축 방향이 달라서 결과가 반대로 나오면 bFlipRagdollFaceUpCheck를 켜면 됨
+	bool bFaceUp = FRotationMatrix(PelvisRotation).GetScaledAxis(EAxis::Y).Z > 0.0f;
+	if (bFlipRagdollFaceUpCheck) bFaceUp = !bFaceUp;
+
+	// 골반에서 머리 쪽 방향. 엎어져 있으면 그 방향을, 누워 있으면 반대 방향을 바라보고 일어남
+	FVector BodyDirection = FVector::ZeroVector;
+	if (SkeletalMesh->DoesSocketExist(HeadSocketName))
+	{
+		BodyDirection = SkeletalMesh->GetSocketLocation(HeadSocketName) - PelvisLocation;
+	}
+	BodyDirection.Z = 0.0f;
+	if (bFaceUp) BodyDirection *= -1.0f;
+	const FRotator NewRotation = BodyDirection.IsNearlyZero() ? FRotator(0.0f, GetActorRotation().Yaw, 0.0f) : BodyDirection.Rotation();
+
+	// 2) 골반 아래 바닥을 찾아서 캡슐이 설 위치 계산
+	const float HalfHeight = GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+	FVector NewLocation = PelvisLocation + FVector(0.0f, 0.0f, HalfHeight);
+	FHitResult FloorHit;
+	FCollisionQueryParams FloorParams(SCENE_QUERY_STAT(RagdollFloor), false, this);
+	if (GetWorld()->LineTraceSingleByObjectType(
+		FloorHit,
+		PelvisLocation + FVector(0.0f, 0.0f, 100.0f),
+		PelvisLocation - FVector(0.0f, 0.0f, 1000.0f),
+		FCollisionObjectQueryParams(ECC_WorldStatic),
+		FloorParams))
+	{
+		// 살짝 띄워서 바닥에 끼지 않게 함
+		NewLocation = FloorHit.ImpactPoint + FVector(0.0f, 0.0f, HalfHeight + 2.0f);
+	}
+
+	// 3) 물리 끄고 캡슐을 쓰러진 곳으로 옮긴 뒤 메시를 다시 캡슐에 붙임
+	SkeletalMesh->SetSimulatePhysics(false);
+	SkeletalMesh->SetAllBodiesPhysicsBlendWeight(0.0f);
+	SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	SetActorLocationAndRotation(NewLocation, NewRotation, false, nullptr, ETeleportType::TeleportPhysics);
+	SkeletalMesh->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+	SkeletalMesh->SetRelativeTransform(CachedMeshRelativeTransform);
+
+	// 4) 충돌과 이동 복구. MonsterInit에서 잡은 값과 동일하게
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
+	if (IsValid(MonsterCollisionComponent))
+	{
+		MonsterCollisionComponent->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+	}
+	UCharacterMovementComponent* Movement = GetCharacterMovement();
+	Movement->SetDefaultMovementMode();
+	Movement->StopMovementImmediately();
+	// BeginRagdoll에서 AvoidanceUID를 0으로 돌려놨으니 여기서 다시 등록됨
+	Movement->SetAvoidanceEnabled(true);
+
+	// 5) 기상 몽타주 재생. 몽타주가 없거나 재생 실패하면 바로 복귀
+	UAnimMontage* GetUpMontage = bFaceUp ? GetUpFromBackMontage.Get() : GetUpFromFrontMontage.Get();
+	UAnimInstance* AnimInstance = SkeletalMesh->GetAnimInstance();
+	if (AnimInstance && GetUpMontage && AnimInstance->Montage_Play(GetUpMontage) > 0.0f)
+	{
+		bIsGettingUp = true;
+		ActiveGetUpMontage = GetUpMontage;
+
+		FOnMontageEnded EndDelegate;
+		EndDelegate.BindUObject(this, &AMonsterBase::HandleGetUpMontageEnded);
+		AnimInstance->Montage_SetEndDelegate(EndDelegate, GetUpMontage);
+		return;
+	}
+
+	FinishGetUp();
+}
+
+void AMonsterBase::HandleGetUpMontageEnded(UAnimMontage* Montage, bool bInterrupted)
+{
+	if (!bIsGettingUp || Montage != ActiveGetUpMontage.Get()) return;
+	FinishGetUp();
+}
+
+void AMonsterBase::FinishGetUp()
+{
+	bIsGettingUp = false;
+	ActiveGetUpMontage = nullptr;
+	bIsRagdoll = false;
+
+	// BT의 IsRagdoll을 false로 돌려서 기존 로직 재개
+	if (AMonsterAIController* AIController = Cast<AMonsterAIController>(GetController()))
+	{
+		AIController->SetRagdollState(false);
+	}
 }
 EMonsterAttackType AMonsterBase::GetAttackType() const
 {
@@ -584,6 +713,8 @@ bool AMonsterBase::IsHeadshotHit(const FHitResult& HitResult) const
 
 void AMonsterBase::OnDeath()
 {
+	// 레그돌 중에 죽으면 기상 시도하지 않도록
+	GetWorldTimerManager().ClearTimer(RagdollRecoverTimer);
 	CancelAttack();
 	HideAttackWarning();
 	Destroy();

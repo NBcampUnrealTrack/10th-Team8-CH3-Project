@@ -8,6 +8,7 @@
 
 class UCapsuleComponent;
 class USkeletalMeshComponent;
+class UMonsterSkill;
 
 UCLASS()
 class DREAMVEIL_API AEliteMonster : public AMonsterBase
@@ -30,5 +31,4 @@ protected:
 
 	TObjectPtr<UCapsuleComponent> MonsterCapsuleCollisionComponent;
 	TObjectPtr<USkeletalMeshComponent> MonsterSkeletalMeshComponent;
-
 };
