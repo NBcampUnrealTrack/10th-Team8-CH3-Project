@@ -1,7 +1,10 @@
 #include "BlackHoleZone.h"
 
 #include "AugmentDamageLibrary.h"
+#include "AugmentTypes.h"
 #include "CombatStatsComponent.h"
+#include "DispatchTableComponent.h"
+#include "Particles/ParticleSystem.h"
 #include "MonsterBase.h"
 #include "Components/AudioComponent.h"
 #include "Components/DecalComponent.h"
@@ -28,6 +31,9 @@ ABlackHoleZone::ABlackHoleZone()
 	ZoneDecal->SetupAttachment(ZoneRoot);
 	ZoneDecal->SetRelativeRotation(FRotator(-90.0f, 0.0f, 0.0f));
 	ZoneDecal->SetFadeScreenSize(0.0f);
+
+	//화염탄과 같은 틱 간격으로 시작 BP에서 바꿀 수 있음
+	DamageInterval = CONTINUOUS_ATTACK_INTERVAL;
 }
 
 void ABlackHoleZone::SetFallbackWarningMaterial(UMaterialInterface* Material)
@@ -62,6 +68,9 @@ void ABlackHoleZone::EndPlay(const EEndPlayReason::Type EndPlayReason)
 	GetWorldTimerManager().ClearTimer(ArmTimer);
 	GetWorldTimerManager().ClearTimer(DamageTimer);
 	GetWorldTimerManager().ClearTimer(DurationTimer);
+
+	//어떤 이유로 사라지든 불꽃이 대상 몸에 남지 않게 끔 화염탄의 Deactivate와 같은 역할
+	ExtinguishAll();
 
 	if (IsValid(LoopAudio))
 	{
@@ -103,8 +112,98 @@ void ABlackHoleZone::ActivateZone()
 
 void ABlackHoleZone::ExpireZone()
 {
+	//장판은 끝났지만 나간 뒤에도 타는 대상이 남아 있으면 그 불이 다 꺼질 때까지 보이지 않게 남아 있음
 	bZoneActive = false;
-	Destroy();
+	bZoneExpired = true;
+	ZoneDecal->SetVisibility(false);
+	SetActorTickEnabled(false);
+	if (IsValid(LoopAudio))
+	{
+		LoopAudio->Stop();
+	}
+
+	//남은 시간이 0인 대상은 장판이 끝나는 즉시 꺼짐
+	TArray<TWeakObjectPtr<AActor>> Keys;
+	BurningTargets.GetKeys(Keys);
+	for (const TWeakObjectPtr<AActor>& WeakTarget : Keys)
+	{
+		const float* Remaining = BurningTargets.Find(WeakTarget);
+		if (!WeakTarget.IsValid() || !Remaining || *Remaining <= UE_KINDA_SMALL_NUMBER)
+		{
+			ExtinguishTarget(WeakTarget.Get());
+			BurningTargets.Remove(WeakTarget);
+		}
+	}
+
+	DestroyIfDone();
+}
+
+void ABlackHoleZone::DestroyIfDone()
+{
+	if (bZoneExpired && BurningTargets.Num() == 0)
+	{
+		Destroy();
+	}
+}
+
+UParticleSystem* ABlackHoleZone::GetOnFireEffect() const
+{
+	if (OnFireEffectOverride)
+	{
+		return OnFireEffectOverride;
+	}
+
+	//화염탄처럼 불꽃 에셋은 불을 붙인 쪽의 증강 컴포넌트가 들고 있음
+	AActor* Caster = GetInstigator() ? static_cast<AActor*>(GetInstigator()) : GetOwner();
+	const UDispatchTableComponent* CasterTable = Caster ? Caster->FindComponentByClass<UDispatchTableComponent>() : nullptr;
+	return CasterTable ? CasterTable->OnFireEffect.Get() : nullptr;
+}
+
+void ABlackHoleZone::RefreshBurningTargets(const TArray<AActor*>& InZoneTargets)
+{
+	for (AActor* Target : InZoneTargets)
+	{
+		//이미 타고 있으면 남은 시간만 다시 채움
+		BurningTargets.FindOrAdd(Target) = BurnLingerSeconds;
+
+		//불붙은 상태는 대상 본인이 들고 있음 IsOnFire로 확인해서 이미 타고 있으면 건드리지 않음
+		//다른 장판이 먼저 불을 꺼버린 경우에도 여기서 다시 붙음
+		if (UCombatStatsComponent* TargetStats = Target->FindComponentByClass<UCombatStatsComponent>())
+		{
+			if (!TargetStats->IsOnFire())
+			{
+				TargetStats->SetOnFire(true, GetOnFireEffect());
+			}
+		}
+	}
+}
+
+void ABlackHoleZone::ExtinguishTarget(AActor* Target)
+{
+	if (IsValid(Target))
+	{
+		if (UCombatStatsComponent* TargetStats = Target->FindComponentByClass<UCombatStatsComponent>())
+		{
+			TargetStats->SetOnFire(false, nullptr);
+		}
+		BurningTargets.Remove(Target);
+	}
+}
+
+void ABlackHoleZone::ExtinguishAll()
+{
+	for (const TPair<TWeakObjectPtr<AActor>, float>& BurnPair : BurningTargets)
+	{
+		//이미 사라진 대상은 Get이 nullptr이라 건너뜀 그때는 불꽃도 같이 사라져 있음
+		if (AActor* BurningActor = BurnPair.Key.Get())
+		{
+			if (UCombatStatsComponent* BurningStats = BurningActor->FindComponentByClass<UCombatStatsComponent>())
+			{
+				BurningStats->SetOnFire(false, nullptr);
+			}
+		}
+	}
+	BurningTargets.Empty();
 }
 
 bool ABlackHoleZone::IsHostile(AActor* Target) const
@@ -148,18 +247,57 @@ void ABlackHoleZone::GatherTargets(TArray<AActor*>& OutTargets) const
 	}
 }
 
+//UContinuousAttackSkill::ProcessBurnTick과 같은 규칙으로 한 틱 처리
 void ABlackHoleZone::ApplyDamageTick()
 {
-	if (!bZoneActive || DamagePerTick <= 0.0f) return;
-
-	TArray<AActor*> Targets;
-	GatherTargets(Targets);
-
-	for (AActor* Target : Targets)
+	//장판 안에 있는 대상 갱신 장판이 끝난 뒤에는 새로 붙이지 않고 남은 불만 태움
+	TArray<AActor*> InZoneTargets;
+	if (bZoneActive)
 	{
-		//화염탄과 같은 표식 방어력 무시 흡혈 가시 갑옷 반사 없음
-		UAugmentDamageLibrary::ApplyFireDamage(this, Target, DamagePerTick);
+		GatherTargets(InZoneTargets);
+		RefreshBurningTargets(InZoneTargets);
 	}
+
+	//데미지 처리 중에 목록이 바뀔 수 있어서 키를 복사해서 돌림
+	TArray<TWeakObjectPtr<AActor>> Keys;
+	BurningTargets.GetKeys(Keys);
+
+	for (const TWeakObjectPtr<AActor>& WeakTarget : Keys)
+	{
+		AActor* Target = WeakTarget.Get();
+		float* Remaining = BurningTargets.Find(WeakTarget);
+		if (!Target || !Remaining)
+		{
+			BurningTargets.Remove(WeakTarget);
+			continue;
+		}
+
+		//장판 밖이면 남은 시간을 깎고 다 떨어졌으면 불을 끔
+		if (!InZoneTargets.Contains(Target))
+		{
+			*Remaining -= DamageInterval;
+			if (*Remaining < -UE_KINDA_SMALL_NUMBER)
+			{
+				ExtinguishTarget(Target);
+				continue;
+			}
+		}
+
+		if (DamagePerTick <= 0.0f)
+		{
+			continue;
+		}
+
+		//화염탄과 같은 표식 방어력 무시 흡혈 가시 갑옷 반사 없음
+		//대상이 이미 죽어서 데미지가 안 들어가면 0이 돌아오고 그때 불을 끔
+		const float AppliedDamage = UAugmentDamageLibrary::ApplyFireDamage(this, Target, DamagePerTick);
+		if (AppliedDamage <= 0.0f)
+		{
+			ExtinguishTarget(Target);
+		}
+	}
+
+	DestroyIfDone();
 }
 
 void ABlackHoleZone::Tick(float DeltaSeconds)
@@ -178,10 +316,15 @@ void ABlackHoleZone::Tick(float DeltaSeconds)
 			ZoneRadius, 32, bZoneActive ? FColor::Green : FColor::Yellow, false, -1.0f);
 	}
 
-	if (!bZoneActive || PullSpeed <= 0.0f) return;
+	if (!bZoneActive) return;
 
 	TArray<AActor*> Targets;
 	GatherTargets(Targets);
+
+	//들어오자마자 불이 붙어 보이게 함 데미지는 타이머 간격대로만 들어감
+	RefreshBurningTargets(Targets);
+
+	if (PullSpeed <= 0.0f) return;
 
 	const FVector Center = GetActorLocation();
 	for (AActor* Target : Targets)

@@ -9,12 +9,15 @@ class UDecalComponent;
 class UMaterialInterface;
 class USoundBase;
 class UAudioComponent;
+class UParticleSystem;
 
 //바닥에 깔리는 블랙홀 장판
 //깔린 직후에는 경고만 보이고 ArmDelay 뒤부터 안에 있는 적(플레이어)에게 도트 피해 + 중심으로 약하게 끌어당김
 //피해는 화염탄과 같은 UAugmentDamageLibrary::ApplyFireDamage를 씀
 //방어력을 무시하고 흡혈 가시 갑옷 반사가 틱마다 터지지 않음
 //수치와 머티리얼 사운드는 전부 이 클래스를 부모로 만든 BP에서 설정
+//불타는 상태는 화염탄(UContinuousAttackSkill)과 같은 방식으로 대상의 UCombatStatsComponent::SetOnFire를 켜고 끔
+//불꽃 에셋도 화염탄처럼 불을 붙인 쪽(시전 몬스터)의 DispatchTableComponent::OnFireEffect를 씀
 UCLASS()
 class DREAMVEIL_API ABlackHoleZone : public AActor
 {
@@ -59,13 +62,23 @@ protected:
 
 	// ---------------- 피해 ----------------
 
-	//한 번에 주는 피해
+	//한 번에 주는 화염 피해
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlackHole|Damage", meta = (ClampMin = "0"))
 	float DamagePerTick = 5.0f;
 
-	//피해 간격(초)
+	//피해 간격(초) 기본값은 화염탄과 같은 CONTINUOUS_ATTACK_INTERVAL
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlackHole|Damage", meta = (ClampMin = "0.05"))
-	float DamageInterval = 0.5f;
+	float DamageInterval;
+
+	//장판에서 나간 뒤에도 계속 타는 시간(초) 0이면 나가는 즉시 꺼짐
+	//화염탄처럼 나가도 잠깐 타게 하려면 CONTINUOUS_ATTACK_DURATION(3초)과 같은 값을 넣으면 됨
+	//장판 안에 있는 동안은 매 틱 이 시간이 처음부터 다시 채워짐 화염탄을 다시 맞았을 때와 같은 규칙
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlackHole|Damage", meta = (ClampMin = "0"))
+	float BurnLingerSeconds = 0.0f;
+
+	//대상 몸에 붙일 불꽃 비워두면 시전 몬스터의 DispatchTable에 있는 OnFireEffect를 씀 둘 다 비면 불꽃 없이 상태만 켜짐
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlackHole|Damage")
+	TObjectPtr<UParticleSystem> OnFireEffectOverride;
 
 	// ---------------- 끌어당김 ----------------
 
@@ -120,6 +133,19 @@ private:
 	void ApplyDamageTick();
 	void ExpireZone();
 
+	//장판 안에 새로 들어온 대상에게 불을 붙이고 안에 있는 대상은 남은 연소 시간을 다시 채움
+	void RefreshBurningTargets(const TArray<AActor*>& InZoneTargets);
+
+	//대상의 불타는 상태를 끄고 목록에서 뺌
+	void ExtinguishTarget(AActor* Target);
+	void ExtinguishAll();
+
+	//불꽃 에셋 BP 지정 -> 시전 몬스터의 DispatchTable 순서로 찾음
+	UParticleSystem* GetOnFireEffect() const;
+
+	//장판이 끝났고 더 탈 대상도 없으면 사라짐
+	void DestroyIfDone();
+
 	//장판 안의 살아 있는 적만 모음
 	void GatherTargets(TArray<AActor*>& OutTargets) const;
 	bool IsHostile(AActor* Target) const;
@@ -130,6 +156,11 @@ private:
 	FTimerHandle DamageTimer;
 	FTimerHandle DurationTimer;
 	bool bZoneActive = false;
+	bool bZoneExpired = false;
+
+	//이 장판이 불을 붙인 대상과 장판 밖에서 남은 연소 시간
+	//화염탄의 BurningTargets와 같은 역할 대상이 죽거나 사라질 수 있어서 약한 참조
+	TMap<TWeakObjectPtr<AActor>, float> BurningTargets;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInterface> FallbackWarningMaterial;
