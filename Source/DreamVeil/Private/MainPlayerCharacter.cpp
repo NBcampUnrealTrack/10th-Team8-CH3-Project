@@ -111,10 +111,6 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 	SprintSpeed = NoramalSpeed * SprintSpeedMultiplier;
 
 	GetCharacterMovement()->MaxWalkSpeed = NoramalSpeed;
-	//래그돌과 겹쳤을 때 엔진의 접촉 충격 처리를 사용한다. 등록 전에 켜야 접촉 이벤트가 연결된다.
-	GetCharacterMovement()->bEnablePhysicsInteraction = true;
-	//가벼운 몸체라고 미는 힘도 함께 줄이지 않아 래그돌이 쉽게 밀려나도록 한다.
-	GetCharacterMovement()->bTouchForceScaledToMass = false;
 
 	//보간이 시작될 때 튀지 않게 지금 속도와 같은 값으로 시작
 	TargetWalkSpeed = NoramalSpeed;
@@ -136,10 +132,6 @@ void AMainPlayerCharacter::BeginPlay()
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::Monster, ECR_Block);
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterHitbox, ECR_Ignore);
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterProjectile, ECR_Block);
-	//래그돌 메시의 Overlap 응답과 만나면 접촉 이벤트만 발생하고 플레이어의 이동은 막지 않는다.
-	//다른 물리 물체는 기존처럼 막을 수 있도록 플레이어 쪽 응답은 Block으로 둔다.
-	Capsule->SetCollisionResponseToChannel(ECC_PhysicsBody, ECR_Block);
-	Capsule->SetGenerateOverlapEvents(true);
 	//기본 무기 권총은 처음부터 가지고 들고 시작
 	AcquiredWeaponSlots.AddUnique(EWeaponSlot::Pistol);
 	CurrentWeaponSlot = EWeaponSlot::Pistol;
