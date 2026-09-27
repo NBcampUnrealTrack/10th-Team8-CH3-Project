@@ -219,6 +219,12 @@ void UCombatStatsComponent::PlayThornReflectEffect(AActor* ReflectTarget)
         FootOffset.Z = -TargetCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
     }
 
+    if (THORN_ARMOR_DRAW_DEBUG)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ThornArmor] 연출 재생 대상 %s 가시 클래스 %s"),
+            *GetNameSafe(ReflectTarget), *GetNameSafe(ThornSpikeEffectClass));
+    }
+
     if (!ThornSpikeEffectClass)
     {
         return;

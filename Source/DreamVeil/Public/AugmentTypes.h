@@ -64,6 +64,10 @@ const float VAMPIRE_HEAL_RATIO = 0.1f;
 //가시 갑옷 반사 비율
 const float THORN_ARMOR_REFLECT_RATIO = 0.2f;
 
+//가시 갑옷이 어디서 멈췄는지 로그로 남김 반사가 계산됐는지 연출까지 갔는지 한눈에 보임
+//AREA_ATTACK_DRAW_DEBUG와 같은 용도 출시 전에 false로 둘 것
+const bool THORN_ARMOR_DRAW_DEBUG = true;
+
 //광전사 발동 체력 비율
 const float BERSERKER_THRESHOLD = 0.3f;
 

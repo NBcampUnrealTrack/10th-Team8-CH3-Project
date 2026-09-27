@@ -195,6 +195,13 @@ void UAugmentDamageLibrary::ApplyAugmentDamage(AActor* DamageCauser, const TArra
 //가시 갑옷 반사 데미지를 보냄 반사 표식이 붙어서 되받아치기가 일어나지 않음
 float UAugmentDamageLibrary::ApplyThornReflectDamage(AActor* ThornOwner, AActor* Target, float Damage)
 {
+    //조기 반환보다 먼저 찍음 반사량이 0이면 가시 갑옷을 아예 안 가진 것이라 여기서 갈림
+    if (THORN_ARMOR_DRAW_DEBUG)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[ThornArmor] 주인 %s -> 대상 %s 반사량 %.1f"),
+            *GetNameSafe(ThornOwner), *GetNameSafe(Target), Damage);
+    }
+
     if (!Target)
     {
         return 0.0f;
@@ -218,7 +225,15 @@ float UAugmentDamageLibrary::ApplyThornReflectDamage(AActor* ThornOwner, AActor*
     {
         //연출 에셋은 가시 갑옷을 가진 쪽이 들고 있고 가시는 맞은 쪽 발밑에서 솟음
         //맞은 쪽이 들고 있게 하면 몬스터 블루프린트마다 같은 에셋을 넣어야 해서 관리가 안 됨
-        if (UCombatStatsComponent* ThornOwnerStats = ThornOwner ? ThornOwner->FindComponentByClass<UCombatStatsComponent>() : nullptr)
+        UCombatStatsComponent* ThornOwnerStats = ThornOwner ? ThornOwner->FindComponentByClass<UCombatStatsComponent>() : nullptr;
+
+        if (THORN_ARMOR_DRAW_DEBUG)
+        {
+            UE_LOG(LogTemp, Warning, TEXT("[ThornArmor] 실제 들어간 데미지 %.1f 주인 스탯 %s"),
+                ReflectedDamage, ThornOwnerStats ? TEXT("있음") : TEXT("없음"));
+        }
+
+        if (ThornOwnerStats)
         {
             ThornOwnerStats->PlayThornReflectEffect(Target);
         }
