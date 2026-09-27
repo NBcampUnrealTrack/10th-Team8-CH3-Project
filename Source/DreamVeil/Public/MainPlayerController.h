@@ -72,6 +72,12 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void CloseMenuWidget();
 
+	//지금 메뉴 위젯이 떠 있는지 인벤토리처럼 메뉴와 겹치면 안 되는 창이 열기 전에 물어볼 것
+	//블루프린트가 따로 bool을 들고 있으면 안 되는 이유 메뉴를 닫는 건 C++(CloseMenuWidget)이라
+	//블루프린트 쪽 값은 내려줄 사람이 없어서 한번 켜지면 계속 켜진 채로 남음
+	UFUNCTION(BlueprintPure, Category = "UI")
+	bool IsMenuWidgetOpen() const;
+
 	//게임을 멈추거나 푼다 월드 시간 타이머 몬스터가 전부 같이 멈춤
 	//SetGamePaused만 부르면 멈추기 직전에 들어온 이동 입력이 그대로 남아서 W를 누르고 있으면 계속 앞으로 감
 	//그래서 누르고 있던 키를 버리고 이동 시선 입력까지 막음

@@ -21,6 +21,9 @@
 #include "K2Node_Event.h"
 #include "K2Node_FunctionEntry.h"
 #include "K2Node_Self.h"
+#include "K2Node_IfThenElse.h"
+#include "K2Node_VariableGet.h"
+#include "MainPlayerController.h"
 #include "EdGraphSchema_K2.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
@@ -151,6 +154,203 @@ void AppendToConstruct(UWidgetBlueprint* BP, FName Function)
                 }
     bOK = false; UE_LOG(LogTemp, Error, TEXT("Missing parent Construct in %s"), *BP->GetName());
 }
+
+//self가 가진 함수나 커스텀 이벤트를 부르는 노드를 만듦
+//위의 Call은 UI 라이브러리 전용(Widget 핀에 self를 꽂음)이라 따로 둠
+UK2Node_CallFunction* CallSelf(UEdGraph* Graph, UClass* OwnerClass, FName FunctionName)
+{
+    UFunction* TargetFunction = OwnerClass ? OwnerClass->FindFunctionByName(FunctionName) : nullptr;
+
+    if (!TargetFunction)
+    {
+        bOK = false;
+        UE_LOG(LogTemp, Error, TEXT("Missing function %s on %s"), *FunctionName.ToString(), *GetNameSafe(OwnerClass));
+        return nullptr;
+    }
+
+    UK2Node_CallFunction* Node = NewObject<UK2Node_CallFunction>(Graph);
+    Node->SetFromFunction(TargetFunction);
+    Graph->AddNode(Node, false, false);
+    Node->CreateNewGuid();
+    Node->AllocateDefaultPins();
+
+    //자리는 아무 데나 겹치지 않게만 둠 기존 노드 밑으로 쌓음
+    Node->NodePosX = 1000;
+    Node->NodePosY = Graph->Nodes.Num() * 90;
+
+    return Node;
+}
+
+//그 그래프에서 이 함수를 부르는 첫 노드
+UK2Node_CallFunction* FindCall(UEdGraph* Graph, FName FunctionName)
+{
+    for (UEdGraphNode* Node : Graph->Nodes)
+    {
+        UK2Node_CallFunction* CallNode = Cast<UK2Node_CallFunction>(Node);
+
+        if (CallNode && CallNode->FunctionReference.GetMemberName() == FunctionName)
+        {
+            return CallNode;
+        }
+    }
+
+    return nullptr;
+}
+}
+
+//상점과 인벤토리 블루프린트의 끊긴 연결을 고침
+//1 상점을 열었을 때 판매 강화 목록이 비어 있던 문제
+//2 메뉴를 한 번 열면 인벤토리가 다시 안 열리던 문제
+bool FixDreamVeilShopAndInventory()
+{
+    bOK = true;
+
+    // 1 상점 InitPlayer가 RefreshAll만 부르고 끝나서 판매 강화 목록을 채우지 않았음
+    //   HandleInventoryChanged가 이미 목록까지 전부 다시 그리는 체인을 들고 있으므로 그걸 부르게 바꿈
+    //   목록을 새로 그리는 노드를 또 만들지 않는 이유 같은 순서가 두 군데로 갈라지면 한쪽만 고쳐짐
+    UWidgetBlueprint* Shop = WidgetBP(TEXT("WBP_Computer"));
+
+    if (!Shop)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Missing WBP_Computer"));
+        return false;
+    }
+
+    bool bShopFixed = false;
+
+    for (UEdGraph* Graph : Shop->UbergraphPages)
+    {
+        UK2Node_CallFunction* BindEventsCall = FindCall(Graph, TEXT("BindEvents"));
+
+        if (!BindEventsCall)
+        {
+            continue;
+        }
+
+        UEdGraphPin* ThenPin = BindEventsCall->GetThenPin();
+
+        //BindEvents 다음에 붙어 있던 노드가 정말 RefreshAll인지 확인하고 지움
+        //이름으로만 찾으면 HandleInventoryChanged 쪽 RefreshAll을 지울 수 있음
+        TArray<UEdGraphNode*> NodesToRemove;
+
+        for (UEdGraphPin* Linked : ThenPin->LinkedTo)
+        {
+            UK2Node_CallFunction* LinkedCall = Cast<UK2Node_CallFunction>(Linked->GetOwningNode());
+
+            if (LinkedCall && LinkedCall->FunctionReference.GetMemberName() == TEXT("RefreshAll"))
+            {
+                NodesToRemove.Add(LinkedCall);
+            }
+        }
+
+        ThenPin->BreakAllPinLinks();
+
+        for (UEdGraphNode* Node : NodesToRemove)
+        {
+            FBlueprintEditorUtils::RemoveNode(Shop, Node, true);
+        }
+
+        UK2Node_CallFunction* RefreshEverything = CallSelf(Graph, Shop->SkeletonGeneratedClass, TEXT("HandleInventoryChanged"));
+
+        if (!RefreshEverything)
+        {
+            return false;
+        }
+
+        Link(ThenPin, RefreshEverything->GetExecPin());
+        bShopFixed = true;
+        break;
+    }
+
+    if (!bShopFixed)
+    {
+        bOK = false;
+        UE_LOG(LogTemp, Error, TEXT("Could not find the BindEvents call in WBP_Computer"));
+    }
+
+    // 2 OpenInventory가 블루프린트 변수 bMenuOpen을 보고 있었음
+    //   메뉴를 닫는 건 C++의 CloseMenuWidget이라 이 변수를 false로 내려줄 사람이 없어서
+    //   컴퓨터든 침대든 한 번 열면 그 뒤로 인벤토리가 영영 안 열렸음
+    //   이제 C++이 실제로 들고 있는 상태(IsMenuWidgetOpen)를 직접 물어봄
+    UBlueprint* Controller = LoadObject<UBlueprint>(nullptr, TEXT("/Game/Blueprint/BP_MainPlayerController.BP_MainPlayerController"));
+
+    if (!Controller)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Missing BP_MainPlayerController"));
+        return false;
+    }
+
+    bool bInventoryFixed = false;
+
+    for (UEdGraph* Graph : Controller->FunctionGraphs)
+    {
+        if (Graph->GetFName() != TEXT("OpenInventory"))
+        {
+            continue;
+        }
+
+        for (UEdGraphNode* Node : TArray<TObjectPtr<UEdGraphNode>>(Graph->Nodes))
+        {
+            UK2Node_IfThenElse* Branch = Cast<UK2Node_IfThenElse>(Node);
+
+            if (!Branch)
+            {
+                continue;
+            }
+
+            UEdGraphPin* ConditionPin = Branch->GetConditionPin();
+
+            //조건에 물려 있던 bMenuOpen Get 노드는 쓸 데가 없어져서 같이 지움
+            TArray<UEdGraphNode*> NodesToRemove;
+
+            for (UEdGraphPin* Linked : ConditionPin->LinkedTo)
+            {
+                if (Cast<UK2Node_VariableGet>(Linked->GetOwningNode()))
+                {
+                    NodesToRemove.Add(Linked->GetOwningNode());
+                }
+            }
+
+            ConditionPin->BreakAllPinLinks();
+
+            for (UEdGraphNode* Dead : NodesToRemove)
+            {
+                FBlueprintEditorUtils::RemoveNode(Controller, Dead, true);
+            }
+
+            UK2Node_CallFunction* IsMenuOpen = CallSelf(Graph, AMainPlayerController::StaticClass(), TEXT("IsMenuWidgetOpen"));
+
+            if (!IsMenuOpen)
+            {
+                return false;
+            }
+
+            Link(IsMenuOpen->GetReturnValuePin(), ConditionPin);
+            bInventoryFixed = true;
+            break;
+        }
+
+        break;
+    }
+
+    if (!bInventoryFixed)
+    {
+        bOK = false;
+        UE_LOG(LogTemp, Error, TEXT("Could not find the Branch in BP_MainPlayerController::OpenInventory"));
+    }
+
+    if (!bOK)
+    {
+        return false;
+    }
+
+    //컴파일이 깨지면 저장하지 않음 반쯤 고쳐진 에셋을 남기지 않으려는 것
+    if (!Compile(Shop) || !Compile(Controller))
+    {
+        return false;
+    }
+
+    return Save(Shop) && Save(Controller);
 }
 
 bool ApplyDreamVeilUIEdits(const FString& IconDirectory)

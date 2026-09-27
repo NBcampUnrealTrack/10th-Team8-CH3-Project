@@ -23,8 +23,107 @@ UDreamVeilUIUpdateCommandlet::UDreamVeilUIUpdateCommandlet()
     IsClient = false; IsServer = false; IsEditor = true; LogToConsole = true;
 }
 
+//블루프린트 하나의 위젯 트리와 모든 그래프를 글로 뽑음
+//BP 그래프의 연결 상태를 코드에서 확인할 방법이 이것뿐이라 진단용으로 둠 에셋은 건드리지 않음
+static FString DumpBlueprintGraphs(const FString& ObjectPath)
+{
+    UBlueprint* BP = LoadObject<UBlueprint>(nullptr, *ObjectPath);
+
+    if (!BP)
+    {
+        return FString::Printf(TEXT("\nERROR could not load %s\n"), *ObjectPath);
+    }
+
+    FString Report = FString::Printf(TEXT("\n===== ASSET %s PARENT %s\n"), *BP->GetName(), *GetPathNameSafe(BP->ParentClass));
+
+    //위젯 BP만 위젯 트리를 가짐 컨트롤러 BP 같은 일반 BP는 이 블록을 건너뜀
+    if (UWidgetBlueprint* WidgetBP = Cast<UWidgetBlueprint>(BP))
+    {
+        WidgetBP->WidgetTree->ForEachWidget([&Report](UWidget* Widget)
+        {
+            Report += FString::Printf(TEXT("W %s %s parent=%s var=%d"),
+                *Widget->GetName(), *Widget->GetClass()->GetName(), *GetNameSafe(Widget->GetParent()), Widget->bIsVariable ? 1 : 0);
+
+            if (UTextBlock* TextWidget = Cast<UTextBlock>(Widget))
+            {
+                Report += TEXT(" text=") + TextWidget->GetText().ToString();
+            }
+
+            Report += TEXT("\n");
+        });
+    }
+
+    //변수 목록도 같이 뽑음 어느 변수가 상태를 들고 있는지 봐야 연결을 판단할 수 있음
+    for (const FBPVariableDescription& Variable : BP->NewVariables)
+    {
+        Report += FString::Printf(TEXT("VAR %s : %s\n"), *Variable.VarName.ToString(), *Variable.VarType.PinCategory.ToString());
+    }
+
+    TArray<UEdGraph*> Graphs;
+    BP->GetAllGraphs(Graphs);
+
+    for (UEdGraph* Graph : Graphs)
+    {
+        Report += TEXT("GRAPH ") + Graph->GetName() + TEXT("\n");
+
+        for (UEdGraphNode* Node : Graph->Nodes)
+        {
+            Report += FString::Printf(TEXT("NODE %s | %s | %s\n"),
+                *Node->GetName(), *Node->GetClass()->GetName(),
+                *Node->GetNodeTitle(ENodeTitleType::FullTitle).ToString().Replace(TEXT("\n"), TEXT(" / ")));
+
+            for (UEdGraphPin* Pin : Node->Pins)
+            {
+                //연결이 없고 기본값도 없는 핀은 줄만 늘리므로 건너뜀
+                if (Pin->LinkedTo.Num() == 0 && Pin->DefaultValue.IsEmpty() && Pin->DefaultObject == nullptr && Pin->DefaultTextValue.IsEmpty())
+                {
+                    continue;
+                }
+
+                Report += FString::Printf(TEXT("   %s %s default=%s%s ->"),
+                    Pin->Direction == EGPD_Input ? TEXT("IN ") : TEXT("OUT"),
+                    *Pin->PinName.ToString(),
+                    *Pin->DefaultValue,
+                    Pin->DefaultObject ? *(TEXT(" obj=") + GetNameSafe(Pin->DefaultObject)) : TEXT(""));
+
+                for (UEdGraphPin* Linked : Pin->LinkedTo)
+                {
+                    Report += TEXT(" ") + Linked->GetOwningNode()->GetName() + TEXT(".") + Linked->PinName.ToString();
+                }
+
+                Report += TEXT("\n");
+            }
+        }
+    }
+
+    return Report;
+}
+
 int32 UDreamVeilUIUpdateCommandlet::Main(const FString& Params)
 {
+    if (FParse::Param(*Params, TEXT("FixShop"))) return FixDreamVeilShopAndInventory() ? 0 : 21;
+
+    FString DumpList;
+
+    //예) -DumpUI=/Game/UI/WBP_Computer.WBP_Computer,/Game/Blueprint/BP_MainPlayerController.BP_MainPlayerController
+    //마지막 false가 없으면 FParse가 콤마에서 값을 끊어서 첫 에셋만 읽음
+    if (FParse::Value(*Params, TEXT("DumpUI="), DumpList, false))
+    {
+        TArray<FString> ObjectPaths;
+        DumpList.ParseIntoArray(ObjectPaths, TEXT(","));
+
+        FString Dump;
+
+        for (const FString& ObjectPath : ObjectPaths)
+        {
+            Dump += DumpBlueprintGraphs(ObjectPath);
+        }
+
+        //한글 주석과 UI 문구가 섞여 있어서 UTF-8로 강제 저장함 안 그러면 UTF-16으로 나가서 읽기 번거로움
+        return FFileHelper::SaveStringToFile(Dump, *(FPaths::ProjectSavedDir() / TEXT("DreamVeilUIDump.txt")),
+            FFileHelper::EEncodingOptions::ForceUTF8) ? 0 : 20;
+    }
+
     if (FParse::Param(*Params, TEXT("HardCameraAudit")) || FParse::Param(*Params, TEXT("HardCameraApply")))
         return UpdateHardCameraAssets(FParse::Param(*Params, TEXT("HardCameraApply"))) ? 0 : 17;
     if (FParse::Param(*Params, TEXT("Render"))) return RenderDreamVeilUI() ? 0 : 15;
