@@ -303,6 +303,7 @@ bool UDreamVeilGameInstance::LoadGameFromSlot()
     }
 
     ClearedLevelCount = SaveData->ClearedLevelCount;
+    bHardRunEnded = false;
     Difficulty = SaveData->Difficulty;
     SavedPlayerAugmentHistory = SaveData->AugmentHistory;
     SavedParts = SaveData->Parts;

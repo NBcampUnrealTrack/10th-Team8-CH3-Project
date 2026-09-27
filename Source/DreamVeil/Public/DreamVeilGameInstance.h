@@ -20,7 +20,7 @@ enum class EGameDifficulty : uint8
 	Easy,
 	//죽거나 실패하면 그 레벨에서 얻은 것만 잃고 레벨에 들어가기 전 상태로 로비로
 	Normal,
-	//죽으면 끝 새 게임으로 L1부터 다시 시작 시간 초과는 보통과 같음
+	//사망 또는 시간 초과 게임 오버 시 저장/진행도 초기화 후 로비 복귀
 	Hard
 };
 
@@ -52,7 +52,7 @@ public:
 	void StartNewGame();
 
 	//메인 메뉴로 나감 하던 판은 끝난 것이라 진행도와 얻은 것을 전부 비움
-	//어려움에서 죽었을 때 쓰고 로비의 나가기 버튼도 이걸 부르면 됨
+	//로비의 나가기 버튼이 호출함. Hard 게임 오버는 별도로 로비에 복귀함
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void OpenMainMenu();
 
@@ -74,7 +74,7 @@ public:
 	void FailCurrentLevel();
 
 	//플레이어가 죽은 뒤 이어서 진행 게임 오버 UI의 확인 버튼이 부를 것
-	//쉬움 보통은 시간 초과와 똑같이 로비로(FailCurrentLevel) 어려움은 전부 잃고 메인 메뉴로(OpenMainMenu)
+	//쉬움 보통은 FailCurrentLevel, 어려움은 저장/진행도를 초기화하고 자동 저장 없이 로비로
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void ContinueAfterDeath();
 

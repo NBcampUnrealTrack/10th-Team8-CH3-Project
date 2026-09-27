@@ -149,12 +149,12 @@ void AMainPlayerCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResu
 	{
 		TArray<UMeshComponent*> Meshes;
 		GetComponents(Meshes);
-		for (auto* Mesh : Meshes)
+		for (auto* VisibleMesh : Meshes)
 		{
-			if (!Mesh->bOwnerNoSee)
+			if (!VisibleMesh->bOwnerNoSee)
 			{
-				Mesh->SetOwnerNoSee(true);
-				CameraHiddenComponents.Add(Mesh);
+				VisibleMesh->SetOwnerNoSee(true);
+				CameraHiddenComponents.Add(VisibleMesh);
 			}
 		}
 	}

@@ -25,6 +25,8 @@ UDreamVeilUIUpdateCommandlet::UDreamVeilUIUpdateCommandlet()
 
 int32 UDreamVeilUIUpdateCommandlet::Main(const FString& Params)
 {
+    if (FParse::Param(*Params, TEXT("HardCameraAudit")) || FParse::Param(*Params, TEXT("HardCameraApply")))
+        return UpdateHardCameraAssets(FParse::Param(*Params, TEXT("HardCameraApply"))) ? 0 : 17;
     if (FParse::Param(*Params, TEXT("Render"))) return RenderDreamVeilUI() ? 0 : 15;
     if (FParse::Param(*Params, TEXT("TestCamera"))) return TestDreamVeilCamera() ? 0 : 16;
     if (FParse::Param(*Params, TEXT("Finalize")) || FParse::Param(*Params, TEXT("Verify")))

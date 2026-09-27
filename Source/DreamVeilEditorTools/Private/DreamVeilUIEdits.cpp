@@ -427,12 +427,13 @@ bool TestDreamVeilCamera()
         Box->SetBoxExtent(Side < 2 ? FVector(100,1000,1000) : FVector(1000,100,1000));
         Box->SetWorldLocation(Axis * Sign * (WallDistance + 100.0f));
         for (int32 Yaw = 0; Yaw < 360; Yaw += 45)
+        for (int32 Pitch : {-50, 0, 50})
         {
-            Arm->SetRelativeRotation(FRotator(0, Yaw, 0));
+            Arm->SetRelativeRotation(FRotator(Pitch, Yaw, 0));
             Arm->TickComponent(0.016f, LEVELTICK_All, nullptr);
             const FVector Camera = Arm->GetSocketLocation(USpringArmComponent::SocketName);
             const float Clearance = WallDistance - FVector::DotProduct(Camera, Axis) * Sign;
-            if (Clearance < 1.0f)
+            if (Clearance < Arm->ProbeSize - 0.1f)
             {
                 bPassed = false;
                 UE_LOG(LogTemp, Warning, TEXT("CAMERA TEST FAIL: side=%d yaw=%d clearance=%.2f origin=%s camera=%s"), Side, Yaw, Clearance, *Arm->GetComponentLocation().ToString(), *Camera.ToString());
@@ -440,6 +441,67 @@ bool TestDreamVeilCamera()
         }
     }
     World->DestroyWorld(false);
-    UE_LOG(LogTemp, Display, TEXT("CAMERA WALL TEST: %s (4 walls x 8 view angles, capsule radius %.2f)."), bPassed ? TEXT("PASS") : TEXT("FAIL"), WallDistance - 2.0f);
+    UE_LOG(LogTemp, Display, TEXT("CAMERA WALL TEST: %s (4 walls x 8 yaw angles x 3 pitch angles, capsule radius %.2f)."), bPassed ? TEXT("PASS") : TEXT("FAIL"), WallDistance - 2.0f);
     return bPassed;
+}
+
+bool UpdateHardCameraAssets(bool bApply)
+{
+    // Only touch the two requested UI assets, retaining all graph connections and styling.
+    for (const TCHAR* Name : {TEXT("WBP_MainMenu"), TEXT("WBP_GameOver")})
+    {
+        auto* BP = WidgetBP(Name);
+        if (!BP) return false;
+        auto Rewrite = [&](const FText& Original) -> FText {
+            FString Value = Original.ToString();
+            if (Value.IsEmpty()) return Original;
+            UE_LOG(LogTemp, Display, TEXT("HARD UI TEXT %s: %s"), Name, *Value);
+            // These destination phrases describe the old Hardcore failure rule.
+            Value.ReplaceInline(TEXT("메인 메뉴로 돌아간다"), TEXT("로비로 돌아간다"));
+            Value.ReplaceInline(TEXT("메뉴로 돌아간다"), TEXT("로비로 돌아간다"));
+            Value.ReplaceInline(TEXT("메인 메뉴로 돌아갑니다"), TEXT("로비로 돌아갑니다"));
+            Value.ReplaceInline(TEXT("로비에 돌아올 때마다 자동으로 저장된다."), TEXT("로비 복귀 시 자동 저장됩니다. 단, 하드코어 게임 오버 직후에는 저장하지 않습니다."));
+            Value.ReplaceInline(TEXT("시간이 다 된 경우 모두 꿈에서 깨어 로비 레벨로 돌아간다."), TEXT("시간 초과 시 로비로 돌아갑니다. 하드코어는 저장과 진행도도 초기화됩니다."));
+            if (Value != Original.ToString())
+            {
+                UE_LOG(LogTemp, Display, TEXT("HARD UI REPLACE: %s"), *Value);
+                return FText::FromString(Value);
+            }
+            return Original;
+        };
+        BP->WidgetTree->ForEachWidget([&](UWidget* W) {
+            if (auto* Label = Cast<UTextBlock>(W))
+            {
+                const FText Updated = Rewrite(Label->GetText());
+                if (bApply) Label->SetText(Updated);
+            }
+        });
+        TArray<UEdGraph*> Graphs; BP->GetAllGraphs(Graphs);
+        for (auto* Graph : Graphs)
+            for (UEdGraphNode* Node : Graph->Nodes)
+                for (auto* Pin : Node->Pins)
+                {
+                    if (!Pin->DefaultTextValue.IsEmpty())
+                    {
+                        const FText Updated = Rewrite(Pin->DefaultTextValue);
+                        if (bApply) Pin->DefaultTextValue = Updated;
+                    }
+                    else if (!Pin->DefaultValue.IsEmpty() && (Pin->PinType.PinCategory == UEdGraphSchema_K2::PC_String))
+                    {
+                        const FText Updated = Rewrite(FText::FromString(Pin->DefaultValue));
+                        if (bApply) Pin->DefaultValue = Updated.ToString();
+                    }
+                }
+        if (bApply && (!Compile(BP) || !Save(BP))) return false;
+    }
+    auto* BP = LoadObject<UBlueprint>(nullptr, TEXT("/Game/Blueprint/BP_MainPlayerCharacter.BP_MainPlayerCharacter"));
+    auto* Player = BP && BP->GeneratedClass ? Cast<AMainPlayerCharacter>(BP->GeneratedClass->GetDefaultObject()) : nullptr;
+    if (!Player) return false;
+    if (bApply)
+    {
+        Player->ConfigureCameraCollision();
+        if (!Compile(BP) || !Save(BP)) return false;
+    }
+    UE_LOG(LogTemp, Display, TEXT("HARD CAMERA ASSETS: %s"), bApply ? TEXT("SAVED") : TEXT("AUDITED"));
+    return true;
 }
