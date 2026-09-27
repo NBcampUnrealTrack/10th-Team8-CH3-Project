@@ -10,6 +10,7 @@
 class UAnimSequence;
 class UDecalComponent;
 class AMonsterProjectile;
+class ABlackHoleZone;
 
 // 새 패턴은 여기에 추가하고 컴포넌트의 실행 분기에 구현한다.
 UENUM(BlueprintType)
@@ -17,7 +18,9 @@ enum class EMonsterSkillType : uint8
 {
     Charge,
     // 부채꼴로 투사체 여러 발을 동시에 발사한다.
-    FanShot
+    FanShot,
+    // 플레이어 발밑에 블랙홀 장판을 깔아 도트 피해와 끌어당김을 준다.
+    BlackHole
 };
 
 USTRUCT(BlueprintType)
@@ -131,6 +134,24 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|FanShot")
     TObjectPtr<UAnimSequence> FanShotReadyAnimation;
 
+    // ---------------- 블랙홀 장판 (BlackHole) ----------------
+
+    //깔 장판 BP. 피해 범위 지속시간 머티리얼 사운드는 장판 BP에서 설정한다. 비워두면 기본 클래스(이미지 없음)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|BlackHole")
+    TSubclassOf<ABlackHoleZone> BlackHoleZoneClass;
+
+    //플레이어가 이 거리 안에 있을 때만 발동한다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|BlackHole", meta = (ClampMin = "0"))
+    float BlackHoleTriggerDistance = 1500.0f;
+
+    //시전 동작 시간(초). 이 동안 몬스터는 멈춰 있고, 끝나면 쿨타임이 시작된다. 장판은 따로 유지된다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|BlackHole", meta = (ClampMin = "0"))
+    float BlackHoleCastSeconds = 0.6f;
+
+    //시전 중 재생할 동작. 비워두면 원래 AnimBP를 그대로 쓴다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|BlackHole")
+    TObjectPtr<UAnimSequence> BlackHoleCastAnimation;
+
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -161,6 +182,12 @@ private:
     void ShowFanShotWarning(const FVector& Origin);
     void HideFanShotWarning();
     TArray<FVector> GetFanShotDirections() const;
+
+    //블랙홀 장판
+    bool TryUseBlackHole();
+    void CleanupBlackHole();
+    FTimerHandle BlackHoleCastTimer;
+    bool bBlackHolePrepared = false;
 
     FTimerHandle FanShotReadyTimer;
     FTimerHandle FanShotRecoveryTimer;

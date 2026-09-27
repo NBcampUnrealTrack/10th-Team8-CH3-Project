@@ -16,6 +16,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "Components/DecalComponent.h"
 #include "MonsterProjectile.h"
+#include "BlackHoleZone.h"
 
 namespace
 {
@@ -128,6 +129,7 @@ void UMonsterSkill::FinishSkill()
     //AI를 재개하기 전에 쿨타임과 사용 상태를 갱신해 즉시 재발동하지 않게 한다.
     CleanupCharge();
     CleanupFanShot();
+    CleanupBlackHole();
 }
 
 bool UMonsterSkill::TryUseSkill(EMonsterSkillType Skill)
@@ -137,6 +139,7 @@ bool UMonsterSkill::TryUseSkill(EMonsterSkillType Skill)
     {
     case EMonsterSkillType::Charge:  return TryUseCharge();
     case EMonsterSkillType::FanShot: return TryUseFanShot();
+    case EMonsterSkillType::BlackHole: return TryUseBlackHole();
     default:                         return false;
     }
 }
@@ -337,6 +340,7 @@ void UMonsterSkill::EndPlay(const EEndPlayReason::Type EndPlayReason)
     GetWorld()->GetTimerManager().ClearTimer(ChargeCheckTimer);
     CleanupCharge();
     CleanupFanShot();
+    CleanupBlackHole();
     Super::EndPlay(EndPlayReason);
 }
 
@@ -505,6 +509,95 @@ void UMonsterSkill::CleanupFanShot()
         World->GetTimerManager().ClearTimer(FanShotRecoveryTimer);
     }
     HideFanShotWarning();
+    PlayChargeAnimation(nullptr);
+
+    if (AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner()))
+    {
+        //사망으로 정리되는 경우에는 BT를 다시 깨우지 않는다.
+        if (!Monster->IsActorBeingDestroyed() && Monster->MonsterCombatStats && !Monster->MonsterCombatStats->IsDead())
+        {
+            if (AMonsterAIController* AI = Cast<AMonsterAIController>(Monster->GetController()))
+            {
+                AI->SetSkillMovementLocked(false);
+            }
+        }
+    }
+}
+
+// ======================== 블랙홀 장판 (BlackHole) ========================
+
+bool UMonsterSkill::TryUseBlackHole()
+{
+    const EMonsterSkillType Skill = EMonsterSkillType::BlackHole;
+    AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner());
+    AMainPlayerCharacter* Player = Cast<AMainPlayerCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+
+    if (!CanUseSkill(Skill) || !IsValid(Player) || !IsValid(Monster)) return false;
+    if (!Player->CombatStats || Player->CombatStats->IsDead()) return false;
+
+    const FVector ToPlayer = Player->GetActorLocation() - Monster->GetActorLocation();
+    if (ToPlayer.SizeSquared() > FMath::Square(BlackHoleTriggerDistance)) return false;
+
+    //장판은 플레이어 발밑 바닥에 깐다. 공중에 떠 있어도 바로 아래 바닥을 찾는다.
+    const float PlayerHalfHeight = Player->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    FVector ZoneLocation = Player->GetActorLocation() - FVector(0.0f, 0.0f, PlayerHalfHeight);
+    FHitResult FloorHit;
+    FCollisionQueryParams FloorParams(SCENE_QUERY_STAT(BlackHoleFloor), false, Player);
+    FloorParams.AddIgnoredActor(Monster);
+    if (GetWorld()->LineTraceSingleByObjectType(FloorHit, Player->GetActorLocation(),
+        Player->GetActorLocation() - FVector(0.0f, 0.0f, PlayerHalfHeight + 1000.0f),
+        FCollisionObjectQueryParams(ECC_WorldStatic), FloorParams))
+    {
+        ZoneLocation = FloorHit.ImpactPoint;
+    }
+
+    if (!BeginSkill(Skill)) return false;
+    bBlackHolePrepared = true;
+
+    //시전 동안 멈춰서 플레이어 쪽을 바라본다.
+    if (AMonsterAIController* AI = Cast<AMonsterAIController>(Monster->GetController()))
+    {
+        AI->SetSkillMovementLocked(true);
+    }
+    Monster->GetCharacterMovement()->StopMovementImmediately();
+    if (ToPlayer.SizeSquared2D() > UE_SMALL_NUMBER)
+    {
+        Monster->SetActorRotation(ToPlayer.GetSafeNormal2D().Rotation());
+    }
+    PlayChargeAnimation(BlackHoleCastAnimation);
+
+    //장판은 스스로 경고 -> 발동 -> 소멸을 처리한다. 시전자가 죽어도 이미 깔린 장판은 남는다.
+    const TSubclassOf<ABlackHoleZone> ZoneClass = BlackHoleZoneClass ? BlackHoleZoneClass : TSubclassOf<ABlackHoleZone>(ABlackHoleZone::StaticClass());
+    const FTransform ZoneTransform(FRotator::ZeroRotator, ZoneLocation);
+    if (ABlackHoleZone* Zone = GetWorld()->SpawnActorDeferred<ABlackHoleZone>(
+        ZoneClass, ZoneTransform, Monster, Monster, ESpawnActorCollisionHandlingMethod::AlwaysSpawn))
+    {
+        //장판 BP에 경고 머티리얼이 없으면 몬스터의 경고 데칼 머티리얼을 쓴다.
+        Zone->SetFallbackWarningMaterial(Monster->GetAttackWarningMaterial());
+        UGameplayStatics::FinishSpawningActor(Zone, ZoneTransform);
+    }
+
+    if (BlackHoleCastSeconds > 0.0f)
+    {
+        GetWorld()->GetTimerManager().SetTimer(BlackHoleCastTimer, this, &UMonsterSkill::FinishSkill,
+            BlackHoleCastSeconds, false);
+    }
+    else
+    {
+        FinishSkill();
+    }
+    return true;
+}
+
+void UMonsterSkill::CleanupBlackHole()
+{
+    if (!bBlackHolePrepared) return;
+    bBlackHolePrepared = false;
+
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(BlackHoleCastTimer);
+    }
     PlayChargeAnimation(nullptr);
 
     if (AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner()))
