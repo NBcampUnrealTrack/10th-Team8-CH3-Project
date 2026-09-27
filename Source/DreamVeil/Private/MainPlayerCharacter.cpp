@@ -68,6 +68,17 @@ const float MIN_AIM_DISTANCE = 150.0f;
 //값을 키우면 더 관대해지고 줄이면 더 자주 정면으로 보정함
 const float MAX_AIM_ANGLE_DEGREES = 35.0f;
 
+//반동을 준 뒤 카메라가 제자리로 돌아오기 시작할 때까지 기다리는 시간
+//바로 내려가면 연사 중에 반동이 눈에 안 보여서 총이 가만히 있는 것처럼 느껴짐
+const float RECOIL_RECOVERY_DELAY = 0.12f;
+
+//카메라가 1초에 되돌리는 양 반동 값과 같은 단위 크면 빨리 내려옴
+const float RECOIL_RECOVERY_SPEED = 8.0f;
+
+//되돌릴 양의 상한 오래 연사해도 이보다 많이 쌓이지 않음
+//상한이 없으면 손을 떼는 순간 카메라가 바닥으로 처박힘
+const float MAX_RECOIL_TO_RECOVER = 12.0f;
+
 
 AMainPlayerCharacter::AMainPlayerCharacter()
 {
@@ -132,6 +143,18 @@ void AMainPlayerCharacter::BeginPlay()
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::Monster, ECR_Block);
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterHitbox, ECR_Ignore);
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterProjectile, ECR_Block);
+	//무기가 적을 맞혔다는 알림을 받아둠 받은 뒤 OnHitMarker로 다시 알려서 HUD가 한 곳만 보게 함
+	//무기를 바꿔도 다시 걸 필요가 없도록 시작할 때 둘 다 걸어둠
+	if (PistolWeapon)
+	{
+		PistolWeapon->OnHitConfirmed.AddDynamic(this, &AMainPlayerCharacter::HandleWeaponHitConfirmed);
+	}
+
+	if (RifleWeapon)
+	{
+		RifleWeapon->OnHitConfirmed.AddDynamic(this, &AMainPlayerCharacter::HandleWeaponHitConfirmed);
+	}
+
 	//기본 무기 권총은 처음부터 가지고 들고 시작
 	AcquiredWeaponSlots.AddUnique(EWeaponSlot::Pistol);
 	CurrentWeaponSlot = EWeaponSlot::Pistol;
@@ -434,8 +457,17 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 		}
 	}
 
-	//반동 :사격후 카메라를 위로 올림
-	AddControllerPitchInput(-1.5f);
+	//반동 사격 뒤 카메라를 위로 올림 좌우로도 조금 틀어서 탄착이 세로 일직선이 되지 않게 함
+	//올린 양을 기억해뒀다가 사격이 멈추면 Tick이 제자리로 내림
+	const float ShotRecoilPitch = CurrentWeapon->GetRecoilPitch();
+	const float ShotRecoilYaw = CurrentWeapon->GetRecoilYaw();
+
+	AddControllerPitchInput(-ShotRecoilPitch);
+	AddControllerYawInput(FMath::FRandRange(-ShotRecoilYaw, ShotRecoilYaw));
+
+	//좌우 반동은 되돌리지 않음 매번 방향이 무작위라 한쪽으로 쌓이지 않고 되돌리면 오히려 부자연스러움
+	RecoilToRecover = FMath::Min(RecoilToRecover + ShotRecoilPitch, MAX_RECOIL_TO_RECOVER);
+	LastRecoilTime = GetWorld()->GetTimeSeconds();
 }
 
 //총알이 나갈 총구 위치와 방향을 구함
@@ -723,6 +755,36 @@ void AMainPlayerCharacter::Tick(float DeltaTime)
 {
 	Super::Tick(DeltaTime);
 
+	UpdateRecoilRecovery(DeltaTime);
+}
+
+//반동으로 올라간 카메라를 조금씩 제자리로 내림
+void AMainPlayerCharacter::UpdateRecoilRecovery(float DeltaTime)
+{
+	if (RecoilToRecover <= 0.0f)
+	{
+		return;
+	}
+
+	//마지막 발사 직후에는 되돌리지 않음 연사 중에 바로 내려가면 반동이 아예 안 보임
+	if (GetWorld()->GetTimeSeconds() - LastRecoilTime < RECOIL_RECOVERY_DELAY)
+	{
+		return;
+	}
+
+	//남은 양보다 더 내리지 않음 더 내리면 쏘기 전보다 아래를 보게 됨
+	const float RecoverAmount = FMath::Min(RecoilToRecover, RECOIL_RECOVERY_SPEED * DeltaTime);
+
+	//올릴 때 음수를 줬으니 되돌릴 때는 양수 같은 함수를 써야 감도까지 똑같이 계산돼서 정확히 제자리로 돌아옴
+	AddControllerPitchInput(RecoverAmount);
+
+	RecoilToRecover -= RecoverAmount;
+}
+
+//무기가 적을 맞혔다고 알려주면 HUD 쪽으로 넘김
+void AMainPlayerCharacter::HandleWeaponHitConfirmed(bool bKilled)
+{
+	OnHitMarker.Broadcast(bKilled);
 }
 
 void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)
@@ -815,6 +877,13 @@ void AMainPlayerCharacter::Look(const FInputActionValue& value)
 	AddControllerYawInput(LookInput.X);
 	AddControllerPitchInput(LookInput.Y);
 	//위아래 제한은 NotifyControllerChanged에서 카메라 매니저에 걸어둠 여기서는 입력만 넘김
+
+	//플레이어가 직접 아래로 내린 만큼은 자동 복구에서 뺌
+	//안 빼면 손으로 반동을 잡은 뒤에 카메라가 한 번 더 내려가서 총구가 땅을 봄
+	if (LookInput.Y > 0.0f)
+	{
+		RecoilToRecover = FMath::Max(RecoilToRecover - LookInput.Y, 0.0f);
+	}
 }
 
 void AMainPlayerCharacter::StartSprint(const FInputActionValue& value)

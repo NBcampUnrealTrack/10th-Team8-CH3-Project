@@ -86,7 +86,12 @@ const float SLOW_ENEMY_DURATION = 3.0f;
 const float SLOW_ENEMY_RATIO = 0.5f;
 
 //범위 공격 반경 총알이 맞은 지점 기준
-const float AREA_ATTACK_RADIUS = 400.0f;
+//4m에서 8m로 넓힘 4m는 몬스터가 서로 조금만 떨어져도 아무도 안 걸려서 터지는지도 몰랐음
+const float AREA_ATTACK_RADIUS = 800.0f;
+
+//범위 공격이 터진 자리를 잠깐 그려서 반경과 걸린 대상 수를 눈으로 확인
+//WeaponBase의 bDrawDebugTrace와 같은 용도 출시 전에 false로 둘 것
+const bool AREA_ATTACK_DRAW_DEBUG = true;
 
 //범위 공격 데미지 비율 총 데미지 기준 주변 대상 각자의 방어력은 따로 빠짐
 const float AREA_ATTACK_DAMAGE_RATIO = 1.0f;

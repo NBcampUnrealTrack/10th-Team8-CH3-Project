@@ -1,5 +1,6 @@
 #include "WeaponBase.h"
 #include "AugmentDamageLibrary.h"
+#include "CombatStatsComponent.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
@@ -47,6 +48,16 @@ ECollisionChannel UWeaponBase::GetTraceChannel() const
 bool UWeaponBase::IsAutomatic() const
 {
 	return bAutomatic;
+}
+
+float UWeaponBase::GetRecoilPitch() const
+{
+	return RecoilPitch;
+}
+
+float UWeaponBase::GetRecoilYaw() const
+{
+	return RecoilYaw;
 }
 
 //무기 데미지에 공격력을 더함 곱하면 공격력 증강으로 데미지가 너무 커져서 더하기로 함
@@ -98,7 +109,18 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 		PlayImpactEffect(Hit);
 
 		//쏜 캐릭터를 넘김 데미지 방어력 흡혈 가시 갑옷 적중 증강을 한 번에 처리
-		UAugmentDamageLibrary::ApplyWeaponHit(GetOwner(), Hit, GetFinalDamage());
+		const float AppliedDamage = UAugmentDamageLibrary::ApplyWeaponHit(GetOwner(), Hit, GetFinalDamage());
+
+		//실제로 데미지가 들어갔을 때만 히트 마커를 알림
+		//벽과 바닥은 스탯 컴포넌트가 없어서 0이 돌아오고 아군을 맞혀도 0이라 마커가 안 뜸
+		if (AppliedDamage > 0.0f)
+		{
+			//이번 발로 죽었는지는 데미지가 들어간 뒤에 물어봐야 맞음
+			const UCombatStatsComponent* HitStats = Hit.GetActor()
+				? Hit.GetActor()->FindComponentByClass<UCombatStatsComponent>() : nullptr;
+
+			OnHitConfirmed.Broadcast(HitStats && HitStats->IsDead());
+		}
 	}
 }
 

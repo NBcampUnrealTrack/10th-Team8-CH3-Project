@@ -9,6 +9,10 @@
 class UNiagaraSystem;
 class USoundBase;
 
+//총알이 적을 맞혔을 때 알림 이번 발로 대상이 죽었으면 bKilled가 true
+//무기가 HUD를 직접 모르게 하려고 알리기만 함 모아서 넘기는 일은 들고 있는 캐릭터가 함
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponHitConfirmed, bool, bKilled);
+
 //플레이어 손 소켓에 붙는 무기 컴포넌트 이 클래스 그대로가 기본 무기인 권총
 //다른 무기는 이 클래스를 물려받아 수치만 바꿈 소총은 URifleWeapon
 //캐릭터의 컴포넌트라서 GetOwner가 항상 쏜 캐릭터 흡혈과 가시 갑옷 반사가 그 캐릭터에게 감
@@ -20,6 +24,11 @@ class DREAMVEIL_API UWeaponBase : public UStaticMeshComponent
 
 public:
 	UWeaponBase();
+
+	//이 무기가 적을 맞혔을 때 알림 캐릭터가 받아서 HUD의 히트 마커로 넘김
+	//벽이나 아군을 맞히면 울리지 않음 실제로 데미지가 들어갔을 때만 울림
+	UPROPERTY(BlueprintAssignable, Category = "Weapon")
+	FOnWeaponHitConfirmed OnHitConfirmed;
 
 	//MuzzleLocation에서 FireDirection으로 쏨 연사 간격이 안 지났으면 무시
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
@@ -63,6 +72,15 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	float GetFireInterval() const;
 
+	//한 발마다 카메라가 위로 튀는 양
+	//무기가 직접 카메라를 못 돌리는 이유 무기는 컴포넌트라 컨트롤러를 모름 값만 알려주고 돌리는 건 캐릭터가 함
+	UFUNCTION(BlueprintPure, Category = "Weapon|Recoil")
+	float GetRecoilPitch() const;
+
+	//한 발마다 카메라가 좌우로 튀는 양 어느 쪽으로 틀지는 쏘는 쪽이 무작위로 정함
+	UFUNCTION(BlueprintPure, Category = "Weapon|Recoil")
+	float GetRecoilYaw() const;
+
 protected:
 	//기본값은 권총 수치 데미지는 높고 연사력은 낮음
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
@@ -88,6 +106,17 @@ protected:
 	//총구 소켓 이름 무기 메시에 이 이름의 소켓을 만들면 거기서 발사
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon")
 	FName MuzzleSocketName = TEXT("Muzzle");
+
+	//한 발마다 카메라가 위로 튀는 양 0이면 반동 없음
+	//권총은 한 발이 무거워서 크게 튀고 소총은 연사라 한 발당 작게 둠
+	//단위는 각도가 아니라 입력값 컨트롤러가 여기에 감도를 한 번 더 곱해서 실제 각도가 됨
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+	float RecoilPitch = 1.5f;
+
+	//한 발마다 카메라가 좌우로 튀는 양 매번 좌우 무작위로 들어감
+	//위로만 튀면 탄착이 세로 일직선이 되어서 기계가 쏘는 것처럼 보임
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
+	float RecoilYaw = 0.4f;
 
 	//트레이스 선
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Debug")

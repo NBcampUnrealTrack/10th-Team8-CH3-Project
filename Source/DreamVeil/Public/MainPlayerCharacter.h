@@ -19,6 +19,10 @@ enum class EAugmentID : uint8;
 
 struct FInputActionValue;
 
+//총알이 적을 맞혔을 때 HUD가 히트 마커를 띄우게 알림 이번 발로 죽였으면 bKilled가 true
+//처치 표식을 따로 띄울 수 있게 죽였는지까지 같이 넘김 몬스터가 몰려 있으면 죽었는지 눈으로 알기 어려움
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHitMarker, bool, bKilled);
+
 //경험치가 바뀌었을 때 현재 경험치와 다음 레벨까지 필요한 경험치
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 	FOnPlayerExperienceChanged,
@@ -97,6 +101,11 @@ public:
 	//무기가 바뀌었을 때 이벤트 무기 UI 갱신용
 	UPROPERTY(BlueprintAssignable, Category = "Weapon")
 	FOnWeaponChanged OnWeaponChanged;
+
+	//총알이 적을 맞혔을 때 이벤트 HUD가 히트 마커를 띄울 것
+	//무기가 둘이라도 HUD는 여기 하나만 보면 됨 무기 쪽 알림을 캐릭터가 모아서 다시 알림
+	UPROPERTY(BlueprintAssignable, Category = "Weapon")
+	FOnHitMarker OnHitMarker;
 
 	//무기를 얻음 상점 인벤토리 몬스터 드랍에서 부를 것 얻기만 하고 바로 들지는 않음
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
@@ -377,6 +386,21 @@ private:
 	//총알이 나갈 총구 위치와 방향을 구함 무기가 없으면 false
 	//사격과 조준점 UI가 같은 계산을 쓰게 하려고 따로 뺌 둘이 따로 계산하면 조준점과 탄착점이 어긋남
 	bool CalculateFireAim(FVector& OutMuzzleLocation, FVector& OutFireDirection) const;
+
+	//무기가 적을 맞혔다고 알려주면 HUD 쪽으로 넘김
+	//무기마다 따로 걸어두고 여기서 하나로 모음 무기를 바꿔도 HUD가 다시 걸 필요가 없음
+	UFUNCTION()
+	void HandleWeaponHitConfirmed(bool bKilled);
+
+	//반동으로 올라간 카메라를 조금씩 제자리로 내림 Tick이 부름
+	void UpdateRecoilRecovery(float DeltaTime);
+
+	//반동으로 위로 올린 양 중 아직 되돌리지 않은 것 0이면 되돌릴 게 없음
+	//각도가 아니라 입력값 단위 올릴 때와 내릴 때 같은 함수를 써서 정확히 제자리로 돌아옴
+	float RecoilToRecover = 0.0f;
+
+	//마지막으로 반동을 준 시각 연사 중에는 되돌리지 않으려고 잼
+	float LastRecoilTime = -100.0f;
 
 	//증강 선택 때문에 게임을 멈춘 상태인지 두 번 멈추거나 두 번 푸는 것을 막음
 	bool bAugmentChoicePaused = false;

@@ -9,6 +9,11 @@ URifleWeapon::URifleWeapon()
 
 	//소총은 누르고 있으면 계속 나감
 	bAutomatic = true;
+
+	//연사라 한 발당 반동을 권총보다 작게 둠 권총과 같게 두면 몇 초만 눌러도 하늘을 보게 됨
+	//대신 발수가 많아서 쌓이는 양은 권총보다 큼
+	RecoilPitch = 0.5f;
+	RecoilYaw = 0.5f;
 }
 
 //소총이 끼울 수 있는 칸

@@ -10,6 +10,7 @@
 #include "AugmentDamageLibrary.h"
 #include "CombatStatsComponent.h"
 #include "AugmentTypes.h"
+#include "DrawDebugHelpers.h"
 #include "Engine/HitResult.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
@@ -155,6 +156,16 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         {
             return !UAugmentDamageLibrary::IsEnemy(OwnerActor, FoundTarget);
         });
+
+    //터진 자리와 반경을 잠깐 그림 0명이 걸렸을 때 반경이 좁은 건지 주변에 아무도 없던 건지 바로 구분됨
+    //대상이 없어도 그려야 확인이 되므로 아래 조기 반환보다 먼저 함
+    if (AREA_ATTACK_DRAW_DEBUG)
+    {
+        DrawDebugSphere(OwnerActor->GetWorld(), HitResult.ImpactPoint, AREA_ATTACK_RADIUS, 16, FColor::Orange, false, 1.0f);
+
+        UE_LOG(LogTemp, Warning, TEXT("[AreaAttack] 반경 %.0f 안에서 %d명 적중 대상당 데미지 %.1f"),
+            AREA_ATTACK_RADIUS, FoundTargets.Num(), SplashDamage);
+    }
 
     if (FoundTargets.Num() == 0)
     {
