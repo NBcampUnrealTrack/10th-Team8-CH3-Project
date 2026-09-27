@@ -254,6 +254,11 @@ public:
 	UFUNCTION(Exec)
 	void CheatGiveAugment(int32 AugmentID);
 
+	//증강을 전부 한 번에 얻음 액티브 셋(감속탄 폭발탄 화염탄)을 같이 확인할 때 씀
+	//하나씩 주려면 CheatGiveAugment를 쓰면 됨 겹쳐 놓으면 어느 연출인지 구분이 안 될 때가 있음
+	UFUNCTION(Exec)
+	void CheatGiveAllAugments();
+
 	//자기 자신에게 데미지 사망 흐름 확인용 예) CheatDamageMe 9999
 	UFUNCTION(Exec)
 	void CheatDamageMe(float Amount);

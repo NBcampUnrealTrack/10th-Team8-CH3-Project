@@ -25,7 +25,7 @@ void FAugmentPool::BuildDefault()
     Augments.Add(FAugmentData(EAugmentID::Vampire, EAugmentCategory::Passive, 8.0f, false));
     Augments.Add(FAugmentData(EAugmentID::Regeneration, EAugmentCategory::Passive, 8.0f, false));
 
-    Augments.Add(FAugmentData(EAugmentID::SlowEnemy, EAugmentCategory::Active, 6.0f, false));
+    Augments.Add(FAugmentData(EAugmentID::Knockback, EAugmentCategory::Active, 6.0f, false));
     Augments.Add(FAugmentData(EAugmentID::AreaAttack, EAugmentCategory::Active, 6.0f, false));
     Augments.Add(FAugmentData(EAugmentID::ContinuousAttack, EAugmentCategory::Active, 6.0f, false));
 

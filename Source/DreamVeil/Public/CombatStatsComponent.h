@@ -19,9 +19,8 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 
 DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDead);
 
-class UNiagaraSystem;
-class UNiagaraComponent;
-class AThornSpikeEffect;
+class UParticleSystem;
+class UParticleSystemComponent;
 
 //체력 공격력 방어력을 들고 바꾸고 알리는 컴포넌트
 //증강은 전혀 모름 증강 없는 액터에도 이것만 붙여서 쓸 수 있음
@@ -80,37 +79,14 @@ public:
 	bool IsDead() const;
 
 	// 증강 이펙트
-	// 플레이어와 몬스터가 둘 다 가진 컴포넌트가 이것뿐이라 증강 연출을 여기 모음
-	// 증강 스킬은 UObject라 월드에 이펙트를 직접 붙일 수 없어서 이 컴포넌트에게 부탁함
-
-	//가시 갑옷 반사를 맞은 대상 발밑에서 솟는 가시
-	//가시 갑옷을 가진 쪽(보통 플레이어)이 들고 있고 재생은 맞은 쪽 자리에서 함
-	//기본값이 C++ 생성자에 들어 있어서 에디터에서 아무것도 안 해도 나옴 비우면 연출 없이 데미지만 들어감
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
-	TSubclassOf<AThornSpikeEffect> ThornSpikeEffectClass;
-
-	//불타는 동안 계속 재생할 불꽃 Loop Behavior를 Infinite로 만들어야 꺼질 때까지 남아 있음
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
-	TObjectPtr<UNiagaraSystem> OnFireEffect;
-
-	//폭발탄이 터질 때 맞은 지점에 재생 Loop Behavior는 Once로 둘 것
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
-	TObjectPtr<UNiagaraSystem> AreaAttackEffect;
-
-	//가시 반사를 맞은 대상 자리에 가시를 냄 반사가 실제로 들어갔을 때 AugmentDamageLibrary가 부름
-	//부르는 쪽은 가시 갑옷을 가진 사람(보통 플레이어)이고 ReflectTarget은 반사를 맞은 몬스터
-	//맞은 쪽이 에셋을 들고 있지 않은 이유 증강은 플레이어 것이라 몬스터 블루프린트마다 같은 에셋을 넣는 건 관리가 안 됨
-	UFUNCTION(BlueprintCallable, Category = "Stats|Effect")
-	void PlayThornReflectEffect(AActor* ReflectTarget);
-
-	//폭발 연출을 지정한 위치에 재생 폭발탄 증강이 터진 자리에서 부름
-	UFUNCTION(BlueprintCallable, Category = "Stats|Effect")
-	void PlayAreaAttackEffect(const FVector& Location);
+	// 연출 에셋은 증강을 가진 쪽의 DispatchTableComponent가 들고 있음
+	// 여기 남은 것은 "불타는 상태"뿐임 상태는 불붙은 대상 본인이 들고 있어야 함
 
 	//불타는 상태를 켜고 끔 켜면 불꽃이 몸에 붙고 끄면 사라짐
 	//같은 상태로 두 번 불러도 이펙트가 겹치지 않음
+	//FireEffect는 불을 붙인 쪽의 DispatchTable이 들고 있는 불꽃 비어 있으면 상태만 바뀌고 불꽃은 없음
 	UFUNCTION(BlueprintCallable, Category = "Stats|Effect")
-	void SetOnFire(bool bNewOnFire);
+	void SetOnFire(bool bNewOnFire, UParticleSystem* FireEffect);
 
 	//지금 불타고 있는지 애님 블루프린트나 UI가 읽을 수 있게 열어둠
 	UFUNCTION(BlueprintPure, Category = "Stats|Effect")
@@ -174,8 +150,9 @@ private:
 	bool bOnFire = false;
 
 	//지금 몸에 붙어 있는 불꽃 컴포넌트 꺼질 때 없애려고 들고 있음 안 타면 nullptr
+	//자동 삭제를 끄고 스폰하므로 여기서 꼭 지워야 함
 	UPROPERTY(Transient)
-	TObjectPtr<UNiagaraComponent> OnFireEffectComponent;
+	TObjectPtr<UParticleSystemComponent> FireEffectComponent;
 
 	//체력 공격력 방어력 기본값은 디테일 패널에서 캐릭터별로 입력
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats", meta = (AllowPrivateAccess = "true"))

@@ -1,11 +1,14 @@
 #include "WeaponBase.h"
 #include "AugmentDamageLibrary.h"
+#include "AugmentTypes.h"
 #include "CombatStatsComponent.h"
+#include "DispatchTableComponent.h"
 #include "DrawDebugHelpers.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "Particles/ParticleSystem.h"
 #include "Sound/SoundBase.h"
 
 
@@ -156,9 +159,20 @@ void UWeaponBase::PlayImpactEffect(const FHitResult& Hit)
 	//맞은 면의 바깥 방향(법선)을 이펙트의 앞(X축)으로 삼아서 표면 밖으로 튀게 함
 	const FRotator ImpactRotation = Hit.ImpactNormal.Rotation();
 
-	//같은 자리에 두 개를 겹쳐서 재생
-	//맞은 대상에 따라 달라지는 연출(피 파편)과 어디를 맞았든 공통으로 나는 탄착 연출을 나눠서 관리하려는 것
+	//맞은 대상에 따라 달라지는 연출(피 파편)은 폭발탄이 있어도 그대로 냄
+	//맞았다는 표시까지 폭발에 묻히면 어디를 맞혔는지 안 보임
 	SpawnImpactEffect(bHitPawn ? BloodEffect : ImpactEffect, Hit.ImpactPoint, ImpactRotation);
+
+	//폭발탄을 가졌으면 추가 효과 자리에 폭발을 대신 냄
+	//폭발 칸을 안 채웠으면 아래로 내려가서 원래 추가 효과가 그대로 나감
+	if (ExplosionEffect && HasAreaAttackAugment())
+	{
+		SpawnExplosionEffect(Hit.ImpactPoint, ImpactRotation);
+
+		return;
+	}
+
+	//어디를 맞았든 공통으로 나는 탄착 연출 피 파편과 겹쳐서 재생됨
 	SpawnImpactEffect(bHitPawn ? BloodPointEffect : ImpactPointEffect, Hit.ImpactPoint, ImpactRotation);
 }
 
@@ -172,6 +186,70 @@ void UWeaponBase::SpawnImpactEffect(UNiagaraSystem* Effect, const FVector& Locat
 	}
 
 	UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Effect, Location, Rotation);
+}
+
+//범위 피해로 맞은 자리에 피 연출을 냄
+void UWeaponBase::PlaySplashHitEffect(const FVector& Location, const FVector& ExplosionCenter)
+{
+	//터진 중심에서 대상 쪽으로 향하는 방향 피가 폭발 바깥으로 튀어 보이게 함
+	//같은 자리에서 터졌으면 방향이 없으므로 위쪽으로 둠
+	const FVector OutwardDirection = (Location - ExplosionCenter).GetSafeNormal(KINDA_SMALL_NUMBER, FVector::UpVector);
+
+	//범위 피해는 적에게만 들어가므로 언제나 피 쪽을 씀
+	//추가 효과는 내지 않음 터지는 연출은 중심에서 한 번이면 충분하고 대상마다 내면 화면이 불꽃으로 덮임
+	SpawnImpactEffect(BloodEffect, Location, OutwardDirection.Rotation());
+}
+
+//폭발을 탄착점에 재생
+void UWeaponBase::SpawnExplosionEffect(const FVector& Location, const FRotator& Rotation)
+{
+	//이펙트의 원래 크기를 0으로 두면 나눌 수 없으므로 막음
+	const float SafeBaseRadius = FMath::Max(ExplosionEffectBaseRadius, KINDA_SMALL_NUMBER);
+
+	//피격 반경에 맞춰 키우거나 줄임 불덩이 크기와 데미지 범위가 항상 같아짐
+	//반경만 고치면 이펙트가 따라오므로 밸런스를 바꿀 때 에셋을 다시 만들 필요가 없음
+	const float EffectScale = AREA_ATTACK_RADIUS / SafeBaseRadius;
+
+	UGameplayStatics::SpawnEmitterAtLocation(
+		GetWorld(),
+		ExplosionEffect,
+		Location,
+		Rotation,
+		FVector(EffectScale),
+		true
+	);
+}
+
+//쏜 사람이 폭발탄 증강을 가졌는지
+bool UWeaponBase::HasAreaAttackAugment() const
+{
+	//무기는 증강을 모름 증강 컴포넌트를 가진 쪽(플레이어나 보스)에게 물어봄
+	const UDispatchTableComponent* OwnerTable = GetOwner() ? GetOwner()->FindComponentByClass<UDispatchTableComponent>() : nullptr;
+
+	return OwnerTable && OwnerTable->HasAcquiredAugment(EAugmentID::AreaAttack);
+}
+
+//쏜 사람이 지금 들고 있는 무기
+UWeaponBase* UWeaponBase::FindActiveWeapon(const AActor* Shooter)
+{
+	if (!Shooter)
+	{
+		return nullptr;
+	}
+
+	TArray<UWeaponBase*> Weapons;
+	Shooter->GetComponents(Weapons);
+
+	for (UWeaponBase* Weapon : Weapons)
+	{
+		//안 든 무기는 UpdateWeaponVisibility가 숨겨두므로 보이는 것이 들고 있는 것
+		if (Weapon && !Weapon->bHiddenInGame)
+		{
+			return Weapon;
+		}
+	}
+
+	return nullptr;
 }
 
 //이 총에 끼울 수 있는 칸

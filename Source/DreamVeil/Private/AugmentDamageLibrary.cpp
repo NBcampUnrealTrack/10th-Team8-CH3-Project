@@ -10,6 +10,7 @@
 #include "MonsterProgressionLibrary.h"
 
 #include "CombatStatsComponent.h"
+#include "MonsterCollision.h"
 #include "DispatchTableComponent.h"
 #include "InventoryComponent.h"
 #include "GameFramework/Actor.h"
@@ -225,17 +226,19 @@ float UAugmentDamageLibrary::ApplyThornReflectDamage(AActor* ThornOwner, AActor*
     {
         //연출 에셋은 가시 갑옷을 가진 쪽이 들고 있고 가시는 맞은 쪽 발밑에서 솟음
         //맞은 쪽이 들고 있게 하면 몬스터 블루프린트마다 같은 에셋을 넣어야 해서 관리가 안 됨
-        UCombatStatsComponent* ThornOwnerStats = ThornOwner ? ThornOwner->FindComponentByClass<UCombatStatsComponent>() : nullptr;
+        //연출 에셋은 가시 갑옷을 가진 쪽의 증강 컴포넌트가 들고 있음
+        //맞은 쪽이 들고 있게 하면 몬스터 블루프린트마다 같은 에셋을 넣어야 해서 관리가 안 됨
+        UDispatchTableComponent* ThornOwnerTable = ThornOwner ? ThornOwner->FindComponentByClass<UDispatchTableComponent>() : nullptr;
 
         if (THORN_ARMOR_DRAW_DEBUG)
         {
-            UE_LOG(LogTemp, Warning, TEXT("[ThornArmor] 실제 들어간 데미지 %.1f 주인 스탯 %s"),
-                ReflectedDamage, ThornOwnerStats ? TEXT("있음") : TEXT("없음"));
+            UE_LOG(LogTemp, Warning, TEXT("[ThornArmor] 실제 들어간 데미지 %.1f 주인 증강 테이블 %s"),
+                ReflectedDamage, ThornOwnerTable ? TEXT("있음") : TEXT("없음"));
         }
 
-        if (ThornOwnerStats)
+        if (ThornOwnerTable)
         {
-            ThornOwnerStats->PlayThornReflectEffect(Target);
+            ThornOwnerTable->PlayThornReflectEffect(Target);
         }
     }
 
@@ -393,9 +396,13 @@ void UAugmentDamageLibrary::FindTargetsAtLocation(UObject* WorldContextObject, F
     }
 
     TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
 
-    //폰 전체를 잡음 아군 적군 구분이 필요하면 받은 쪽에서 IsEnemy로 거를 것
+    //플레이어는 Pawn이지만 몬스터는 전용 채널을 씀 Pawn만 넣으면 몬스터가 한 마리도 안 잡힘
+    //MonsterBase가 이동 캡슐의 오브젝트 타입을 MonsterCollision::Monster로 바꿔둠
+    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
+    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(MonsterCollision::Monster));
+
+    //양쪽을 다 잡음 아군 적군 구분이 필요하면 받은 쪽에서 IsEnemy로 거를 것
     UKismetSystemLibrary::SphereOverlapActors(
         WorldContextObject,
         Location,

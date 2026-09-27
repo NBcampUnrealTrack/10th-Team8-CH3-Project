@@ -9,6 +9,8 @@
 
 #include "AugmentDamageLibrary.h"
 #include "CombatStatsComponent.h"
+#include "DispatchTableComponent.h"
+#include "WeaponBase.h"
 #include "AugmentTypes.h"
 #include "DrawDebugHelpers.h"
 #include "Engine/HitResult.h"
@@ -19,18 +21,9 @@
 
 //감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
 //감속 대상이 3초 안에 죽을 수 있어서 약한 참조 사용
-FSlowedCharacterMap USlowEnemySkill::SlowedCharacters;
-
-//감속 총에 맞은 캐릭터를 느리게 만듦 이미 느린 대상이면 누가 걸었든 시간만 다시 시작
-void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
+//넉백 총에 맞은 적을 쏜 사람 반대쪽으로 살짝 밀어냄
+void UKnockbackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
-    UWorld* World = GetWorld();
-
-    if (!World)
-    {
-        return;
-    }
-
     ACharacter* TargetCharacter = Cast<ACharacter>(HitResult.GetActor());
 
     if (!TargetCharacter)
@@ -38,7 +31,9 @@ void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         return;
     }
 
-    if (TargetCharacter == GetOwnerActor())
+    AActor* OwnerActor = GetOwnerActor();
+
+    if (!OwnerActor || TargetCharacter == OwnerActor)
     {
         return;
     }
@@ -50,68 +45,24 @@ void USlowEnemySkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         return;
     }
 
-    FSlowedCharacterState* SlowedState = SlowedCharacters.Find(TargetCharacter);
+    //쏜 사람에서 대상으로 가는 방향으로 밀어냄
+    //충돌 법선을 쓰지 않는 이유 둥근 캡슐이라 어디를 맞혔느냐에 따라 옆으로 밀리기도 함
+    FVector KnockbackDirection = TargetCharacter->GetActorLocation() - OwnerActor->GetActorLocation();
 
-    //처음 느려지는 대상만 원래 속도를 저장하고 배율을 곱함 다른 공격자에게 다시 맞아도 더 느려지지 않음
-    if (!SlowedState)
-    {
-        RemoveInvalidTargets();
+    //위아래 성분을 버림 띄우려는 게 아니라 뒤로 밀어내려는 것이고
+    //위로 밀면 공중에 뜬 동안 마찰이 없어서 훨씬 멀리 날아감
+    KnockbackDirection.Z = 0.0f;
+    KnockbackDirection = KnockbackDirection.GetSafeNormal();
 
-        FSlowedCharacterState NewState;
-        NewState.OriginalWalkSpeed = MovementComponent->MaxWalkSpeed;
-
-        MovementComponent->MaxWalkSpeed *= SLOW_ENEMY_RATIO;
-
-        SlowedState = &SlowedCharacters.Add(TargetCharacter, NewState);
-    }
-
-    //같은 핸들로 다시 걸면 이전 타이머는 취소되고 지속 시간이 처음부터 다시 흐름
-    //스킬 객체에 묶지 않은 정적 함수라서 쏜 사람이 사라져 스킬이 정리돼도 타이머는 끝까지 돌아 속도를 되돌림
-    FTimerDelegate RestoreDelegate = FTimerDelegate::CreateStatic(
-        &USlowEnemySkill::RestoreCharacter,
-        TWeakObjectPtr<ACharacter>(TargetCharacter)
-    );
-
-    World->GetTimerManager().SetTimer(SlowedState->RestoreTimerHandle, RestoreDelegate, SLOW_ENEMY_DURATION, false);
-}
-
-//이미 사라진 대상의 상태를 목록에서 지움
-void USlowEnemySkill::RemoveInvalidTargets()
-{
-    //순회 중에 지워야 해서 range-for 대신 반복자를 씀 RemoveCurrent는 지금 칸을 지우고 안전하게 다음으로 넘어감
-    for (FSlowedCharacterMap::TIterator It = SlowedCharacters.CreateIterator(); It; ++It)
-    {
-        if (!It->Key.IsValid())
-        {
-            It.RemoveCurrent();
-        }
-    }
-}
-
-//감속 한 대상의 이동 속도를 원래대로 되돌림
-void USlowEnemySkill::RestoreCharacter(TWeakObjectPtr<ACharacter> WeakTarget)
-{
-    FSlowedCharacterState* SlowedState = SlowedCharacters.Find(WeakTarget);
-
-    if (!SlowedState)
+    //바로 위나 아래에서 쏴서 수평 방향이 안 나오면 밀 곳이 없음
+    if (KnockbackDirection.IsNearlyZero())
     {
         return;
     }
 
-    ACharacter* SlowedCharacter = WeakTarget.Get();
-
-    if (SlowedCharacter)
-    {
-        UCharacterMovementComponent* MovementComponent = SlowedCharacter->GetCharacterMovement();
-
-        if (MovementComponent)
-        {
-            MovementComponent->MaxWalkSpeed = SlowedState->OriginalWalkSpeed;
-        }
-    }
-
-    //대상이 이미 사라졌어도 목록에서는 지움
-    SlowedCharacters.Remove(WeakTarget);
+    //bVelocityChange를 true로 두는 이유 질량을 무시하고 속도를 그대로 더함
+    //false면 힘을 질량으로 나눠서 무거운 적은 거의 안 밀리는데 몬스터마다 질량이 달라 예측이 안 됨
+    MovementComponent->AddImpulse(KnockbackDirection * KNOCKBACK_IMPULSE, true);
 }
 
 //범위 공격 총알이 맞은 지점 주변 대상에게 데미지
@@ -131,12 +82,8 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         return;
     }
 
-    //주변에 아무도 없어도 터지는 건 보여야 해서 대상을 찾기 전에 먼저 재생함
-    //이펙트 에셋은 쏜 사람의 스탯 컴포넌트가 들고 있음 증강 스킬은 UObject라 에셋을 못 들고 있어서
-    if (UCombatStatsComponent* OwnerStats = OwnerActor->FindComponentByClass<UCombatStatsComponent>())
-    {
-        OwnerStats->PlayAreaAttackEffect(HitResult.ImpactPoint);
-    }
+    //폭발 연출은 여기서 내지 않음 무기가 탄착 연출(피 파편 + 추가 효과)을 크게 키워서 대신 냄
+    //따로 폭발 이펙트를 두지 않는 이유 이미 있는 탄착 연출을 키우면 그대로 폭발로 읽힘
 
     //쏜 사람은 자기 범위 공격에 안 맞고 직접 맞은 대상은 이미 총 데미지를 받았으므로 제외
     TArray<AActor*> ActorsToIgnore;
@@ -161,7 +108,8 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
     //대상이 없어도 그려야 확인이 되므로 아래 조기 반환보다 먼저 함
     if (AREA_ATTACK_DRAW_DEBUG)
     {
-        DrawDebugSphere(OwnerActor->GetWorld(), HitResult.ImpactPoint, AREA_ATTACK_RADIUS, 16, FColor::Orange, false, 1.0f);
+        //데미지가 들어가는 범위를 그대로 그림 빨간 구체 안에 있는 적이 맞는 것
+        DrawDebugSphere(OwnerActor->GetWorld(), HitResult.ImpactPoint, AREA_ATTACK_RADIUS, 16, FColor::Red, false, 0.4f);
 
         UE_LOG(LogTemp, Warning, TEXT("[AreaAttack] 반경 %.0f 안에서 %d명 적중 대상당 데미지 %.1f"),
             AREA_ATTACK_RADIUS, FoundTargets.Num(), SplashDamage);
@@ -172,8 +120,30 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         return;
     }
 
-    //범위 데미지는 ApplyWeaponHit를 거치지 않으므로 범위 공격이 다시 터지지 않음
-    UAugmentDamageLibrary::ApplyAugmentDamage(OwnerActor, FoundTargets, SplashDamage);
+    //데미지보다 먼저 재생 이번 폭발로 죽어서 사라져도 맞은 자리에 피는 튀게
+    //무기 연출을 빌려 쓰는 이유 직격과 범위 피해의 피가 달라 보이면 같은 총에 맞은 것 같지 않음
+    UWeaponBase* ActiveWeapon = UWeaponBase::FindActiveWeapon(OwnerActor);
+
+    for (AActor* FoundTarget : FoundTargets)
+    {
+        if (ActiveWeapon)
+        {
+            ActiveWeapon->PlaySplashHitEffect(FoundTarget->GetActorLocation(), HitResult.ImpactPoint);
+        }
+
+        //터진 자리에서 멀수록 약하게 맞음
+        //거리를 반경으로 나눠서 0~1을 만들고 1에서 빼면 가까울수록 큰 값이 됨
+        //균일하게 넣으면 가장자리에 걸친 적도 똑같이 아파서 어디에 쏠지 고민할 이유가 없어짐
+        const float DistanceToCenter = FVector::Dist(FoundTarget->GetActorLocation(), HitResult.ImpactPoint);
+        const float CenterRatio = 1.0f - FMath::Clamp(DistanceToCenter / AREA_ATTACK_RADIUS, 0.0f, 1.0f);
+
+        //0까지 떨어뜨리지 않고 최소 비율을 깔아둠 가장자리도 맞았다는 느낌은 나야 함
+        const float FalloffRatio = FMath::Lerp(AREA_ATTACK_MIN_FALLOFF, 1.0f, CenterRatio);
+
+        //범위 데미지는 ApplyWeaponHit를 거치지 않으므로 범위 공격이 다시 터지지 않음
+        //대상마다 값이 달라서 여러 명에게 한 번에 보내는 ApplyAugmentDamage를 쓰지 않음
+        UAugmentDamageLibrary::ApplyAugmentDamageToTarget(OwnerActor, FoundTarget, SplashDamage * FalloffRatio);
+    }
 }
 
 //지속 공격 총에 맞은 대상에게 불을 붙임 이미 걸린 대상이면 시간과 데미지만 갱신
@@ -225,7 +195,11 @@ void UContinuousAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitD
     //이미 걸려 있던 대상은 위에서 돌아가므로 여기까지 오지 않아 불꽃이 겹치지 않음
     if (UCombatStatsComponent* TargetStats = TargetActor->FindComponentByClass<UCombatStatsComponent>())
     {
-        TargetStats->SetOnFire(true);
+        //불꽃 에셋은 불을 붙인 쪽의 증강 컴포넌트가 들고 있음 몬스터 블루프린트마다 넣지 않아도 됨
+        //불타는 상태 자체는 대상 본인이 들고 있어야 해서 상태만 대상 쪽에 켬
+        UDispatchTableComponent* OwnerTable = GetOwnerActor() ? GetOwnerActor()->FindComponentByClass<UDispatchTableComponent>() : nullptr;
+
+        TargetStats->SetOnFire(true, OwnerTable ? OwnerTable->OnFireEffect.Get() : nullptr);
     }
 
     //첫 화염 데미지는 맞은 순간이 아니라 한 간격 뒤부터
@@ -256,7 +230,7 @@ void UContinuousAttackSkill::Deactivate()
         {
             if (UCombatStatsComponent* BurningStats = BurningActor->FindComponentByClass<UCombatStatsComponent>())
             {
-                BurningStats->SetOnFire(false);
+                BurningStats->SetOnFire(false, nullptr);
             }
         }
     }
@@ -310,7 +284,7 @@ void UContinuousAttackSkill::ProcessBurnTick(TWeakObjectPtr<AActor> WeakTarget)
     {
         if (UCombatStatsComponent* TargetStats = TargetActor->FindComponentByClass<UCombatStatsComponent>())
         {
-            TargetStats->SetOnFire(false);
+            TargetStats->SetOnFire(false, nullptr);
         }
     }
 

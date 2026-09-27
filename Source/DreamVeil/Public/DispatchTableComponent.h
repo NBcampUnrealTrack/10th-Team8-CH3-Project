@@ -9,6 +9,8 @@
 
 class UAugmentSkillBase;
 class UCombatStatsComponent;
+class AThornSpikeEffect;
+class UParticleSystem;
 
 //증강을 뽑고 적용하고 스킬에게 알림을 전달하는 컴포넌트
 //스탯은 들고 있지 않고 같은 액터의 UCombatStatsComponent를 찾아서 스킬이 그걸 바꿈
@@ -96,6 +98,26 @@ public:
 	//무기가 무언가를 맞혔을 때 보유 스킬 효과를 처리 범위 공격 감속 지속 공격
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	void ProcessWeaponHit(const FHitResult& HitResult, float HitDamage);
+
+	// 증강 연출
+	// 증강을 가진 쪽이 자기 증강의 연출을 들고 있음 여기 한 곳만 채우면 됨
+	// 맞는 쪽(몬스터)이 들고 있게 하면 몬스터 블루프린트마다 같은 에셋을 넣어야 해서 관리가 안 됨
+	// 보스가 증강을 얻으면 보스 블루프린트의 이 칸이 쓰임
+
+	//가시 갑옷 반사를 맞은 대상 발밑에서 솟는 가시 비우면 연출 없이 데미지만 들어감
+	//C++ 생성자에 기본값이 들어 있어서 에디터에서 아무것도 안 해도 나옴
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment|Effect")
+	TSubclassOf<AThornSpikeEffect> ThornSpikeEffectClass;
+
+	//지속 공격으로 불붙은 대상 몸에 붙일 불꽃 불이 꺼지면 같이 사라짐
+	//반복 재생되는 것을 넣을 것 한 번 터지고 끝나는 것을 넣으면 3초 타는 동안 불이 먼저 꺼짐
+	//폭발과 같은 Cascade인 이유 쓰려는 에셋(P_Fire_Small 등)이 Cascade라 변환 없이 바로 넣으려는 것
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment|Effect")
+	TObjectPtr<UParticleSystem> OnFireEffect;
+
+	//가시 반사를 맞은 대상 발밑에 가시를 냄 반사가 실제로 들어갔을 때 AugmentDamageLibrary가 부름
+	UFUNCTION(BlueprintCallable, Category = "Augment|Effect")
+	void PlayThornReflectEffect(AActor* ReflectTarget);
 
 protected:
 	//생명주기 함수

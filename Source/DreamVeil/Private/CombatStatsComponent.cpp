@@ -1,9 +1,9 @@
 #include "CombatStatsComponent.h"
 
 #include "AugmentTypes.h"
-#include "ThornSpikeEffect.h"
-#include "NiagaraFunctionLibrary.h"
-#include "NiagaraComponent.h"
+#include "Kismet/GameplayStatics.h"
+#include "Particles/ParticleSystem.h"
+#include "Particles/ParticleSystemComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
 #include "Engine/World.h"
@@ -15,8 +15,6 @@ UCombatStatsComponent::UCombatStatsComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
 
-    //전용 Niagara가 나오기 전까지 쓸 기본 가시 블루프린트에서 비우면 연출 없이 데미지만 들어감
-    ThornSpikeEffectClass = AThornSpikeEffect::StaticClass();
 }
 
 //스탯 전체 복사본
@@ -197,67 +195,11 @@ void UCombatStatsComponent::BeginPlay()
     Stats.bIsDead = false;
 }
 
-// 증강 이펙트
-// 증강 스킬은 UObject라 월드에 이펙트를 붙일 수 없어서 이 컴포넌트가 대신 재생해줌
-
-//가시 갑옷 반사를 맞았다는 연출
-void UCombatStatsComponent::PlayThornReflectEffect(AActor* ReflectTarget)
-{
-    //가시는 반사를 맞은 쪽 발밑에서 솟음 에셋만 가시 갑옷 주인 것을 씀
-    //대상이 없으면 어디에 낼지 알 수 없으므로 아무것도 하지 않음
-    if (!ReflectTarget)
-    {
-        return;
-    }
-
-    //캐릭터의 원점은 캡슐 한가운데라 그대로 두면 가시가 허리에서 솟음
-    //캡슐 절반 높이만큼 내려서 발밑에 맞춤 캐릭터가 아니면 원점이 곧 바닥이라 0
-    FVector FootOffset = FVector::ZeroVector;
-
-    if (const ACharacter* TargetCharacter = Cast<ACharacter>(ReflectTarget))
-    {
-        FootOffset.Z = -TargetCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-    }
-
-    if (THORN_ARMOR_DRAW_DEBUG)
-    {
-        UE_LOG(LogTemp, Warning, TEXT("[ThornArmor] 연출 재생 대상 %s 가시 클래스 %s"),
-            *GetNameSafe(ReflectTarget), *GetNameSafe(ThornSpikeEffectClass));
-    }
-
-    if (!ThornSpikeEffectClass)
-    {
-        return;
-    }
-
-    //몸에 붙이지 않고 그 자리에 두는 이유 땅에서 솟는 가시라 맞고 밀려나도 자리에 남아야 함
-    //수명은 액터가 스스로 정해서 지워짐
-    GetWorld()->SpawnActor<AThornSpikeEffect>(
-        ThornSpikeEffectClass,
-        ReflectTarget->GetActorLocation() + FootOffset,
-        FRotator::ZeroRotator
-    );
-}
-
-//폭발 연출을 지정한 위치에 재생
-void UCombatStatsComponent::PlayAreaAttackEffect(const FVector& Location)
-{
-    if (!AreaAttackEffect)
-    {
-        return;
-    }
-
-    //터진 자리에 남기는 연출이라 붙이지 않고 월드 좌표에 그대로 스폰함
-    //쏜 사람이 움직여도 폭발은 그 자리에 있어야 맞음
-    UNiagaraFunctionLibrary::SpawnSystemAtLocation(
-        GetWorld(),
-        AreaAttackEffect,
-        Location
-    );
-}
+// 불타는 상태
+// 연출 에셋은 불을 붙인 쪽의 DispatchTableComponent가 들고 있고 여기로 넘어옴
 
 //불타는 상태를 켜고 끔
-void UCombatStatsComponent::SetOnFire(bool bNewOnFire)
+void UCombatStatsComponent::SetOnFire(bool bNewOnFire, UParticleSystem* FireEffect)
 {
     //같은 상태로 또 부르면 아무것도 하지 않음 불꽃이 여러 개 겹치는 것을 막음
     if (bOnFire == bNewOnFire)
@@ -271,20 +213,29 @@ void UCombatStatsComponent::SetOnFire(bool bNewOnFire)
     {
         AActor* OwnerActor = GetOwner();
 
-        if (!OnFireEffect || !OwnerActor)
+        //불꽃은 불을 붙인 쪽이 넘겨줌 안 넣어뒀으면 불꽃 없이 상태만 바뀜
+        if (!FireEffect || !OwnerActor)
         {
             return;
         }
 
-        //끌 때 없애야 하므로 스폰한 컴포넌트를 들고 있음
-        //bAutoDestroy를 false로 두는 이유 무한 반복이라 스스로 끝나지 않고 우리가 꺼야 함
-        OnFireEffectComponent = UNiagaraFunctionLibrary::SpawnSystemAttached(
-            OnFireEffect,
+        //캡슐 원점은 몸 한가운데라 그대로 두면 불이 허리에서 시작함 발밑으로 내림
+        FVector FootOffset = FVector::ZeroVector;
+
+        if (const ACharacter* OwnerCharacter = Cast<ACharacter>(OwnerActor))
+        {
+            FootOffset.Z = -OwnerCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+        }
+
+        //몸에 붙여서 도망가도 불이 따라가게 함
+        //bAutoDestroy를 false로 두는 이유 반복 재생이라 스스로 끝나지 않고 우리가 꺼야 함
+        FireEffectComponent = UGameplayStatics::SpawnEmitterAttached(
+            FireEffect,
             OwnerActor->GetRootComponent(),
             NAME_None,
-            FVector::ZeroVector,
+            FootOffset,
             FRotator::ZeroRotator,
-            EAttachLocation::SnapToTarget,
+            EAttachLocation::KeepRelativeOffset,
             false
         );
 
@@ -292,11 +243,11 @@ void UCombatStatsComponent::SetOnFire(bool bNewOnFire)
     }
 
     //불이 꺼짐 남은 불꽃을 정리함
-    if (OnFireEffectComponent)
+    if (FireEffectComponent)
     {
-        //Deactivate가 아니라 DestroyComponent를 쓰는 이유 다시 불이 붙으면 새로 스폰하므로 남겨둘 이유가 없음
-        OnFireEffectComponent->DestroyComponent();
-        OnFireEffectComponent = nullptr;
+        //Deactivate가 아니라 DestroyComponent를 쓰는 이유 다시 붙으면 새로 스폰하므로 남겨둘 이유가 없음
+        FireEffectComponent->DestroyComponent();
+        FireEffectComponent = nullptr;
     }
 }
 

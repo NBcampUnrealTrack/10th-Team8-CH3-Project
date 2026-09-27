@@ -735,10 +735,25 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 
 		if (DispatchTable->DrawAugmentChoices(CurrentAugmentChoices))
 		{
+			//선택창을 띄울 쪽이 아무도 없으면 멈추지 않음
+			//멈춰놓고 창이 안 뜨면 입력까지 막혀서 플레이어가 아무것도 못 하는 상태로 갇힘
+			//뽑은 선택지는 버리지 않고 남겨둬서 위젯이 붙거나 CheatPickAugment로 고를 수 있게 함
+			if (!OnAugmentChoicesReady.IsBound())
+			{
+				UE_LOG(LogTemp, Warning,
+					TEXT("[Augment] 선택지 %d개를 뽑았지만 OnAugmentChoicesReady에 붙은 위젯이 없음 게임을 멈추지 않고 넘어감 CheatPickAugment 0으로 고를 수 있음"),
+					CurrentAugmentChoices.Num());
+
+				return;
+			}
+
 			//고르는 동안 몬스터가 때리지 못하게 여기서 멈춤
 			//UI가 어떻게 만들어졌든 상관없이 멈추도록 C++에서 처리함 위젯 쪽 배선에 기대지 않으려는 것
 			//위젯은 멈춘 동안에도 입력을 받으므로 버튼은 그대로 눌림
 			SetAugmentChoicePaused(true);
+
+			UE_LOG(LogTemp, Warning, TEXT("[Augment] 선택지 %d개 방송 게임 멈춤 여기까지 왔는데 창이 안 뜨면 위젯이 Add to Viewport를 안 한 것"),
+				CurrentAugmentChoices.Num());
 
 			OnAugmentChoicesReady.Broadcast(CurrentAugmentChoices);
 			return;
@@ -1143,6 +1158,31 @@ void AMainPlayerCharacter::CheatGiveAugment(int32 AugmentID)
 		bApplied ? TEXT("성공") : TEXT("실패"));
 }
 
+//증강을 전부 얻음
+void AMainPlayerCharacter::CheatGiveAllAugments()
+{
+	if (!DispatchTable)
+	{
+		return;
+	}
+
+	//enum 맨 끝까지 도는 이유 증강이 늘어나도 이 함수를 고칠 필요가 없게
+	const int32 MaxAugmentID = static_cast<int32>(EAugmentID::ContinuousAttack);
+
+	int32 AppliedCount = 0;
+
+	for (int32 AugmentID = 0; AugmentID <= MaxAugmentID; ++AugmentID)
+	{
+		//이미 가진 증강은 ApplyAugment가 false를 돌려주므로 여기서 따로 걸러내지 않음
+		if (DispatchTable->ApplyAugment(static_cast<EAugmentID>(AugmentID)))
+		{
+			AppliedCount++;
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] 증강 %d개 적용 (총 %d개 중)"), AppliedCount, MaxAugmentID + 1);
+}
+
 void AMainPlayerCharacter::CheatDamageMe(float Amount)
 {
 	UAugmentDamageLibrary::ApplyAugmentDamageToTarget(this, this, Amount);
@@ -1180,6 +1220,22 @@ void AMainPlayerCharacter::CheatShowStatus()
 
 	UE_LOG(LogTemp, Warning, TEXT("[Cheat] Pending rewards %d, Choices now: %s"),
 		PendingAugmentChoiceCount, ChoiceText.IsEmpty() ? TEXT("none") : *ChoiceText);
+
+	//지금 가진 증강을 이름으로 찍음 어떤 연출이 왜 안 나오는지 볼 때 이게 제일 빠름
+	if (DispatchTable)
+	{
+		FString OwnedText;
+
+		for (EAugmentID OwnedAugmentID : DispatchTable->GetAugmentHistory())
+		{
+			OwnedText += FString::Printf(TEXT("%d:%s "),
+				(int32)OwnedAugmentID,
+				*UDispatchTableComponent::GetAugmentDisplayName(OwnedAugmentID).ToString());
+		}
+
+		UE_LOG(LogTemp, Warning, TEXT("[Cheat] 보유 증강: %s"),
+			OwnedText.IsEmpty() ? TEXT("없음") : *OwnedText);
+	}
 }
 
 void AMainPlayerCharacter::TryInteract(const FInputActionValue& Value)

@@ -7,6 +7,7 @@
 #include "WeaponBase.generated.h"
 
 class UNiagaraSystem;
+class UParticleSystem;
 class USoundBase;
 
 //총알이 적을 맞혔을 때 알림 이번 발로 대상이 죽었으면 bKilled가 true
@@ -71,6 +72,17 @@ public:
 	//파츠까지 반영한 실제 발사 간격 CanFire가 이 값으로 연사 간격을 잼
 	UFUNCTION(BlueprintPure, Category = "Weapon")
 	float GetFireInterval() const;
+
+	//범위 피해로 맞은 자리에도 같은 피 연출을 냄 폭발탄이 부름
+	//총알이 직접 닿은 게 아니라 트레이스 결과가 없으므로 위치만 받음
+	//터진 중심에서 바깥으로 튀도록 중심 위치도 같이 받음
+	UFUNCTION(BlueprintCallable, Category = "Weapon|Effect")
+	void PlaySplashHitEffect(const FVector& Location, const FVector& ExplosionCenter);
+
+	//쏜 사람이 지금 들고 있는 무기 숨겨지지 않은 것이 들고 있는 것
+	//증강 스킬이 무기 연출을 빌려 쓸 때 씀 플레이어 클래스를 몰라도 되게 static으로 둠
+	//맨손이면 nullptr 로비에서는 쏠 수 없으므로 문제되지 않음
+	static UWeaponBase* FindActiveWeapon(const AActor* Shooter);
 
 	//한 발마다 카메라가 위로 튀는 양
 	//무기가 직접 카메라를 못 돌리는 이유 무기는 컴포넌트라 컨트롤러를 모름 값만 알려주고 돌리는 건 캐릭터가 함
@@ -149,6 +161,19 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
 	TObjectPtr<UNiagaraSystem> BloodPointEffect;
 
+	//폭발탄 증강을 가졌을 때 위의 추가 효과 두 칸 대신 재생할 폭발
+	//겹쳐서 내지 않고 바꿔 치우는 이유 원래 추가 효과(불꽃)와 폭발이 같이 나면 무엇이 터진 건지 안 읽힘
+	//비워두면 폭발탄이 있어도 원래 추가 효과가 그대로 나감
+	//다른 칸과 달리 Cascade인 이유 쓰려는 폭발 에셋(P_Explosion_Big_A)이 Cascade라 변환 없이 바로 넣으려는 것
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
+	TObjectPtr<UParticleSystem> ExplosionEffect;
+
+	//위 폭발 이펙트가 원래 크기(스케일 1)로 터졌을 때의 반경
+	//폭발탄 반경에 맞춰 이펙트를 키우거나 줄이는 기준으로 씀
+	//빨간 디버그 구체와 불덩이 크기가 어긋나면 이 값을 실제 크기로 고치면 됨
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
+	float ExplosionEffectBaseRadius = 400.0f;
+
 private:
 	//마지막으로 쏜 시각 게임 시작 직후 첫 발이 바로 나가도록 아주 옛날 시각으로 시작
 	float LastFireTime = -100.0f;
@@ -166,4 +191,11 @@ private:
 	//이펙트 하나를 탄착점에 재생 비어 있으면 아무것도 하지 않음
 	//네 칸을 같은 규칙으로 재생하려고 뺌 빈 칸 검사를 칸마다 쓰지 않게 됨
 	void SpawnImpactEffect(UNiagaraSystem* Effect, const FVector& Location, const FRotator& Rotation);
+
+	//폭발을 탄착점에 재생 피격 반경에 맞춰 크기를 조절함
+	//SpawnImpactEffect와 따로 둔 이유 이 칸만 Cascade라 재생 함수가 다름
+	void SpawnExplosionEffect(const FVector& Location, const FRotator& Rotation);
+
+	//쏜 사람이 폭발탄 증강을 가졌는지 무기는 증강을 모르므로 증강 컴포넌트에 물어봄
+	bool HasAreaAttackAugment() const;
 };

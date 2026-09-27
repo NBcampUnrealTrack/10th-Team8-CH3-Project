@@ -3,13 +3,20 @@
 #include "ActiveAugmentSkills.h"
 #include "AugmentSkillBase.h"
 #include "CombatStatsComponent.h"
-#include "GameFramework/Actor.h"
 #include "PassiveAugmentSkills.h"
+#include "ThornSpikeEffect.h"
+#include "Components/CapsuleComponent.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/Character.h"
 
 //생성자
 UDispatchTableComponent::UDispatchTableComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
+
+    //전용 가시 연출이 나오기 전까지 쓸 기본값 블루프린트에서 비우면 연출 없이 데미지만 들어감
+    ThornSpikeEffectClass = AThornSpikeEffect::StaticClass();
 
     RegisterSkillClasses();
 
@@ -32,7 +39,7 @@ void UDispatchTableComponent::RegisterSkillClasses()
     SkillClassTable.Add(EAugmentID::Regeneration, URegenerationSkill::StaticClass());
 
     //액티브
-    SkillClassTable.Add(EAugmentID::SlowEnemy, USlowEnemySkill::StaticClass());
+    SkillClassTable.Add(EAugmentID::Knockback, UKnockbackSkill::StaticClass());
     SkillClassTable.Add(EAugmentID::AreaAttack, UAreaAttackSkill::StaticClass());
     SkillClassTable.Add(EAugmentID::ContinuousAttack, UContinuousAttackSkill::StaticClass());
 
@@ -149,8 +156,8 @@ FText UDispatchTableComponent::GetAugmentDisplayName(EAugmentID AugmentID)
         return NSLOCTEXT("Augment", "VampireName", "흡혈");
     case EAugmentID::Regeneration:
         return NSLOCTEXT("Augment", "RegenerationName", "재생력");
-    case EAugmentID::SlowEnemy:
-        return NSLOCTEXT("Augment", "SlowEnemyName", "감속탄");
+    case EAugmentID::Knockback:
+        return NSLOCTEXT("Augment", "KnockbackName", "충격탄");
     case EAugmentID::AreaAttack:
         return NSLOCTEXT("Augment", "AreaAttackName", "폭발탄");
     case EAugmentID::ContinuousAttack:
@@ -204,26 +211,8 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
             NSLOCTEXT("Augment", "RegenerationDesc", "{0}초마다 체력을 {1} 회복합니다."),
             FText::AsNumber(REGENERATION_INTERVAL),
             FText::AsNumber(REGENERATION_HEAL_AMOUNT));
-    case EAugmentID::SlowEnemy:
-        return FText::Format(
-            NSLOCTEXT("Augment", "SlowEnemyDesc", "총에 맞은 적의 이동 속도가 {0}초 동안 {1}%로 느려집니다."),
-            FText::AsNumber(SLOW_ENEMY_DURATION),
-            FText::AsNumber(FMath::RoundToInt(SLOW_ENEMY_RATIO * 100.0f)));
-    case EAugmentID::AreaAttack:
-        return FText::Format(
-            NSLOCTEXT("Augment", "AreaAttackDesc", "총알이 맞은 지점 주변 {0}m 안의 적에게 피해의 {1}%가 함께 들어갑니다."),
-            FText::AsNumber(AREA_ATTACK_RADIUS / 100.0f),
-            FText::AsNumber(FMath::RoundToInt(AREA_ATTACK_DAMAGE_RATIO * 100.0f)));
-    case EAugmentID::ContinuousAttack:
-        return FText::Format(
-            NSLOCTEXT("Augment", "ContinuousAttackDesc", "총에 맞은 적이 {0}초 동안 불타며 {1}초마다 피해의 {2}%를 입습니다. 방어력을 무시합니다."),
-            FText::AsNumber(CONTINUOUS_ATTACK_DURATION),
-            FText::AsNumber(CONTINUOUS_ATTACK_INTERVAL),
-            FText::AsNumber(FMath::RoundToInt(CONTINUOUS_ATTACK_DAMAGE_RATIO * 100.0f)));
-    default:
-        return FText::GetEmpty();
-    }
-}
+    case EAugmentID::Knockback:
+        return NSLOCTEXT("Augment", "KnockbackDesc", "총에 맞은 적이 뒤로 밀려납니다.");
 
 //풀에 남아 있는 증강 정보
 bool UDispatchTableComponent::FindAugmentData(EAugmentID AugmentID, FAugmentData& OutAugmentData) const
@@ -418,4 +407,34 @@ void UDispatchTableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
     AcquiredSkills.Empty();
 
     Super::EndPlay(EndPlayReason);
+}
+
+// 증강 연출
+// 증강 스킬은 UObject라 월드에 이펙트를 직접 붙일 수 없어서 이 컴포넌트가 대신 재생해줌
+
+//가시 반사를 맞은 대상 발밑에 가시를 냄
+void UDispatchTableComponent::PlayThornReflectEffect(AActor* ReflectTarget)
+{
+    //가시는 반사를 맞은 쪽 발밑에서 솟음 대상이 없으면 어디에 낼지 알 수 없음
+    if (!ReflectTarget || !ThornSpikeEffectClass)
+    {
+        return;
+    }
+
+    //캐릭터의 원점은 캡슐 한가운데라 그대로 두면 가시가 허리에서 솟음
+    //캡슐 절반 높이만큼 내려서 발밑에 맞춤 캐릭터가 아니면 원점이 곧 바닥이라 0
+    FVector FootOffset = FVector::ZeroVector;
+
+    if (const ACharacter* TargetCharacter = Cast<ACharacter>(ReflectTarget))
+    {
+        FootOffset.Z = -TargetCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    }
+
+    //몸에 붙이지 않고 그 자리에 두는 이유 땅에서 솟는 가시라 맞고 밀려나도 자리에 남아야 함
+    //수명은 액터가 스스로 정해서 지워짐
+    GetWorld()->SpawnActor<AThornSpikeEffect>(
+        ThornSpikeEffectClass,
+        ReflectTarget->GetActorLocation() + FootOffset,
+        FRotator::ZeroRotator
+    );
 }
