@@ -525,10 +525,26 @@ void AMonsterBase::BeginRagdoll(const FVector& LaunchVelocity)
 		MonsterCollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	}
 
+	// 충돌설정
 	SkeletalMesh->SetCollisionObjectType(ECC_PhysicsBody);
-	SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
+	SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	SkeletalMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	SkeletalMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 	SkeletalMesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+	SkeletalMesh->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
+
+	// 메시의 물리 시뮬레이션 키고 물리 결과 100% 반영이라고 함다
+	SkeletalMesh->SetSimulatePhysics(true);
+	SkeletalMesh->SetAllBodiesPhysicsBlendWeight(1.0f);
+
+
+	//스켈레탈 몸 전체에 가속도 반영
+	SkeletalMesh->AddImpulseToAllBodiesBelow(
+		LaunchVelocity,	//날아갈 속도
+		NAME_None,		//어느 뼈부터 적용할지, NAME_None이면 스켈레탈의 루트 기준함.
+		true,			//false면 질량을 반영, true면 질량을 무시한 절대 속도값을 적용.
+		true			//false면 해당 자식의 몸체에만 적용, true면 지정한 시작 뼈의 물리 몸체도 포함함.
+	);
 }
 EMonsterAttackType AMonsterBase::GetAttackType() const
 {
