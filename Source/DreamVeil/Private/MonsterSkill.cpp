@@ -20,9 +20,9 @@ namespace
     //요청한 거리와 준비 시간은 고정하고, 피해와 쿨타임만 에디터에서 조절한다.
     constexpr float ChargeTriggerDistance = 800.0f;
     constexpr float ChargeDistance = 1200.0f;
-    constexpr float ChargeReadySeconds = 2.0f;
+    constexpr float ChargeReadySeconds = 1.0f;
     //초당 1200cm로 1초 동안 돌진한다. 경사와 바닥 충돌은 CharacterMovement가 처리한다.
-    constexpr float ChargeSpeed = 1200.0f;
+    constexpr float ChargeSpeed = 5000.0f;
     const FName ChargeMotionName(TEXT("MonsterCharge"));
 }
 
@@ -32,6 +32,8 @@ UMonsterSkill::UMonsterSkill()
     //쿨타임에는 Tick이 필요 없지만 돌진의 구간 충돌 검사에만 잠시 사용한다.
     PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.bStartWithTickEnabled = false;
+    //이 값 하나로 경고와 공격의 전체 가로 폭을 설정한다. 200cm는 좌우 합쳐 2m다.
+    ChargeWidth = 500.0f;
 }
 
 void UMonsterSkill::BeginPlay()
@@ -143,7 +145,7 @@ bool UMonsterSkill::TryUseSkill(EMonsterSkillType Skill)
     //데칼 시작점은 캡슐 중심이 아니라 발밑으로 내려 바닥에 투영한다.
     const FVector WarningStart = ChargeStart - FVector::UpVector * Monster->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
     Monster->ShowAttackWarning(WarningStart, WarningStart + ChargeDirection * ChargeDistance,
-        Monster->GetCapsuleComponent()->GetScaledCapsuleRadius() * 2.0f);
+        ChargeWidth);
     PlayChargeAnimation(ChargeReadyAnimation);
     GetWorld()->GetTimerManager().SetTimer(ChargeReadyTimer, this, &UMonsterSkill::StartCharge, ChargeReadySeconds, false);
     return true;
@@ -240,9 +242,13 @@ void UMonsterSkill::CheckChargeHits(const FVector& Start, const FVector& End)
     FCollisionQueryParams Query(SCENE_QUERY_STAT(MonsterCharge), false, Monster);
     TArray<FHitResult> Hits;
     const UCapsuleComponent* Capsule = Monster->GetCapsuleComponent();
+    //설정값은 전체 폭이고 캡슐 검사는 반지름을 받으므로 절반으로 변환한다.
+    const float AttackRadius = ChargeWidth * 0.5f;
+    //캡슐의 반높이는 반지름보다 작을 수 없어 폭을 크게 설정한 경우에만 높이도 보정한다.
+    const float AttackHalfHeight = FMath::Max(AttackRadius, Capsule->GetScaledCapsuleHalfHeight());
     //점이 아니라 이동 구간 전체를 확인하므로 고속으로 지나간 대상도 한 번 적중한다.
     GetWorld()->SweepMultiByObjectType(Hits, Start, End, FQuat::Identity, Objects,
-        FCollisionShape::MakeCapsule(Capsule->GetScaledCapsuleRadius(), Capsule->GetScaledCapsuleHalfHeight()), Query);
+        FCollisionShape::MakeCapsule(AttackRadius, AttackHalfHeight), Query);
     for (const FHitResult& Hit : Hits)
     {
         AActor* Target = Hit.GetActor();
@@ -262,7 +268,7 @@ void UMonsterSkill::CheckChargeHits(const FVector& Start, const FVector& End)
             if (!Cast<AEliteMonster>(OtherMonster) && !Cast<ABossMonster>(OtherMonster)
                 && OtherMonster->GetAttackType() != EMonsterAttackType::Hybrid)
             {
-                OtherMonster->BeginRagdoll(ChargeDirection * 600.0f);
+                OtherMonster->BeginRagdoll(ChargeDirection * 1000.0f);
             }
         }
     }

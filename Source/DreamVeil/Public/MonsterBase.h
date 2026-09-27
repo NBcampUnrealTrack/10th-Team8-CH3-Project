@@ -48,6 +48,10 @@ public:
 	UFUNCTION(BlueprintCallable, Category="Monster|Ragdoll")
 	void BeginRagdoll(const FVector& LaunchVelocity);
 
+	// 레그돌 상태이거나 일어나는 중이면 true
+	UFUNCTION(BlueprintPure, Category = "Monster|Ragdoll")
+	bool IsRagdoll() const { return bIsRagdoll; }
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster|Skill")
 	TObjectPtr<UMonsterSkill> MonsterSkill;
 
@@ -167,6 +171,34 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|HealthRadius")
 	float MonsterDamage;
 
+	// 레그돌이 된 뒤 기상을 처음 시도하기까지의 시간
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Ragdoll", meta = (ClampMin = "0.1"))
+	float RagdollRecoverDelay = 3.0f;
+
+	// 골반 속도가 이 값(cm/s) 이하가 되어야 멈춘 걸로 보고 일어남
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Ragdoll", meta = (ClampMin = "0"))
+	float RagdollSettleSpeed = 50.0f;
+
+	// 계속 굴러가도 이 시간(초)이 지나면 강제로 일어남
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Ragdoll", meta = (ClampMin = "0"))
+	float RagdollMaxSettleWait = 3.0f;
+
+	// 엎어진 상태에서 일어나는 몽타주. 비워두면 몽타주 없이 바로 복귀
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Ragdoll")
+	TObjectPtr<UAnimMontage> GetUpFromFrontMontage;
+
+	// 누운 상태에서 일어나는 몽타주. 비워두면 몽타주 없이 바로 복귀
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Ragdoll")
+	TObjectPtr<UAnimMontage> GetUpFromBackMontage;
+
+	// 쓰러진 위치와 자세를 판단할 골반 뼈 이름
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Ragdoll")
+	FName PelvisBoneName = TEXT("pelvis");
+
+	// 엎어짐/누움 판정이 반대로 나오면 켜기 (스켈레톤마다 골반 축 방향이 다름)
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Ragdoll")
+	bool bFlipRagdollFaceUpCheck = false;
+
 private:
 
 	void PerformMeleeCheck();
@@ -182,8 +214,22 @@ private:
 	bool bIsAttacking = false;
 	bool bAttackExecuted = false;
 
-	// 레그돌 상태 표시
+	// 레그돌 상태 표시. 일어나는 몽타주가 끝날 때까지 true
 	bool bIsRagdoll = false;
+
+	// 기상 관련
+	void TryEndRagdoll();
+	void FinishGetUp();
+	void HandleGetUpMontageEnded(UAnimMontage* Montage, bool bInterrupted);
+
+	FTimerHandle RagdollRecoverTimer;
+	FTransform CachedMeshRelativeTransform;
+	bool bIsGettingUp = false;
+	float RagdollSettleWaitTime = 0.0f;
+	const float RagdollSettleRetryInterval = 0.3f;
+
+	UPROPERTY(Transient)
+	TObjectPtr<UAnimMontage> ActiveGetUpMontage;
 
 	TWeakObjectPtr<AActor> AttackTarget;
 

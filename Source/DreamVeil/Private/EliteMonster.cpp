@@ -2,6 +2,7 @@
 #include "CombatStatsComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "EliteMonsterAIController.h"
+#include "MonsterSkill.h"
 #include "Components/DecalComponent.h"
 
 AEliteMonster::AEliteMonster()

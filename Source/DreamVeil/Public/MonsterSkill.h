@@ -99,6 +99,9 @@ protected:
     int32 CurrentLevel = 1;
 
 private:
+    //돌진의 전체 가로 폭(cm). 생성자에서 설정하고 데칼과 공격 판정이 함께 사용한다.
+    float ChargeWidth;
+
     //엘리트는 짧은 간격으로 거리와 쿨타임을 확인하고, 보스는 기존 선택 타이머를 사용한다.
     void CheckChargeRange();
     void StartCharge();
