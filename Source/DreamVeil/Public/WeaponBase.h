@@ -130,9 +130,10 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Recoil")
 	float RecoilYaw = 0.4f;
 
-	//트레이스 선
+	//사격 트레이스 선 맞으면 빨강 빗나가면 초록으로 1초 동안 그림
+	//조준 계산을 손볼 때만 켤 것 켜두면 화면이 선으로 덮임
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Debug")
-	bool bDrawDebugTrace = true;
+	bool bDrawDebugTrace = false;
 
 	//총구 불꽃 이펙트 쏠 때마다 총구 소켓에 붙여서 재생 비워두면 불꽃 없이 쏨
 	//소켓에 붙이는 이유 연사 중에 캐릭터가 움직여도 불꽃이 총구를 따라가게 하려고

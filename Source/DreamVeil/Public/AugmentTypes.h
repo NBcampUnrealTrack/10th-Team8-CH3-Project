@@ -65,8 +65,8 @@ const float VAMPIRE_HEAL_RATIO = 0.1f;
 const float THORN_ARMOR_REFLECT_RATIO = 0.2f;
 
 //가시 갑옷이 어디서 멈췄는지 로그로 남김 반사가 계산됐는지 연출까지 갔는지 한눈에 보임
-//AREA_ATTACK_DRAW_DEBUG와 같은 용도 출시 전에 false로 둘 것
-const bool THORN_ARMOR_DRAW_DEBUG = true;
+//AREA_ATTACK_DRAW_DEBUG와 같은 용도 문제가 생겼을 때만 켤 것
+const bool THORN_ARMOR_DRAW_DEBUG = false;
 
 //광전사 발동 체력 비율
 const float BERSERKER_THRESHOLD = 0.3f;
@@ -85,9 +85,10 @@ const float MIN_DAMAGE = 1.0f;
 
 //넉백 세기 총에 맞은 적이 뒤로 밀리는 속도 cm/s
 //질량을 무시하고 속도를 직접 더하므로(bVelocityChange = true) 이 값이 곧 초기 속도가 됨
-//걷기 마찰로 금방 멈춰서 실제로 밀리는 거리는 훨씬 짧음 300이면 반의 반 발자국쯤
-//보스 돌진이 쓰는 600 + 위로 300과 달리 위 성분이 없음 띄우려는 게 아니라 밀어내려는 것
-const float KNOCKBACK_IMPULSE = 300.0f;
+//걷기 마찰로 금방 멈춰서 실제로 밀리는 거리는 훨씬 짧음 대략 속도 나누기 마찰계수만큼 감
+//보스 돌진이 쓰는 600 + 위로 300보다 큰데도 덜 날아가는 이유 위 성분이 없어 땅에 붙은 채로 마찰을 받기 때문
+//띄우지 않는 이유 공중에 뜨면 마찰이 없어서 거리가 제멋대로 늘어남 800이면 한 발자국 반쯤
+const float KNOCKBACK_IMPULSE = 800.0f;
 
 //범위 공격 반경 총알이 맞은 지점 기준
 //눈에 보이는 폭발 크기와 같아야 함 불덩이 밖의 적이 죽거나 안에 있는 적이 멀쩡하면 규칙이 안 읽힘
@@ -95,8 +96,8 @@ const float KNOCKBACK_IMPULSE = 300.0f;
 const float AREA_ATTACK_RADIUS = 200.0f;
 
 //범위 공격이 터진 자리를 잠깐 그려서 반경과 걸린 대상 수를 눈으로 확인
-//WeaponBase의 bDrawDebugTrace와 같은 용도 출시 전에 false로 둘 것
-const bool AREA_ATTACK_DRAW_DEBUG = true;
+//켜면 빨간 구체와 적중 인원 로그가 같이 나옴 수치를 다시 만질 때만 켤 것
+const bool AREA_ATTACK_DRAW_DEBUG = false;
 
 //범위 공격 데미지 비율 총 데미지 기준 폭발 한가운데에 있을 때의 값
 //1이 아니라 0.7인 이유 직접 조준해서 맞힌 적은 1을 온전히 받으므로
