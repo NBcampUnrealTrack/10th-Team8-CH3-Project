@@ -1,4 +1,5 @@
 #include "MainGameModeBase.h"
+#include "MainPlayerController.h"
 #include "CombatStatsComponent.h"
 #include "DreamVeilGameInstance.h"
 #include "EngineUtils.h"
@@ -281,6 +282,8 @@ bool AMainGameModeBase::StopLevel()
 
 	//ClearTimer가 핸들을 무효로 만들어서 위 검사가 다음 호출을 막아줌 타이머 콜백 안에서 불러도 안전함
 	GetWorldTimerManager().ClearTimer(LevelTimerHandle);
+	GetWorldTimerManager().ClearTimer(WaveTimerHandle);
+	GetWorldTimerManager().ClearTimer(ContinuousSpawnTimerHandle);
 
 	return true;
 }
@@ -340,6 +343,13 @@ void AMainGameModeBase::FailLevel()
 		return;
 	}
 
+	bTimedOut = true;
+	if (auto* PC = Cast<AMainPlayerController>(UGameplayStatics::GetPlayerController(this, 0)))
+	{
+		if (PC->ShowCorruptionGameOver()) return;
+	}
+	// Keep the old safe exit if a level has no configured Game Over widget/controller.
+	UE_LOG(LogTemp, Error, TEXT("Corruption timeout: Game Over UI unavailable; returning to lobby."));
 	DreamVeilGameInstance->FailCurrentLevel();
 }
 
@@ -366,6 +376,9 @@ float AMainGameModeBase::GetLevelTimeLimit() const
 }
 float AMainGameModeBase::GetLevelTimeProgress() const
 {
+	if (bTimedOut) return 1.0f;
+	// Lobby/Endless/finished levels must not look fully corrupted just because there is no timer.
+	if (!LevelTimerHandle.IsValid()) return 0.0f;
 	// 잘못된 값 방지
 	if (LevelTimeLimit <= 0.0f)
 	{

@@ -63,6 +63,9 @@ public:
 
 	AMainPlayerCharacter();
 
+	void ConfigureCameraCollision();
+	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
+
 	UPROPERTY(EditAnywhere, BlueprintReadWrite)
 	USpringArmComponent* SpringArmComp;
 
@@ -313,6 +316,9 @@ protected:
 	float RequiredExperienceGrowth = 50.0f;
 
 private:
+	// Only components hidden by the close camera are restored; material/weapon visibility is untouched.
+	TArray<TWeakObjectPtr<UPrimitiveComponent>> CameraHiddenComponents;
+	bool bCameraInsideCharacter = false;
 	//지금 들고 있는 무기 슬롯 생성자에서 권총으로 시작하고 로비면 BeginPlay에서 Nothing이 됨
 	EWeaponSlot CurrentWeaponSlot;
 

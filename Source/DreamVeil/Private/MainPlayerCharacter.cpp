@@ -122,10 +122,56 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 }
 
 
+void AMainPlayerCharacter::ConfigureCameraCollision()
+{
+	if (!SpringArmComp || !CameraComp) return;
+	// The sweep must begin over the capsule center, not outside its side at a wall.
+	const FVector OldOrigin = SpringArmComp->GetRelativeLocation();
+	SpringArmComp->SocketOffset += FVector(OldOrigin.X, OldOrigin.Y, 0) + CameraComp->GetRelativeLocation();
+	SpringArmComp->SetRelativeLocation(FVector(0, 0, OldOrigin.Z));
+	CameraComp->SetRelativeLocation(FVector::ZeroVector);
+	SpringArmComp->bDoCollisionTest = true;
+	SpringArmComp->ProbeChannel = ECC_Camera;
+	SpringArmComp->ProbeSize = FMath::Max(SpringArmComp->ProbeSize, 20.0f);
+}
+
+void AMainPlayerCharacter::CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult)
+{
+	Super::CalcCamera(DeltaTime, OutResult);
+	const auto* Capsule = GetCapsuleComponent();
+	const FVector LocalView = GetActorTransform().InverseTransformPosition(OutResult.Location);
+	const float HalfHeight = Capsule->GetUnscaledCapsuleHalfHeight();
+	const FVector NearestBody(0, 0, FMath::Clamp(LocalView.Z, -HalfHeight, HalfHeight));
+	// Hysteresis prevents flicker while the camera moves along the body boundary.
+	const float Threshold = Capsule->GetUnscaledCapsuleRadius() + (bCameraInsideCharacter ? 35.0f : 20.0f);
+	bCameraInsideCharacter = IsLocallyControlled() && FVector::DistSquared(LocalView, NearestBody) < FMath::Square(Threshold);
+	if (bCameraInsideCharacter)
+	{
+		TArray<UMeshComponent*> Meshes;
+		GetComponents(Meshes);
+		for (auto* Mesh : Meshes)
+		{
+			if (!Mesh->bOwnerNoSee)
+			{
+				Mesh->SetOwnerNoSee(true);
+				CameraHiddenComponents.Add(Mesh);
+			}
+		}
+	}
+	else
+	{
+		for (const auto& Component : CameraHiddenComponents)
+			if (Component.IsValid()) Component->SetOwnerNoSee(false);
+		CameraHiddenComponents.Reset();
+	}
+}
+
 void AMainPlayerCharacter::BeginPlay()
 {
 	//컴포넌트 BeginPlay가 여기서 돌아서 빠지면 증강이 적용되지 않음
 	Super::BeginPlay();
+
+	ConfigureCameraCollision();
 
 	UCapsuleComponent* Capsule = GetCapsuleComponent();
 	Capsule->SetCollisionObjectType(ECC_Pawn);

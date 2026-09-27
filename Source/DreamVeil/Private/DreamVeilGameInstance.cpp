@@ -89,6 +89,7 @@ void UDreamVeilGameInstance::ClearPlayerAugments()
 //메인 메뉴에서 새 게임 시작
 void UDreamVeilGameInstance::StartNewGame()
 {
+    bHardRunEnded = false;
     ClearRunProgress();
 
     //메인 메뉴에는 증강을 가진 플레이어가 없으니 폰에서 긁어오지 않고 바로 이동
@@ -153,6 +154,7 @@ bool UDreamVeilGameInstance::OpenLevelByNumber(int32 LevelNumber)
     SaveCurrentPlayerProgress();
 
     //레벨 번호는 1부터 세고 배열은 0부터라 하나를 뺌
+    bHardRunEnded = false;
     UGameplayStatics::OpenLevel(this, LEVEL_MAP_PATHS[LevelNumber - 1]);
 
     return true;
@@ -178,6 +180,11 @@ void UDreamVeilGameInstance::CompleteCurrentLevel()
 //죽는 것도 실패의 한 종류라 규칙을 따로 두지 않고 여기 하나로 처리함
 void UDreamVeilGameInstance::FailCurrentLevel()
 {
+    if (Difficulty == EGameDifficulty::Hard)
+    {
+        ContinueAfterDeath();
+        return;
+    }
     //보통과 어려움은 저장하지 않고 떠나서 로비의 플레이어는 이 레벨에 들어오기 전 상태로 복원됨
     //실패해도 얻은 걸 남기면 쉬운 레벨을 일부러 시간 초과시키면서 증강과 파츠만 모을 수 있어서 버림
     //진행도(ClearedLevelCount)도 그대로라 로비에서 게임 시작을 누르면 같은 레벨을 다시 도전함
@@ -194,21 +201,25 @@ void UDreamVeilGameInstance::FailCurrentLevel()
 //플레이어가 죽은 뒤 이어서 진행
 void UDreamVeilGameInstance::ContinueAfterDeath()
 {
-    //어려움은 죽으면 끝 진행도 증강 인벤토리 무기를 전부 잃고 메인 메뉴로 쫓겨남
-    //로비가 아니라 메뉴로 보내는 이유 로비로 보내면 바로 다시 들어갈 수 있어서 죽은 대가가 약해짐
-    //다시 하려면 메뉴에서 난이도를 고르고 게임 시작을 눌러야 함
+    // Hard ends the run and returns to the lobby without creating a new save.
     if (Difficulty == EGameDifficulty::Hard)
     {
-        //저장 파일까지 지움 안 지우면 이어하기로 죽기 직전으로 돌아갈 수 있어서 죽으면 끝이라는 규칙이 무의미해짐
-        DeleteSavedGame();
-
-        OpenMainMenu();
+        HandleHardGameOver();
+        UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
         return;
     }
 
     //쉬움 보통은 시간 초과와 똑같이 로비로 감 로비에서 파츠를 사고 강화하거나 바로 다시 도전할지 고름
     //쉬움은 여기서 전부 저장되고 보통은 레벨에 들어오기 전 상태로 돌아감
     FailCurrentLevel();
+}
+
+void UDreamVeilGameInstance::HandleHardGameOver()
+{
+    if (Difficulty != EGameDifficulty::Hard || bHardRunEnded) return;
+    DeleteSavedGame();
+    ClearRunProgress();
+    bHardRunEnded = true;
 }
 
 //L4까지 다 깨서 Endless가 열렸는지
@@ -257,6 +268,7 @@ void UDreamVeilGameInstance::RestorePlayerLevel(AMainPlayerCharacter* PlayerChar
 //지금 진행 상황을 저장 파일에 씀
 bool UDreamVeilGameInstance::SaveGameToSlot()
 {
+    if (bHardRunEnded) return false;
     UDreamVeilSaveGame* SaveData = Cast<UDreamVeilSaveGame>(UGameplayStatics::CreateSaveGameObject(UDreamVeilSaveGame::StaticClass()));
 
     if (!SaveData)

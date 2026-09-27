@@ -78,6 +78,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	void ContinueAfterDeath();
 
+	// Hard game over is terminal immediately, even if the player quits before pressing Continue.
+	void HandleHardGameOver();
+
 	//L4까지 다 깨서 Endless가 열렸는지 로비 UI가 Endless 버튼을 켤지 정할 때 씀
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	bool IsEndlessUnlocked() const;
@@ -181,6 +184,8 @@ public:
 	void ClearPlayerInventory();
 
 private:
+	// Do not recreate the deleted save when the defeated Hard run returns to the lobby.
+	bool bHardRunEnded = false;
 	//저장한 플레이어 증강 번호 얻은 순서대로 같은 번호가 여러 번이면 그만큼 중첩
 	UPROPERTY(Transient)
 	TArray<EAugmentID> SavedPlayerAugmentHistory;

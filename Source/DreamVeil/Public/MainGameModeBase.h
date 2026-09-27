@@ -127,6 +127,7 @@ private:
 	//레벨 제한 시간 타이머 L1~L4에서만 걸림
 	//타이머를 건 적이 없거나 레벨을 이미 끝냈으면 무효 상태라서 레벨이 두 번 끝나는 걸 막는 표시로도 씀
 	FTimerHandle LevelTimerHandle;
+	bool bTimedOut = false;
 
 	//지금 살아있는 몬스터 수
 	int32 AliveMonsterCount = 0;

@@ -11,5 +11,6 @@ public class DreamVeilEditorTarget : TargetRules
 		DefaultBuildSettings = BuildSettingsVersion.V5;
 		IncludeOrderVersion = EngineIncludeOrderVersion.Unreal5_6;
 		ExtraModuleNames.Add("DreamVeil");
+		ExtraModuleNames.Add("DreamVeilEditorTools");
 	}
 }
