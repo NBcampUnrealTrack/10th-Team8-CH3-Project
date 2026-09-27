@@ -167,7 +167,8 @@ void ABossMonster::TryUseRandomSkill()
 	}
 
 	//쓸 수 있는 것 중 무작위로 하나 패턴이 순서대로 나오면 외워져서 재미가 없음
-	MonsterSkill->BeginSkill(ReadySkills[FMath::RandRange(0, ReadySkills.Num() - 1)]);
+	//사용 상태 설정뿐 아니라 경고와 실제 패턴 실행까지 연결한다.
+	MonsterSkill->TryUseSkill(ReadySkills[FMath::RandRange(0, ReadySkills.Num() - 1)]);
 }
 
 void ABossMonster::OnDeath()

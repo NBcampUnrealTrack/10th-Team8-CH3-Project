@@ -7,6 +7,8 @@
 #include "NiagaraSystem.h"
 #include "Sound/SoundBase.h"
 
+#include "MonsterBase.h"
+
 
 UWeaponBase::UWeaponBase()
 {
@@ -99,6 +101,14 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 
 		//쏜 캐릭터를 넘김 데미지 방어력 흡혈 가시 갑옷 적중 증강을 한 번에 처리
 		UAugmentDamageLibrary::ApplyWeaponHit(GetOwner(), Hit, GetFinalDamage());
+		if (AMonsterBase* monster = Cast<AMonsterBase>(Hit.GetActor()))
+		{
+			float ragdollspeed = 2000.0f;
+			FVector TestVelocity = monster->GetActorLocation() - GetOwner()->GetActorLocation();
+			TestVelocity = TestVelocity.GetSafeNormal();
+			TestVelocity *= ragdollspeed;
+			monster->BeginRagdoll(TestVelocity);
+		}
 	}
 }
 

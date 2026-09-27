@@ -3,6 +3,7 @@
 
 #include "MonsterAIController.h"
 #include "BehaviorTree/BlackboardComponent.h"
+#include "BrainComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "UObject/ConstructorHelpers.h"
 #include "BehaviorTree//BehaviorTree.h"
@@ -58,4 +59,24 @@ void AMonsterAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
 	if (!InPawn) return;
+}
+
+void AMonsterAIController::SetSkillMovementLocked(bool bLocked)
+{
+	UBrainComponent* Brain = GetBrainComponent();
+	if (bLocked)
+	{
+		if (Brain && Brain->IsRunning() && !Brain->IsPaused())
+		{
+			bBrainPausedForSkill = true;
+			Brain->PauseLogic(TEXT("Monster skill"));
+		}
+		//BT를 먼저 멈춰야 이동 취소 후 곧바로 새 추격을 요청하지 않는다.
+		StopMovement();
+	}
+	else if (bBrainPausedForSkill)
+	{
+		bBrainPausedForSkill = false;
+		if (Brain) Brain->ResumeLogic(TEXT("Monster skill finished"));
+	}
 }
