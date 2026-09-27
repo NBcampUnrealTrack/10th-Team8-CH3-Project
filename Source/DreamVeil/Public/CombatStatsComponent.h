@@ -83,14 +83,9 @@ public:
 	// 플레이어와 몬스터가 둘 다 가진 컴포넌트가 이것뿐이라 증강 연출을 여기 모음
 	// 증강 스킬은 UObject라 월드에 이펙트를 직접 붙일 수 없어서 이 컴포넌트에게 부탁함
 
-	//가시 갑옷 반사를 맞았을 때 발밑에서 솟는 가시 전용 Niagara가 생기면 이 칸을 채울 것
-	//비워두면 아래 ThornSpikeEffectClass가 대신 나옴 연출이 통째로 비지는 않음
-	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
-	TObjectPtr<UNiagaraSystem> ThornReflectEffect;
-
-	//Niagara 없이 가시를 내는 액터 원뿔 몇 개가 솟았다 가라앉음
-	//위 ThornReflectEffect를 채우면 그쪽이 쓰이고 비워두면 이쪽이 쓰임
-	//기본값을 넣어두는 이유 에디터에서 아무것도 안 해도 가시 갑옷이 눈에 보이게 하려는 것
+	//가시 갑옷 반사를 맞은 대상 발밑에서 솟는 가시
+	//가시 갑옷을 가진 쪽(보통 플레이어)이 들고 있고 재생은 맞은 쪽 자리에서 함
+	//기본값이 C++ 생성자에 들어 있어서 에디터에서 아무것도 안 해도 나옴 비우면 연출 없이 데미지만 들어감
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
 	TSubclassOf<AThornSpikeEffect> ThornSpikeEffectClass;
 
@@ -102,9 +97,11 @@ public:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
 	TObjectPtr<UNiagaraSystem> AreaAttackEffect;
 
-	//가시 반사를 맞았다는 연출 반사 데미지가 들어올 때 AugmentDamageLibrary가 부름
+	//가시 반사를 맞은 대상 자리에 가시를 냄 반사가 실제로 들어갔을 때 AugmentDamageLibrary가 부름
+	//부르는 쪽은 가시 갑옷을 가진 사람(보통 플레이어)이고 ReflectTarget은 반사를 맞은 몬스터
+	//맞은 쪽이 에셋을 들고 있지 않은 이유 증강은 플레이어 것이라 몬스터 블루프린트마다 같은 에셋을 넣는 건 관리가 안 됨
 	UFUNCTION(BlueprintCallable, Category = "Stats|Effect")
-	void PlayThornReflectEffect();
+	void PlayThornReflectEffect(AActor* ReflectTarget);
 
 	//폭발 연출을 지정한 위치에 재생 폭발탄 증강이 터진 자리에서 부름
 	UFUNCTION(BlueprintCallable, Category = "Stats|Effect")

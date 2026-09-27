@@ -201,11 +201,11 @@ void UCombatStatsComponent::BeginPlay()
 // 증강 스킬은 UObject라 월드에 이펙트를 붙일 수 없어서 이 컴포넌트가 대신 재생해줌
 
 //가시 갑옷 반사를 맞았다는 연출
-void UCombatStatsComponent::PlayThornReflectEffect()
+void UCombatStatsComponent::PlayThornReflectEffect(AActor* ReflectTarget)
 {
-    AActor* OwnerActor = GetOwner();
-
-    if (!OwnerActor)
+    //가시는 반사를 맞은 쪽 발밑에서 솟음 에셋만 가시 갑옷 주인 것을 씀
+    //대상이 없으면 어디에 낼지 알 수 없으므로 아무것도 하지 않음
+    if (!ReflectTarget)
     {
         return;
     }
@@ -214,28 +214,9 @@ void UCombatStatsComponent::PlayThornReflectEffect()
     //캡슐 절반 높이만큼 내려서 발밑에 맞춤 캐릭터가 아니면 원점이 곧 바닥이라 0
     FVector FootOffset = FVector::ZeroVector;
 
-    if (const ACharacter* OwnerCharacter = Cast<ACharacter>(OwnerActor))
+    if (const ACharacter* TargetCharacter = Cast<ACharacter>(ReflectTarget))
     {
-        FootOffset.Z = -OwnerCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
-    }
-
-    //전용 Niagara를 넣어뒀으면 그쪽이 우선 나중에 이펙트가 나와도 이 함수를 고칠 필요가 없음
-    if (ThornReflectEffect)
-    {
-        //붙여서 재생하는 이유 맞고 뒤로 밀려나도 가시가 몸을 따라가게 하려는 것
-        //SnapToTarget이 아니라 KeepRelativeOffset을 쓰는 이유 발밑으로 내리는 값이 무시되면 안 됨
-        //bAutoDestroy가 true라 재생이 끝나면 알아서 사라짐 Loop Behavior는 Once로 만들 것
-        UNiagaraFunctionLibrary::SpawnSystemAttached(
-            ThornReflectEffect,
-            OwnerActor->GetRootComponent(),
-            NAME_None,
-            FootOffset,
-            FRotator::ZeroRotator,
-            EAttachLocation::KeepRelativeOffset,
-            true
-        );
-
-        return;
+        FootOffset.Z = -TargetCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
     }
 
     if (!ThornSpikeEffectClass)
@@ -243,11 +224,11 @@ void UCombatStatsComponent::PlayThornReflectEffect()
         return;
     }
 
-    //Niagara와 달리 붙이지 않고 그 자리에 둠 땅에서 솟는 가시라 맞고 밀려나도 자리에 남아야 함
+    //몸에 붙이지 않고 그 자리에 두는 이유 땅에서 솟는 가시라 맞고 밀려나도 자리에 남아야 함
     //수명은 액터가 스스로 정해서 지워짐
     GetWorld()->SpawnActor<AThornSpikeEffect>(
         ThornSpikeEffectClass,
-        OwnerActor->GetActorLocation() + FootOffset,
+        ReflectTarget->GetActorLocation() + FootOffset,
         FRotator::ZeroRotator
     );
 }

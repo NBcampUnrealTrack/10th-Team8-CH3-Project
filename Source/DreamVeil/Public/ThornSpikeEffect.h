@@ -19,9 +19,10 @@ struct FThornSpikeState
 	float StartDelay = 0.0f;
 };
 
-//가시 갑옷 반사를 맞았을 때 발밑에서 솟았다가 가라앉는 가시
+//가시 갑옷 반사를 맞은 쪽 발밑에서 솟았다가 가라앉는 가시
 //Niagara로 만들지 않은 이유 원뿔 몇 개가 정해진 대로 오르내리는 게 전부라 파티클 시뮬레이션이 필요 없음
-//전용 Niagara가 생기면 CombatStatsComponent의 ThornReflectEffect 칸에 넣으면 됨 그쪽이 있으면 그쪽을 씀
+//모양을 바꾸려면 이 클래스를 상속한 블루프린트를 만들어 메시 머티리얼 수치를 바꾸고
+//플레이어의 CombatStats에 있는 ThornSpikeEffectClass에 지정하면 됨
 UCLASS()
 class DREAMVEIL_API AThornSpikeEffect : public AActor
 {

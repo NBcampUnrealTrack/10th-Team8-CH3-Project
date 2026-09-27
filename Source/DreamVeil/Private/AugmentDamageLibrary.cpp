@@ -109,10 +109,8 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
     //서로 가시 갑옷을 들고 있을 때 무한히 주고받는 것을 막음
     if (IsThornReflectDamage(DamageTypeClass))
     {
-        //반사를 맞은 쪽(보통 몬스터)의 몸에서 가시가 솟는 연출
-        //여기서 재생하는 이유 반사가 실제로 들어간 순간이라 헛방이 없음
-        DamagedStats->PlayThornReflectEffect();
-
+        //가시 연출은 ApplyThornReflectDamage가 냄 여기서 내지 않는 이유
+        //연출 에셋을 가시 갑옷 주인(플레이어)이 들고 있어서 맞은 쪽 컴포넌트로는 꺼낼 수 없음
         return FinalDamage;
     }
 
@@ -207,13 +205,26 @@ float UAugmentDamageLibrary::ApplyThornReflectDamage(AActor* ThornOwner, AActor*
         return 0.0f;
     }
 
-    return UGameplayStatics::ApplyDamage(
+    const float ReflectedDamage = UGameplayStatics::ApplyDamage(
         Target,
         Damage,
         FindEventInstigator(ThornOwner),
         ThornOwner,
         UThornReflectDamageType::StaticClass()
     );
+
+    //실제로 들어갔을 때만 가시를 냄 이미 죽어 있던 대상이면 0이 돌아와서 헛방이 안 보임
+    if (ReflectedDamage > 0.0f)
+    {
+        //연출 에셋은 가시 갑옷을 가진 쪽이 들고 있고 가시는 맞은 쪽 발밑에서 솟음
+        //맞은 쪽이 들고 있게 하면 몬스터 블루프린트마다 같은 에셋을 넣어야 해서 관리가 안 됨
+        if (UCombatStatsComponent* ThornOwnerStats = ThornOwner ? ThornOwner->FindComponentByClass<UCombatStatsComponent>() : nullptr)
+        {
+            ThornOwnerStats->PlayThornReflectEffect(Target);
+        }
+    }
+
+    return ReflectedDamage;
 }
 
 //반사로 들어온 데미지인지 확인
