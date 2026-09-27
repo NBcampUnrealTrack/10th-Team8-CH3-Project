@@ -44,6 +44,10 @@ public:
 
 	FOnMonsterAttackFinished OnAttackFinished;
 
+	// 날릴 속도를 입력값으로 받아서 레그돌로 만들어서 날려버리깅
+	UFUNCTION(BlueprintCallable, Category="Monster|Ragdoll")
+	void BeginRagdoll(const FVector& LaunchVelocity);
+
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster|Skill")
 	TObjectPtr<UMonsterSkill> MonsterSkill;
 
@@ -67,7 +71,7 @@ public:
 	// 이게 실제 메쉬 컴포넌트 이야기. skeletal 버리고 쓸거 상정
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Mesh")
 	TObjectPtr<UMeshComponent> MonsterMeshComponent;
-	
+
 	// 이속
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Movement")
 	float MonsterWalkSpeed;
@@ -177,6 +181,9 @@ private:
 
 	bool bIsAttacking = false;
 	bool bAttackExecuted = false;
+
+	// 레그돌 상태 표시
+	bool bIsRagdoll = false;
 
 	TWeakObjectPtr<AActor> AttackTarget;
 

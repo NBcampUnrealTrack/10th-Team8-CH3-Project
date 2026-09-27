@@ -78,7 +78,6 @@ AMonsterBase::AMonsterBase()
 	GetCharacterMovement()->RotationRate = FRotator(0.0f, 360.0f, 0.0f);
 	GetCharacterMovement()->bUseRVOAvoidance = true;
 	GetCharacterMovement()->AvoidanceConsiderationRadius = 500.0f;
-
 }
 
 
@@ -91,7 +90,7 @@ void AMonsterBase::ShowAttackWarning(const FVector& StartPos, const FVector& End
 	const float AttackLength = Direction.Size();
 
 	// KINDA_SMALL_NUMBER라는게 왜있냐... 이거 일단 0.00001f
-	//정확히는 0.0001f(1.e-4f)임 0이 하나 많았음 UnrealMathUtility.h:130
+	//정확히는 0.0001f(1.e-4f)임 0이 하나 많았음 UnrealMathUtility.h:130 << 아 그렇군요 사실 대충친거였음
 	//float는 계산을 거치면 0이어야 할 값이 0.0000000437 같은 쓰레기로 남아서 == 0.0f 비교를 믿을 수 없음
 	//그래서 "이 정도면 0으로 치자"는 기준선이 필요한 것 여기서는 공격 범위 길이가 0이면 그릴 데칼이 없다는 뜻
 	//UE_를 붙인 이유 UE 5.6에서 UE_ 없는 이름은 deprecated라 그냥 쓰면 경고가 나고 우리는 -WarningsAsErrors로 빌드함
@@ -482,6 +481,45 @@ void AMonsterBase::CancelAttack()
 	FinishAttack(false);
 }
 
+void AMonsterBase::BeginRagdoll(const FVector& LaunchVelocity)
+{
+	// 이미 레그돌이거나, 몬스터 스탯이 존재하지 않거나, 죽었으면 나가라
+	if (bIsRagdoll || !MonsterCombatStats || MonsterCombatStats->IsDead()) return;
+
+	// 캐싱 시도, 스켈레탈 안 쓰는 친구면 여기서 실패할듯
+	USkeletalMeshComponent* SkeletalMesh = Cast<USkeletalMeshComponent>(GetMesh());
+
+	// 스켈레탈 메시 없는 친구나 아니면 물리 없는 친구는 나가라
+	if (!SkeletalMesh || !SkeletalMesh->GetPhysicsAsset()) return;
+
+	// 레그돌 시작여부
+	bIsRagdoll = true;
+
+	if (AMonsterAIController* AIController = Cast<AMonsterAIController>(this->GetController()))
+	{
+		// BT에 레그돌 상태 전달하기
+		AIController->SetRagdollState(true);
+	}
+	// 하던 공격 전부 중단하기
+	CancelAttack();
+
+	// 걷고 있었다면 적용되던 가속도 전부 지우고, 이동기능 꺼버리기
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+
+	// Character Class 기본으로 들어있는 캡슐 컴포넌트만 플레이어랑 충돌하니까 그거 꺼버리는거임
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// 피격 콜리전도 꺼버릴까 해서 일단 여따 적어둡니다
+	if (IsValid(MonsterCollisionComponent))
+	{
+		MonsterCollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	SkeletalMesh->SetCollisionObjectType(ECC_PhysicsBody);
+	SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
+	SkeletalMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	SkeletalMesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+}
 EMonsterAttackType AMonsterBase::GetAttackType() const
 {
 	return AttackType;
