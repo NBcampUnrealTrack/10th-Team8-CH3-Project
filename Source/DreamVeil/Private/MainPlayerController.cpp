@@ -5,6 +5,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
+#include "Components/TextBlock.h"
+#include "DreamVeilGameInstance.h"
 
 AMainPlayerController::AMainPlayerController() : 
 InputMappingContext(nullptr),
@@ -67,13 +69,45 @@ void AMainPlayerController::OnPossess(APawn* InPawn)
 //플레이어가 죽었을 때
 void AMainPlayerController::ShowGameOver()
 {
-    //게임 오버도 메뉴 위젯과 띄우는 방법이 같아서 같은 함수를 씀
-    OpenMenuWidget(GameOverWidgetClass);
+    if (bGameOverOpen) return;
+    bCorruptionGameOver = false;
+    bGameOverOpen = OpenMenuWidgetPaused(GameOverWidgetClass) != nullptr;
+    if (auto* GI = GetGameInstance<UDreamVeilGameInstance>())
+    {
+        GI->HandleHardGameOver();
+        if (MenuWidgetInstance && GI->GetDifficulty() == EGameDifficulty::Hard)
+            if (auto* Info = Cast<UTextBlock>(MenuWidgetInstance->GetWidgetFromName(TEXT("Text_Info"))))
+                Info->SetText(NSLOCTEXT("DreamUI", "HardGameOver", "도전이 종료되었습니다.\n저장 파일과 진행도가 초기화되고 로비로 돌아갑니다."));
+    }
+}
+
+bool AMainPlayerController::ShowCorruptionGameOver()
+{
+    if (bGameOverOpen) return true;
+    if (auto* GI = GetGameInstance<UDreamVeilGameInstance>()) GI->HandleHardGameOver();
+    UUserWidget* Screen = OpenMenuWidgetPaused(GameOverWidgetClass);
+    if (!Screen) return false;
+    bCorruptionGameOver = true;
+    bGameOverOpen = true;
+    if (auto* Title = Cast<UTextBlock>(Screen->GetWidgetFromName(TEXT("Text_Title"))))
+        Title->SetText(NSLOCTEXT("DreamUI", "TimeoutTitle", "꿈에 완전히 잠식되었습니다"));
+    if (auto* Info = Cast<UTextBlock>(Screen->GetWidgetFromName(TEXT("Text_Info"))))
+    {
+        const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
+        Info->SetText(GI && GI->GetDifficulty() == EGameDifficulty::Hard
+            ? NSLOCTEXT("DreamUI", "TimeoutHard", "잠식도 100%에 도달했습니다.\n저장 파일과 진행도가 초기화되고 로비로 돌아갑니다.")
+            : GI && GI->GetDifficulty() == EGameDifficulty::Easy
+            ? NSLOCTEXT("DreamUI", "TimeoutEasy", "잠식도 100%에 도달했습니다.\n이번 꿈에서 얻은 보상을 유지하고 로비로 돌아갑니다.")
+            : NSLOCTEXT("DreamUI", "TimeoutNormal", "잠식도 100%에 도달했습니다.\n이번 꿈에서 얻은 보상은 잃고, 입장 전 상태로 로비에 돌아갑니다."));
+    }
+    return true;
 }
 
 //메뉴 위젯을 띄움
 UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> MenuWidgetClass)
 {
+    // Do not let pending augment/interaction events replace the terminal screen.
+    if (bGameOverOpen) return nullptr;
     //위젯을 안 넣었으면 띄울 게 없음
     if (!MenuWidgetClass)
     {

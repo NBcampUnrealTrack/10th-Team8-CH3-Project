@@ -81,6 +81,11 @@ public:
 
 	virtual void BeginPlay() override;
 
+	// Timeout reuses the Game Over screen, without converting it into a Hard-mode death.
+	bool ShowCorruptionGameOver();
+	UFUNCTION(BlueprintPure, Category = "UI")
+	bool IsCorruptionGameOver() const { return bCorruptionGameOver; }
+
 protected:
 	//조종할 폰이 정해질 때 불림 플레이어 캐릭터면 사망 이벤트를 구독함
 	virtual void OnPossess(APawn* InPawn) override;
@@ -103,4 +108,6 @@ private:
 	//메뉴를 띄우면서 게임을 멈춘 것이 이 컨트롤러인지 CloseMenuWidget이 자기가 멈춘 것만 풀게 하려고 기억함
 	//이게 없으면 증강 선택이 멈춰둔 게임을 다른 메뉴가 닫히면서 풀어버려서 몬스터가 그대로 움직이고 타이머도 계속 감
 	bool bMenuPaused = false;
+	bool bGameOverOpen = false;
+	bool bCorruptionGameOver = false;
 };
