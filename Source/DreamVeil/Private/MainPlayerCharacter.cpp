@@ -143,10 +143,8 @@ void AMainPlayerCharacter::BeginPlay()
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::Monster, ECR_Block);
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterHitbox, ECR_Ignore);
 	Capsule->SetCollisionResponseToChannel(MonsterCollision::MonsterProjectile, ECR_Block);
-	
+
 	//무기가 적을 맞혔다는 알림을 받아둠 받은 뒤 OnHitMarker로 다시 알려서 HUD가 한 곳만 보게 함
-	
-	// 윤재님 브랜치에서 되던 거
 	//무기를 바꿔도 다시 걸 필요가 없도록 시작할 때 둘 다 걸어둠
 	if (PistolWeapon)
 	{
@@ -158,13 +156,9 @@ void AMainPlayerCharacter::BeginPlay()
 		RifleWeapon->OnHitConfirmed.AddDynamic(this, &AMainPlayerCharacter::HandleWeaponHitConfirmed);
 	}
 
-	// 김다솔 브랜치에서 온 거 주석처리
-	/*
 	//기본 무기 권총은 처음부터 가지고 들고 시작
 	AcquiredWeaponSlots.AddUnique(EWeaponSlot::Pistol);
 	CurrentWeaponSlot = EWeaponSlot::Pistol;
-	*/
-
 
 	//로비에서는 싸우지 않으므로 맨손으로 바꿔서 시작
 	//권총을 가진 기록(AcquiredWeaponSlots)은 그대로 두어서 레벨로 갈 때 다시 들 수 있음

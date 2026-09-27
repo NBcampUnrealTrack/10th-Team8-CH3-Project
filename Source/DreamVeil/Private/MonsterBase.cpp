@@ -56,10 +56,13 @@ AMonsterBase::AMonsterBase()
 	AttackType = EMonsterAttackType::Melee; //기본적으로 근접, BP에서 설정 가능
 
 	// 체력 기본값. 에러방지용이라 수정하셈
-	MinHealthRadius = 100.0f;
-	MaxHealthRadius = 150.0f;
+	//L1 쉬움 기준으로 다시 잡음 이 값에 난이도 레벨 등급 배율이 곱해짐
+	//100~150이면 플레이어 공격력 10 기준 잡몹 하나에 2초가 걸려서 3초마다 나오는 스폰을 못 따라감
+	MinHealthRadius = 50.0f;
+	MaxHealthRadius = 80.0f;
 
 	// 뎀지. 수정할거임
+	//플레이어 체력 100 기준 L1 쉬움에서 열 대 맞으면 죽는 값
 	MonsterDamage = 10.0f;
 
 	//이동속도
@@ -207,7 +210,10 @@ void AMonsterBase::MonsterInit()
 
 	if (IsValid(MonsterCombatStats))
 	{
-		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage * StatScale);
+		//데미지는 체력만큼 올리지 않음 제곱근을 써서 L4 하드코어가 3.6배가 아니라 1.9배만 오름
+		//체력과 똑같이 올리면 등급 배율 6인 보스가 L1 쉬움에서도 60을 때려서 두 대에 죽음
+		//페이즈를 4개 만들어놔도 배울 기회가 없어지므로 데미지만 따로 완만하게 올림
+		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage * FMath::Sqrt(StatScale));
 	}
 	// 어택타입 보기
 	switch (GetAttackType())
