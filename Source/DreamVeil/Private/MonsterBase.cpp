@@ -530,19 +530,14 @@ void AMonsterBase::BeginRagdoll(const FVector& LaunchVelocity)
 	SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::QueryAndPhysics);
 	SkeletalMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
 	// SkeletalMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block); 일단 플레이어 충돌 끕니당
-	//플레이어를 막지 않고 접촉만 감지해서 이동 속도가 충돌에 의해 줄지 않도록 한다.
-	SkeletalMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Overlap);
-	//각 물리 몸체와의 접촉을 전달해야 캐릭터 이동 컴포넌트가 닿은 몸체를 밀 수 있다.
-	SkeletalMesh->bMultiBodyOverlap = true;
-	SkeletalMesh->SetGenerateOverlapEvents(true);
+	//Pawn 채널을 사용하는 무기 라인 트레이스가 적중하도록 막는 충돌로 복구한다.
+	SkeletalMesh->SetCollisionResponseToChannel(ECC_Pawn, ECR_Block);
 	SkeletalMesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
 	SkeletalMesh->SetCollisionResponseToChannel(ECC_WorldDynamic, ECR_Block);
 
 	// 메시의 물리 시뮬레이션 키고 물리 결과 100% 반영이라고 함다
 	SkeletalMesh->SetSimulatePhysics(true);
 	SkeletalMesh->SetAllBodiesPhysicsBlendWeight(1.0f);
-	//래그돌의 모든 몸체를 원래 질량의 10%로 만들어 작은 접촉 충격에도 쉽게 밀리게 한다.
-	SkeletalMesh->SetAllMassScale(0.1f);
 
 
 	//스켈레탈 몸 전체에 가속도 반영

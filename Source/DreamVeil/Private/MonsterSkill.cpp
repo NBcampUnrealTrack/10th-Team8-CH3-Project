@@ -115,6 +115,8 @@ bool UMonsterSkill::TryUseSkill(EMonsterSkillType Skill)
 {
     AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner());
     AMainPlayerCharacter* Player = Cast<AMainPlayerCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+
+	//스킬 이중체크, 돌진이고 쿨돌았고 플레이어 감지 제대로 됐는지 확인...
     if (Skill != EMonsterSkillType::Charge || !CanUseSkill(Skill) || !IsValid(Player)) return false;
     //죽은 플레이어에게 발동하지 않고, 시전자는 바닥에 서 있을 때만 준비한다.
     if (!Player->CombatStats || Player->CombatStats->IsDead() || !Monster->GetCharacterMovement()->IsMovingOnGround()) return false;
