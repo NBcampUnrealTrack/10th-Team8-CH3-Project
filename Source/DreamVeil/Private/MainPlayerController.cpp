@@ -234,3 +234,10 @@ void AMainPlayerController::CloseMenuWidget()
 
     bShowMouseCursor = false;
 }
+
+//지금 메뉴 위젯이 떠 있는지
+bool AMainPlayerController::IsMenuWidgetOpen() const
+{
+    //열고 닫는 쪽이 들고 있는 값을 그대로 돌려줌 상태를 한 군데만 두면 어긋날 일이 없음
+    return MenuWidgetInstance != nullptr;
+}

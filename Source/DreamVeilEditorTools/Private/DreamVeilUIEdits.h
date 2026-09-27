@@ -5,3 +5,4 @@ bool VerifyDreamVeilUIEdits(bool bFinalize);
 bool RenderDreamVeilUI();
 bool TestDreamVeilCamera();
 bool UpdateHardCameraAssets(bool bApply);
+bool FixDreamVeilShopAndInventory();
