@@ -213,6 +213,21 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
             FText::AsNumber(REGENERATION_HEAL_AMOUNT));
     case EAugmentID::Knockback:
         return NSLOCTEXT("Augment", "KnockbackDesc", "총에 맞은 적이 뒤로 밀려납니다.");
+    case EAugmentID::AreaAttack:
+        return FText::Format(
+            NSLOCTEXT("Augment", "AreaAttackDesc", "총알이 맞은 지점 주변 {0}m 안의 적에게 피해의 {1}%가 함께 들어갑니다. 멀수록 약해집니다."),
+            FText::AsNumber(AREA_ATTACK_RADIUS / 100.0f),
+            FText::AsNumber(FMath::RoundToInt(AREA_ATTACK_DAMAGE_RATIO * 100.0f)));
+    case EAugmentID::ContinuousAttack:
+        return FText::Format(
+            NSLOCTEXT("Augment", "ContinuousAttackDesc", "총에 맞은 적이 {0}초 동안 불타며 {1}초마다 피해의 {2}%를 입습니다. 방어력을 무시합니다."),
+            FText::AsNumber(CONTINUOUS_ATTACK_DURATION),
+            FText::AsNumber(CONTINUOUS_ATTACK_INTERVAL),
+            FText::AsNumber(FMath::RoundToInt(CONTINUOUS_ATTACK_DAMAGE_RATIO * 100.0f)));
+    default:
+        return FText::GetEmpty();
+    }
+}
 
 //풀에 남아 있는 증강 정보
 bool UDispatchTableComponent::FindAugmentData(EAugmentID AugmentID, FAugmentData& OutAugmentData) const
