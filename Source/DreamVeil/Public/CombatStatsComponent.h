@@ -21,6 +21,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnDead);
 
 class UNiagaraSystem;
 class UNiagaraComponent;
+class AThornSpikeEffect;
 
 //체력 공격력 방어력을 들고 바꾸고 알리는 컴포넌트
 //증강은 전혀 모름 증강 없는 액터에도 이것만 붙여서 쓸 수 있음
@@ -82,9 +83,16 @@ public:
 	// 플레이어와 몬스터가 둘 다 가진 컴포넌트가 이것뿐이라 증강 연출을 여기 모음
 	// 증강 스킬은 UObject라 월드에 이펙트를 직접 붙일 수 없어서 이 컴포넌트에게 부탁함
 
-	//가시 갑옷 반사를 맞았을 때 몸에서 솟는 가시 비워두면 이펙트 없이 데미지만 들어감
+	//가시 갑옷 반사를 맞았을 때 발밑에서 솟는 가시 전용 Niagara가 생기면 이 칸을 채울 것
+	//비워두면 아래 ThornSpikeEffectClass가 대신 나옴 연출이 통째로 비지는 않음
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
 	TObjectPtr<UNiagaraSystem> ThornReflectEffect;
+
+	//Niagara 없이 가시를 내는 액터 원뿔 몇 개가 솟았다 가라앉음
+	//위 ThornReflectEffect를 채우면 그쪽이 쓰이고 비워두면 이쪽이 쓰임
+	//기본값을 넣어두는 이유 에디터에서 아무것도 안 해도 가시 갑옷이 눈에 보이게 하려는 것
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")
+	TSubclassOf<AThornSpikeEffect> ThornSpikeEffectClass;
 
 	//불타는 동안 계속 재생할 불꽃 Loop Behavior를 Infinite로 만들어야 꺼질 때까지 남아 있음
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Stats|Effect")

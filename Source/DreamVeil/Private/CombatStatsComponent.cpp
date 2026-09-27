@@ -1,15 +1,22 @@
 #include "CombatStatsComponent.h"
 
 #include "AugmentTypes.h"
+#include "ThornSpikeEffect.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraComponent.h"
-#include "GameFramework/Actor.h"
+#include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
+#include "Engine/World.h"
+#include "GameFramework/Actor.h"
+#include "GameFramework/Character.h"
 
 //생성자
 UCombatStatsComponent::UCombatStatsComponent()
 {
     PrimaryComponentTick.bCanEverTick = false;
+
+    //전용 Niagara가 나오기 전까지 쓸 기본 가시 블루프린트에서 비우면 연출 없이 데미지만 들어감
+    ThornSpikeEffectClass = AThornSpikeEffect::StaticClass();
 }
 
 //스탯 전체 복사본
@@ -198,22 +205,50 @@ void UCombatStatsComponent::PlayThornReflectEffect()
 {
     AActor* OwnerActor = GetOwner();
 
-    if (!ThornReflectEffect || !OwnerActor)
+    if (!OwnerActor)
     {
         return;
     }
 
-    //액터의 루트에 붙여서 재생 발밑에서 가시가 솟는 그림이라 원점(발 기준)에 둠
-    //붙여서 재생하는 이유 맞고 뒤로 밀려나도 가시가 몸을 따라가게 하려는 것
-    //bAutoDestroy가 true라 재생이 끝나면 알아서 사라짐 Loop Behavior는 Once로 만들 것
-    UNiagaraFunctionLibrary::SpawnSystemAttached(
-        ThornReflectEffect,
-        OwnerActor->GetRootComponent(),
-        NAME_None,
-        FVector::ZeroVector,
-        FRotator::ZeroRotator,
-        EAttachLocation::SnapToTarget,
-        true
+    //캐릭터의 원점은 캡슐 한가운데라 그대로 두면 가시가 허리에서 솟음
+    //캡슐 절반 높이만큼 내려서 발밑에 맞춤 캐릭터가 아니면 원점이 곧 바닥이라 0
+    FVector FootOffset = FVector::ZeroVector;
+
+    if (const ACharacter* OwnerCharacter = Cast<ACharacter>(OwnerActor))
+    {
+        FootOffset.Z = -OwnerCharacter->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    }
+
+    //전용 Niagara를 넣어뒀으면 그쪽이 우선 나중에 이펙트가 나와도 이 함수를 고칠 필요가 없음
+    if (ThornReflectEffect)
+    {
+        //붙여서 재생하는 이유 맞고 뒤로 밀려나도 가시가 몸을 따라가게 하려는 것
+        //SnapToTarget이 아니라 KeepRelativeOffset을 쓰는 이유 발밑으로 내리는 값이 무시되면 안 됨
+        //bAutoDestroy가 true라 재생이 끝나면 알아서 사라짐 Loop Behavior는 Once로 만들 것
+        UNiagaraFunctionLibrary::SpawnSystemAttached(
+            ThornReflectEffect,
+            OwnerActor->GetRootComponent(),
+            NAME_None,
+            FootOffset,
+            FRotator::ZeroRotator,
+            EAttachLocation::KeepRelativeOffset,
+            true
+        );
+
+        return;
+    }
+
+    if (!ThornSpikeEffectClass)
+    {
+        return;
+    }
+
+    //Niagara와 달리 붙이지 않고 그 자리에 둠 땅에서 솟는 가시라 맞고 밀려나도 자리에 남아야 함
+    //수명은 액터가 스스로 정해서 지워짐
+    GetWorld()->SpawnActor<AThornSpikeEffect>(
+        ThornSpikeEffectClass,
+        OwnerActor->GetActorLocation() + FootOffset,
+        FRotator::ZeroRotator
     );
 }
 
