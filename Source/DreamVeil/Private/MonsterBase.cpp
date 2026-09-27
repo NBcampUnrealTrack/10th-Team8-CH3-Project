@@ -481,6 +481,45 @@ void AMonsterBase::CancelAttack()
 	FinishAttack(false);
 }
 
+void AMonsterBase::BeginRagdoll(const FVector& LaunchVelocity)
+{
+	// 이미 레그돌이거나, 몬스터 스탯이 존재하지 않거나, 죽었으면 나가라
+	if (bIsRagdoll || !MonsterCombatStats || MonsterCombatStats->IsDead()) return;
+
+	// 캐싱 시도, 스켈레탈 안 쓰는 친구면 여기서 실패할듯
+	USkeletalMeshComponent* SkeletalMesh = Cast<USkeletalMeshComponent>(GetMesh());
+
+	// 스켈레탈 메시 없는 친구나 아니면 물리 없는 친구는 나가라
+	if (!SkeletalMesh || !SkeletalMesh->GetPhysicsAsset()) return;
+
+	// 레그돌 시작여부
+	bIsRagdoll = true;
+
+	if (AMonsterAIController* AIController = Cast<AMonsterAIController>(this->GetController()))
+	{
+		// BT에 레그돌 상태 전달하기
+		AIController->SetRagdollState(true);
+	}
+	// 하던 공격 전부 중단하기
+	CancelAttack();
+
+	// 걷고 있었다면 적용되던 가속도 전부 지우고, 이동기능 꺼버리기
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+
+	// Character Class 기본으로 들어있는 캡슐 컴포넌트만 플레이어랑 충돌하니까 그거 꺼버리는거임
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	// 피격 콜리전도 꺼버릴까 해서 일단 여따 적어둡니다
+	if (IsValid(MonsterCollisionComponent))
+	{
+		MonsterCollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+
+	SkeletalMesh->SetCollisionObjectType(ECC_PhysicsBody);
+	SkeletalMesh->SetCollisionEnabled(ECollisionEnabled::PhysicsOnly);
+	SkeletalMesh->SetCollisionResponseToAllChannels(ECR_Ignore);
+	SkeletalMesh->SetCollisionResponseToChannel(ECC_WorldStatic, ECR_Block);
+}
 EMonsterAttackType AMonsterBase::GetAttackType() const
 {
 	return AttackType;

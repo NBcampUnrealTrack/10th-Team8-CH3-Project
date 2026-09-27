@@ -38,6 +38,20 @@ void AMonsterAIController::BeginPlay()
 	}
 }
 
+void AMonsterAIController::SetRagdollState(bool bEnabled)
+{
+	if (UBlackboardComponent* Blackboard = GetBlackboardComponent())
+	{
+		Blackboard->SetValueAsBool(TEXT("IsRagdoll"), bEnabled);
+	}
+	if (bEnabled)
+	{
+		// 이동멈추기, AIController 기본에 내장기능임
+		StopMovement();
+	}
+
+}
+
 void AMonsterAIController::OnPossess(APawn* InPawn)
 {
 	Super::OnPossess(InPawn);
