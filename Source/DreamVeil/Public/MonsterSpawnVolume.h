@@ -26,14 +26,34 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Monster To Spawn")
 	void SpawnWave(int32 MonsterCount, float SpawnInterval);
 
+	//게임모드가 일정 주기마다 부름 이 볼륨이 한 번에 몇 마리를 낼지는 볼륨이 정함
+	//게임모드가 수를 정하지 않는 이유 좁은 방과 넓은 마당에 같은 수를 내면 한쪽은 텅 비고 한쪽은 꽉 막힘
+	//볼륨마다 MonstersPerSpawnTick을 다르게 두면 맵을 만들면서 밀도를 조절할 수 있음
+	UFUNCTION(BlueprintCallable, Category = "Monster To Spawn")
+	void SpawnTick();
+
 protected:
 	virtual void BeginPlay() override;
 
+	//낼 수 있는 잡몹 종류 이 중에서 하나를 뽑아서 냄 비워두면 잡몹이 안 나옴
+	//인스턴스가 아니라 클래스를 들고 있는 이유 SpawnActor는 클래스를 받음
+	//레벨에 미리 놓아둔 액터를 가리키게 하면 그 한 마리만 존재해서 여러 마리를 낼 수 없음
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
-	TArray<TObjectPtr<AMonsterBase>> BaseMonsters;
+	TArray<TSubclassOf<AMonsterBase>> BaseMonsters;
 
+	//낼 수 있는 엘리트 종류 비워두면 확률에 당첨돼도 잡몹이 나옴
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
-	TArray<TObjectPtr<AMonsterBase>> EliteMonsters;
+	TArray<TSubclassOf<AMonsterBase>> EliteMonsters;
+
+	//이 볼륨이 한 번 스폰 신호를 받을 때 낼 몬스터 수
+	//0으로 두면 이 볼륨은 아무것도 안 냄 장식용 볼륨이나 보스방에서 씀
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
+	int32 MonstersPerSpawnTick = 1;
+
+	//한 번에 여러 마리를 낼 때 마리 사이 간격 초
+	//한 프레임에 다 쏟으면 같은 자리에 겹쳐서 나와 서로 밀어내느라 튕김
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
+	float SpawnTickGap = 0.3f;
 
 	// 최대 엘리토 몬스터가 스폰되는 레벨. 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
@@ -65,5 +85,10 @@ private:
 	void SpawnOneFromWave();
 
 	float GetEliteRate();
+
+	//고른 목록에서 하나를 뽑아 땅 위에 냄 목록이 비었거나 스폰에 실패하면 nullptr
+	//잡몹과 엘리트가 같은 절차를 타게 하려고 따로 뺌
+	AMonsterBase* SpawnOneMonster(const TArray<TSubclassOf<AMonsterBase>>& MonsterClasses, const FVector& SpawnLocation);
+
 	TObjectPtr<AMainPlayerCharacter> PlayerPawn;
 };

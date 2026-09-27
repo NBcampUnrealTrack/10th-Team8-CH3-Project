@@ -5,6 +5,10 @@
 #include "Kismet/GameplayStatics.h"
 
 #include "MainPlayerCharacter.h"
+#include "MonsterBase.h"
+#include "Components/CapsuleComponent.h"
+#include "GameFramework/Character.h"
+#include "Engine/World.h"
 #include "TimerManager.h"
 #include "DreamVeilGameInstance.h"
 
@@ -19,22 +23,83 @@ AMonsterSpawnVolume::AMonsterSpawnVolume()
 void AMonsterSpawnVolume::ExecuteSpawnActor()
 {
 	FVector SpawnLocation;
-	if (TryGetRandomNavLocation(SpawnLocation))
-	{
-		const float EliteSpawnRate = GetEliteRate();
-		if (FMath::FRandRange(0.0f, 100.0f) <= EliteSpawnRate)
-		{
-			//엘리트 스폰
-		}
-		else
-		{
-			//일반 몬스터 스폰
-		}
-	}
-	else
+
+	//땅 위 설 수 있는 자리를 못 찾으면 이번 한 마리는 건너뜀
+	//공중이나 벽 속에 내면 몬스터가 끼거나 떨어져서 플레이어에게 오지 못함
+	if (!TryGetRandomNavLocation(SpawnLocation))
 	{
 		return;
 	}
+
+	const float EliteSpawnRate = GetEliteRate();
+
+	//엘리트에 당첨됐는데 엘리트 목록이 비어 있으면 잡몹으로 내려감
+	//여기서 그냥 돌아가면 엘리트를 안 채워둔 볼륨이 아무것도 안 내서 웨이브가 통째로 비어버림
+	if (FMath::FRandRange(0.0f, 100.0f) <= EliteSpawnRate && EliteMonsters.Num() > 0)
+	{
+		SpawnOneMonster(EliteMonsters, SpawnLocation);
+		return;
+	}
+
+	SpawnOneMonster(BaseMonsters, SpawnLocation);
+}
+
+AMonsterBase* AMonsterSpawnVolume::SpawnOneMonster(const TArray<TSubclassOf<AMonsterBase>>& MonsterClasses, const FVector& SpawnLocation)
+{
+	//낼 종류를 안 채워뒀으면 낼 것이 없음
+	if (MonsterClasses.Num() == 0)
+	{
+		return nullptr;
+	}
+
+	//비어 있는 칸을 뽑을 수 있으므로 채워진 것만 모아서 고름
+	//블루프린트에서 배열 칸만 늘리고 클래스를 안 넣어두는 일이 흔함
+	TArray<TSubclassOf<AMonsterBase>> ValidClasses;
+
+	for (const TSubclassOf<AMonsterBase>& MonsterClass : MonsterClasses)
+	{
+		if (MonsterClass)
+		{
+			ValidClasses.Add(MonsterClass);
+		}
+	}
+
+	if (ValidClasses.Num() == 0)
+	{
+		return nullptr;
+	}
+
+	const TSubclassOf<AMonsterBase> ChosenClass = ValidClasses[FMath::RandRange(0, ValidClasses.Num() - 1)];
+
+	//캡슐 절반 높이만큼 띄워서 냄 바닥에 파묻힌 채로 나오면 이동 컴포넌트가 밀어내느라 튕김
+	FVector AdjustedLocation = SpawnLocation;
+
+	if (const ACharacter* MonsterDefault = ChosenClass->GetDefaultObject<ACharacter>())
+	{
+		if (const UCapsuleComponent* DefaultCapsule = MonsterDefault->GetCapsuleComponent())
+		{
+			AdjustedLocation.Z += DefaultCapsule->GetScaledCapsuleHalfHeight();
+		}
+	}
+
+	FActorSpawnParameters SpawnParameters;
+
+	//좁은 곳이라 겹쳐도 일단 냄 안 그러면 몬스터가 몰린 웨이브에서 스폰이 통째로 실패함
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+
+	//플레이어 쪽을 보고 나오게 함 등을 돌린 채 나와서 한 바퀴 도는 모습을 없앰
+	FRotator SpawnRotation = FRotator::ZeroRotator;
+
+	if (PlayerPawn)
+	{
+		SpawnRotation = (PlayerPawn->GetActorLocation() - AdjustedLocation).Rotation();
+		SpawnRotation.Pitch = 0.0f;
+		SpawnRotation.Roll = 0.0f;
+	}
+
+	//낸 몬스터를 등록하거나 스펙을 걸어주는 일은 하지 않음
+	//게임모드가 액터 스폰을 지켜보고 있다가 알아서 등록하고 스펙은 몬스터가 스스로 MonsterInit에서 검
+	return GetWorld()->SpawnActor<AMonsterBase>(ChosenClass, AdjustedLocation, SpawnRotation, SpawnParameters);
 }
 
 void AMonsterSpawnVolume::BeginPlay()
@@ -92,6 +157,19 @@ float AMonsterSpawnVolume::GetEliteRate()
 // 웨이브 스폰
 // 게임모드가 "이번 웨이브에 몇 마리 내라"고 시키면 여기서 간격을 두고 내보냄
 // 실제로 한 마리를 만드는 일은 ExecuteSpawnActor가 하므로 그쪽만 고치면 스폰 방식이 바뀜
+
+//게임모드가 주기마다 부르는 스폰 신호
+//한 마리씩 내는 절차는 웨이브와 같으므로 SpawnWave를 그대로 씀
+//간격을 주기의 절반으로 나눈 이유 다음 신호가 오기 전에 이번 몫을 다 내보내야 밀리지 않음
+void AMonsterSpawnVolume::SpawnTick()
+{
+	if (MonstersPerSpawnTick <= 0)
+	{
+		return;
+	}
+
+	SpawnWave(MonstersPerSpawnTick, SpawnTickGap);
+}
 
 //웨이브 시작 남은 수를 더하고 타이머를 깨움
 void AMonsterSpawnVolume::SpawnWave(int32 MonsterCount, float SpawnInterval)

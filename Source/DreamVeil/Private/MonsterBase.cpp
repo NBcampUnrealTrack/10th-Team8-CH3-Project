@@ -2,6 +2,7 @@
 
 
 #include "MonsterBase.h"
+#include "MonsterProgressionLibrary.h"
 #include "MonsterSkill.h"
 #include "MonsterAIController.h"
 #include "Components/SphereComponent.h"
@@ -195,9 +196,18 @@ void AMonsterBase::MonsterInit()
 	// 최대체력인디.. 범위 변수는 블루프린트에서 ㄱㄱ
 	this->MaxHealth = FMath::RandRange(MinHealthRadius, MaxHealthRadius);
 
+	//난이도와 레벨이 거는 배율 쉬움 보통 하드코어 x L1~L4(Endless는 버틴 시간) x 등급
+	//여기 한 번만 곱하면 체력과 공격력이 같이 올라감 몬스터 블루프린트의 기본 수치는 L1 쉬움 기준으로 잡으면 됨
+	//스폰 볼륨이 아니라 몬스터가 스스로 거는 이유 레벨에 미리 놓아둔 보스나 테스트용 몬스터도 같은 배율을 받아야 함
+	const float StatScale = UMonsterProgressionLibrary::GetMonsterStatScale(
+		this,
+		UMonsterProgressionLibrary::GetMonsterGrade(this));
+
+	MaxHealth *= StatScale;
+
 	if (IsValid(MonsterCombatStats))
 	{
-		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage);
+		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage * StatScale);
 	}
 	// 어택타입 보기
 	switch (GetAttackType())

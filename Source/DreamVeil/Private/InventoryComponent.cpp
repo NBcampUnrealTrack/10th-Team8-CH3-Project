@@ -1,4 +1,5 @@
 #include "InventoryComponent.h"
+#include "MonsterProgressionLibrary.h"
 
 #include "DreamVeilGameInstance.h"
 #include "EliteMonster.h"
@@ -120,9 +121,11 @@ void UInventoryComponent::ReceiveKillRewards(AActor* KilledActor)
 		return;
 	}
 
-	//보스 판정은 게임모드와 같은 기준을 써서 레벨 클리어 조건과 드롭이 어긋나지 않게 함
-	const bool bBoss = AMainGameModeBase::IsBossMonster(KilledActor);
-	const bool bElite = KilledActor->IsA<AEliteMonster>();
+	//등급 판정을 라이브러리에 맡김 경험치 스펙 배율과 같은 기준을 쓰게 하려는 것
+	//여기서 직접 보면 케디스님이 엘리트 클래스를 더 만들었을 때 경험치는 오르는데 드롭 등급은 그대로인 일이 생김
+	const EMonsterGrade Grade = UMonsterProgressionLibrary::GetMonsterGrade(KilledActor);
+	const bool bBoss = Grade == EMonsterGrade::Boss;
+	const bool bElite = Grade == EMonsterGrade::Elite;
 
 	//꿈의 조각은 잡을 때마다 받음
 	if (bBoss)

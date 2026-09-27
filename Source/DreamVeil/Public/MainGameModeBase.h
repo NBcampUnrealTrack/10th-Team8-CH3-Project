@@ -98,6 +98,17 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	float WaveSpawnInterval = 0.5f;
 
+	//스폰 볼륨에게 내라고 신호를 보내는 주기 초
+	//웨이브마다 몰아서 내지 않고 이 주기로 꾸준히 내보냄 몇 마리를 낼지는 볼륨이 정함
+	//웨이브는 몰아내기가 아니라 시간이 얼마나 지났는지 보여주는 눈금으로 남음
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
+	float ContinuousSpawnInterval = 3.0f;
+
+	//무한 모드에서 보스가 나오는 주기 초
+	//레벨과 달리 끝이 없어서 웨이브가 아니라 시간으로 보스를 냄
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
+	float EndlessBossInterval = 30.0f;
+
 	//보스로 쓸 몬스터 마지막 레벨에서 도전을 고르면 이걸 냄
 	//비워두면 보스 선택지 자체가 뜨지 않고 웨이브를 다 넘긴 순간 바로 클리어됨
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
@@ -125,8 +136,20 @@ private:
 	//다음 웨이브를 내보냄 웨이브 타이머가 부름
 	void StartNextWave();
 
-	//맵에 있는 스폰 볼륨 전부에게 이번 웨이브 몬스터를 내라고 시킴
-	void RequestWaveSpawn();
+	//맵에 있는 스폰 볼륨 전부에게 지금 내라고 신호를 보냄 몇 마리를 낼지는 볼륨이 정함
+	void RequestContinuousSpawn();
+
+	//무한 모드를 시작함 제한 시간과 웨이브가 없고 스폰과 보스만 주기로 돎
+	void StartEndlessMode();
+
+	//무한 모드에서 주기마다 보스를 냄 앞 보스가 아직 살아 있어도 또 냄
+	void SpawnEndlessBoss();
+
+	//스폰 볼륨에게 신호를 보내는 타이머 마지막 웨이브가 끝나면 멈춤
+	FTimerHandle ContinuousSpawnTimerHandle;
+
+	//무한 모드에서 보스를 내는 타이머
+	FTimerHandle EndlessBossTimerHandle;
 
 	//보스를 냄 도전을 고른 뒤에 불림
 	void SpawnBoss();

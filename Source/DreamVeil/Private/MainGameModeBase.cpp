@@ -21,7 +21,21 @@ void AMainGameModeBase::BeginPlay()
 	//여기서 거르지 않으면 로비에서도 시간이 다 되면 클리어 처리돼서 진행도가 올라감
 	UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
 
-	if (!DreamVeilGameInstance || !DreamVeilGameInstance->IsInLevelMap())
+	if (!DreamVeilGameInstance)
+	{
+		return;
+	}
+
+	//무한 모드는 제한 시간도 웨이브도 없어서 완전히 다른 흐름을 탐
+	//아래 레벨용 준비를 같이 하면 시간이 다 됐을 때 실패 처리가 돌아서 무한 모드가 끝나버림
+	if (DreamVeilGameInstance->IsInEndless())
+	{
+		StartEndlessMode();
+		return;
+	}
+
+	//로비와 메인 메뉴도 이 게임모드를 쓰므로 L1~L4가 아니면 아무것도 하지 않음
+	if (!DreamVeilGameInstance->IsInLevelMap())
 	{
 		return;
 	}
@@ -39,8 +53,12 @@ void AMainGameModeBase::BeginPlay()
 	//핸들러를 따로 해제하지 않는 이유 레벨이 바뀌면 월드와 함께 사라지고 CreateUObject라 게임모드가 먼저 사라져도 안전함
 	GetWorld()->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &AMainGameModeBase::HandleActorSpawned));
 
-	//첫 웨이브는 레벨이 시작되자마자 바로 내보냄
+	//첫 웨이브 시작 웨이브는 이제 몰아내기가 아니라 시간 눈금이라 스폰은 아래 타이머가 맡음
 	StartNextWave();
+
+	//주기마다 스폰 볼륨에게 내라고 신호 첫 신호도 주기만큼 기다렸다 나감
+	//레벨 시작과 동시에 눈앞에 몬스터가 튀어나오지 않게 하려는 것
+	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, FMath::Max(ContinuousSpawnInterval, 0.1f), true);
 }
 
 // 웨이브
@@ -52,19 +70,31 @@ void AMainGameModeBase::StartNextWave()
 {
 	CurrentWave++;
 
-	RequestWaveSpawn();
-
-	OnWaveChanged.Broadcast(CurrentWave, WaveCount);
-
-	//마지막 웨이브를 냈으면 더 낼 게 없다고 알림
-	//이걸 켜야 남은 몬스터를 다 잡았을 때 TryClearLevel이 클리어로 넘어감
-	if (CurrentWave >= WaveCount)
+	//마지막 웨이브까지 다 지났으면 이제 그만 냄
+	//웨이브가 끝나는 순간이 아니라 마지막 웨이브가 제 시간을 다 쓴 뒤에 멈춰야
+	//6웨이브에도 몬스터가 계속 나오다가 끊김 여기서 바로 멈추면 6웨이브가 텅 빈 채로 끝남
+	if (CurrentWave > WaveCount)
 	{
 		GetWorldTimerManager().ClearTimer(WaveTimerHandle);
+
+		//스폰 신호도 멈춰야 살아있는 수가 0으로 떨어질 수 있음
+		//이걸 안 멈추면 3초마다 새 몬스터가 나와서 영원히 클리어되지 않음
+		GetWorldTimerManager().ClearTimer(ContinuousSpawnTimerHandle);
 
 		NotifyAllMonstersSpawned();
 
 		return;
+	}
+
+	OnWaveChanged.Broadcast(CurrentWave, WaveCount);
+
+	//마지막 웨이브에 보스 등장 레벨마다 하나씩 나옴
+	//선택창을 띄우지 않는 이유 보스를 잡는 것이 곧 해금 조건이라 건너뛸 수 있으면 조건이 성립하지 않음
+	if (CurrentWave >= WaveCount && !bBossSpawned)
+	{
+		bBossSpawned = true;
+
+		SpawnBoss();
 	}
 
 	//다음 웨이브 예약 이미 돌고 있으면 다시 걸지 않아도 되지만
@@ -76,14 +106,42 @@ void AMainGameModeBase::StartNextWave()
 }
 
 //맵에 있는 스폰 볼륨 전부에게 이번 웨이브 몬스터를 내라고 시킴
-void AMainGameModeBase::RequestWaveSpawn()
+void AMainGameModeBase::RequestContinuousSpawn()
 {
 	//볼륨을 미리 모아두지 않고 매번 찾는 이유
-	//웨이브 도중에 볼륨이 생기거나 사라져도 알아서 반영되고 목록을 관리할 필요가 없음
+	//도중에 볼륨이 생기거나 사라져도 알아서 반영되고 목록을 관리할 필요가 없음
+	//몇 마리를 낼지 여기서 정하지 않는 이유 좁은 방과 넓은 마당의 적정 밀도가 다름 볼륨이 스스로 정함
 	for (TActorIterator<AMonsterSpawnVolume> VolumeIterator(GetWorld()); VolumeIterator; ++VolumeIterator)
 	{
-		VolumeIterator->SpawnWave(MonstersPerWave, WaveSpawnInterval);
+		VolumeIterator->SpawnTick();
 	}
+}
+
+//무한 모드 제한 시간도 웨이브도 없음
+//몬스터는 계속 나오고 시간이 갈수록 세지며 보스가 주기적으로 끼어듦
+//스펙이 세지는 계산은 UMonsterProgressionLibrary가 월드 시간을 보고 하므로 여기서는 낼 때만 정함
+void AMainGameModeBase::StartEndlessMode()
+{
+	//앞으로 스폰될 몬스터를 세기 위해 레벨 맵과 똑같이 스폰 알림을 받음
+	//살아있는 수를 세는 이유 클리어 조건은 없지만 HUD가 남은 적 수를 보여줄 수 있어야 함
+	GetWorld()->AddOnActorSpawnedHandler(FOnActorSpawned::FDelegate::CreateUObject(this, &AMainGameModeBase::HandleActorSpawned));
+
+	for (TActorIterator<AMonsterBase> MonsterIterator(GetWorld()); MonsterIterator; ++MonsterIterator)
+	{
+		RegisterMonster(*MonsterIterator);
+	}
+
+	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, FMath::Max(ContinuousSpawnInterval, 0.1f), true);
+
+	//첫 보스도 주기만큼 기다렸다 나옴 들어가자마자 보스와 마주치지 않게
+	GetWorldTimerManager().SetTimer(EndlessBossTimerHandle, this, &AMainGameModeBase::SpawnEndlessBoss, FMath::Max(EndlessBossInterval, 1.0f), true);
+}
+
+void AMainGameModeBase::SpawnEndlessBoss()
+{
+	//앞 보스가 아직 살아 있어도 또 냄 오래 버틸수록 보스가 쌓이는 것이 무한 모드의 압박
+	//스펙은 몬스터가 스스로 월드 시간을 보고 걸기 때문에 나중에 나온 보스일수록 셈
+	SpawnBoss();
 }
 
 //지금 몇 번째 웨이브인지
@@ -128,9 +186,9 @@ void AMainGameModeBase::AcceptBossChallenge()
 
 	SpawnBoss();
 
-	//보스전에도 잡몹이 계속 나오게 웨이브를 다시 돌림
+	//보스전에도 잡몹이 계속 나오게 스폰 신호를 다시 돌림
 	//웨이브 수를 세는 CurrentWave는 그대로 둬서 HUD에는 마지막 웨이브로 표시됨
-	GetWorldTimerManager().SetTimer(WaveTimerHandle, this, &AMainGameModeBase::RequestWaveSpawn, WaveInterval, true);
+	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, FMath::Max(ContinuousSpawnInterval, 0.1f), true);
 }
 
 //보스를 넘기고 로비로
@@ -252,24 +310,10 @@ void AMainGameModeBase::TryClearLevel()
 		return;
 	}
 
-	//마지막 레벨에서 보스를 아직 안 냈으면 바로 끝내지 않고 도전할지 물음
-	//BossClass를 안 넣었으면 물을 것이 없으므로 평소처럼 클리어됨
-	if (IsFinalLevel() && BossClass && !bBossSpawned && !bBossChoicePending)
-	{
-		bBossChoicePending = true;
-
-		//고르는 동안 시간이 흘러 실패 처리되면 안 되므로 제한 시간을 멈춤
-		//ClearTimer가 아니라 PauseTimer인 이유 핸들이 살아 있어야 나중에 StopLevel이 동작함
-		GetWorldTimerManager().PauseTimer(LevelTimerHandle);
-
-		//잡몹도 그만 나오게 웨이브를 멈춤 도전을 고르면 AcceptBossChallenge가 다시 켬
-		GetWorldTimerManager().ClearTimer(WaveTimerHandle);
-
-		OnBossChoiceReady.Broadcast();
-
-		return;
-	}
-
+	//보스는 이제 마지막 웨이브에 레벨마다 자동으로 나오므로 여기서 도전할지 묻지 않음
+	//보스를 잡는 것이 다음 레벨 해금 조건이라 건너뛸 수 있으면 조건이 성립하지 않음
+	//보스가 아직 살아 있으면 AliveMonsterCount가 0이 아니라 위에서 이미 돌아감
+	//보스를 잡으면 HandleBossDead가 남은 잡몹과 상관없이 바로 클리어시킴
 	ClearLevel();
 }
 

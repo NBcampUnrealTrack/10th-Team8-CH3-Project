@@ -39,6 +39,11 @@ const TCHAR* const LEVEL_MAP_PATHS[] =
 //레벨 개수 배열 길이에서 계산하므로 맵을 추가해도 여기는 안 고쳐도 되고 이 개수를 다 깨면 Endless가 열림
 const int32 LEVEL_COUNT = static_cast<int32>(UE_ARRAY_COUNT(LEVEL_MAP_PATHS));
 
+//무한 모드 맵 L4까지 다 깨야 열림
+//LEVEL_MAP_PATHS에 넣지 않은 이유 거기 넣으면 레벨 개수가 5가 되어서 L4를 깨도 Endless가 안 열리고
+//레벨 번호 5번 파츠 등급을 찾다가 표 밖으로 나감 끝이 없는 곳이라 진행도에서 빼는 것이 맞음
+const TCHAR* const ENDLESS_MAP_PATH = TEXT("/Game/Maps/Level/Endless");
+
 //난이도가 몬스터 스폰 곡선 경사(AMonsterSpawnVolume::DifficultyCurve)에 거는 배율 순서는 쉬움 보통 어려움
 //그 값은 작을수록 초반부터 가파르게 어려워지므로 쉬움은 1보다 크게 어려움은 1보다 작게 둠
 //여기 숫자만 바꾸면 난이도별 체감이 조절됨
@@ -361,6 +366,28 @@ APawn* UDreamVeilGameInstance::FindCurrentPlayerPawn() const
 
 //지금 맵이 L1~L4 중 하나인지
 //레벨 목록을 이 파일이 들고 있으니 다른 곳에서 맵 이름을 따로 적지 않고 여기서 판단함
+//무한 모드로 들어감 로비의 Endless 버튼이 부를 것
+//아직 안 열렸으면 아무것도 하지 않고 false라서 UI가 버튼을 막지 못해도 안전함
+bool UDreamVeilGameInstance::OpenEndless()
+{
+    if (!IsEndlessUnlocked())
+    {
+        return false;
+    }
+
+    UGameplayStatics::OpenLevel(this, ENDLESS_MAP_PATH);
+
+    return true;
+}
+
+//지금 맵이 무한 모드인지
+//몬스터 스펙과 보스 주기가 레벨 맵과 완전히 다르게 돌아가서 판정을 따로 둠
+bool UDreamVeilGameInstance::IsInEndless() const
+{
+    //레벨 번호를 찾을 때와 같은 방식 PIE 접두사를 뗀 맵 이름끼리 비교함
+    return UGameplayStatics::GetCurrentLevelName(this, true) == FPackageName::GetShortName(ENDLESS_MAP_PATH);
+}
+
 bool UDreamVeilGameInstance::IsInLevelMap() const
 {
     //레벨 번호가 0이면 로비나 메인 메뉴

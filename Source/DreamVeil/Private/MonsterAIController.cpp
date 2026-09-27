@@ -40,9 +40,11 @@ void AMonsterAIController::BeginPlay()
 
 void AMonsterAIController::SetRagdollState(bool bEnabled)
 {
-	if (UBlackboardComponent* Blackboard = GetBlackboardComponent())
+	//AAIController에 Blackboard라는 멤버가 이미 있어서 같은 이름을 쓰면 가려짐(C4458)
+	//이 프로젝트는 경고를 오류로 다루므로 이름을 달리 둠
+	if (UBlackboardComponent* BlackboardComponent = GetBlackboardComponent())
 	{
-		Blackboard->SetValueAsBool(TEXT("IsRagdoll"), bEnabled);
+		BlackboardComponent->SetValueAsBool(TEXT("IsRagdoll"), bEnabled);
 	}
 	if (bEnabled)
 	{

@@ -82,7 +82,18 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	bool IsEndlessUnlocked() const;
 
+	//무한 모드로 들어감 로비의 Endless 버튼과 침대의 꿈 선택 UI가 부를 것
+	//아직 안 열렸으면 아무것도 하지 않고 false라서 UI가 버튼을 막지 못해도 안전함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	bool OpenEndless();
+
+	//지금 맵이 무한 모드인지
+	//레벨 맵과 규칙이 완전히 달라서 따로 둠 제한 시간이 없고 몬스터가 시간에 따라 계속 세지며 보스가 주기적으로 나옴
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsInEndless() const;
+
 	//지금 맵이 L1~L4 중 하나인지 로비나 메인 메뉴면 false 게임모드가 레벨 제한 시간을 걸지 정할 때 씀
+	//무한 모드는 여기서 false 레벨 번호를 가진 곳이 아님
 	UFUNCTION(BlueprintPure, Category = "Level")
 	bool IsInLevelMap() const;
 
