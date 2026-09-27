@@ -1265,6 +1265,108 @@ void AMainPlayerCharacter::CheatGiveAllAugments()
 	UE_LOG(LogTemp, Warning, TEXT("[Cheat] 증강 %d개 적용 (총 %d개 중)"), AppliedCount, MaxAugmentID + 1);
 }
 
+//꿈의 조각을 넣음
+void AMainPlayerCharacter::CheatAddShards(int32 Amount)
+{
+	if (!Inventory)
+	{
+		return;
+	}
+
+	//AddDreamShards가 0 이하를 무시하고 변경 이벤트까지 보내므로 여기서는 그대로 넘기기만 함
+	Inventory->AddDreamShards(Amount);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] 꿈의 조각 +%d -> %d개"), Amount, Inventory->GetDreamShards());
+}
+
+//깬 레벨 수를 바꿔 상점 해금을 열음
+void AMainPlayerCharacter::CheatUnlockShop(int32 ClearedCount)
+{
+	UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+	if (!DreamVeilGameInstance || !Inventory)
+	{
+		return;
+	}
+
+	DreamVeilGameInstance->CheatSetClearedLevelCount(ClearedCount);
+
+	FString TierText;
+
+	//해금 여부를 다시 계산하지 않고 상점에 그대로 물어봄 여기서 조건을 또 쓰면 규칙이 두 군데로 갈라짐
+	for (int32 TierIndex = 0; TierIndex <= static_cast<int32>(EWeaponPartTier::Boss); ++TierIndex)
+	{
+		if (Inventory->IsTierForSale(static_cast<EWeaponPartTier>(TierIndex)))
+		{
+			TierText += FString::Printf(TEXT("%d "), TierIndex);
+		}
+	}
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] 깬 레벨 %d개 -> 판매 등급 %s, 소총 판매 %s"),
+		ClearedCount,
+		TierText.IsEmpty() ? TEXT("없음") : *TierText,
+		Inventory->IsWeaponForSale(EWeaponSlot::Rifle) ? TEXT("O") : TEXT("X"));
+}
+
+//파츠를 바로 하나 줌
+void AMainPlayerCharacter::CheatGivePart(int32 Weapon, int32 Slot, int32 Tier)
+{
+	if (!Inventory)
+	{
+		return;
+	}
+
+	//enum 범위를 벗어난 값이 들어오면 없는 칸에 들어가거나 등급 표 밖을 읽으므로 막음
+	//Nothing은 무기 칸이지만 파츠를 끼울 총이 아니라서 소총까지만 받음
+	if (Weapon < 0 || Weapon > static_cast<int32>(EWeaponSlot::Rifle)
+		|| Slot < 0 || Slot > static_cast<int32>(EWeaponPartSlot::Foregrip)
+		|| Tier < 0 || Tier > static_cast<int32>(EWeaponPartTier::Boss))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Cheat] 무기는 0~1 칸은 0~4 등급은 0~4 범위로 넣을 것"));
+		return;
+	}
+
+	FWeaponPart NewPart;
+
+	NewPart.Weapon = static_cast<EWeaponSlot>(Weapon);
+	NewPart.Slot = static_cast<EWeaponPartSlot>(Slot);
+	NewPart.Tier = static_cast<EWeaponPartTier>(Tier);
+
+	//강화 단계와 장착 여부는 건드리지 않음 AddPart가 항상 빠진 상태로 넣으므로 장착은 소켓 UI에서 확인할 것
+	Inventory->AddPart(NewPart);
+
+	UE_LOG(LogTemp, Warning, TEXT("[Cheat] 파츠 지급 %s %s %s (가진 파츠 %d개)"),
+		*UEnum::GetValueAsString(NewPart.Weapon),
+		*UEnum::GetValueAsString(NewPart.Slot),
+		*UEnum::GetValueAsString(NewPart.Tier),
+		Inventory->GetParts().Num());
+}
+
+//가진 총의 모든 칸에 그 등급 파츠를 하나씩 줌
+void AMainPlayerCharacter::CheatGiveAllParts(int32 Tier)
+{
+	//권총부터 소총까지 도는 이유 무기가 늘어도 이 함수는 그대로 두려는 것
+	for (int32 WeaponIndex = 0; WeaponIndex <= static_cast<int32>(EWeaponSlot::Rifle); ++WeaponIndex)
+	{
+		const EWeaponSlot TargetWeapon = static_cast<EWeaponSlot>(WeaponIndex);
+
+		//소총 컴포넌트는 사기 전에도 숨겨진 채로 붙어 있어서 가졌는지를 HasWeapon으로 따로 확인함
+		const UWeaponBase* TargetWeaponComponent = HasWeapon(TargetWeapon) ? GetWeaponInSlot(TargetWeapon) : nullptr;
+
+		if (!TargetWeaponComponent)
+		{
+			continue;
+		}
+
+		//칸 목록을 무기에게 물어봄 소총 전용 칸이 늘어나도 여기를 고칠 필요가 없음
+		for (EWeaponPartSlot PartSlot : TargetWeaponComponent->GetPartSlots())
+		{
+			//범위 검사와 로그를 CheatGivePart가 이미 하므로 그대로 넘김
+			CheatGivePart(WeaponIndex, static_cast<int32>(PartSlot), Tier);
+		}
+	}
+}
+
 void AMainPlayerCharacter::CheatDamageMe(float Amount)
 {
 	UAugmentDamageLibrary::ApplyAugmentDamageToTarget(this, this, Amount);
@@ -1317,6 +1419,27 @@ void AMainPlayerCharacter::CheatShowStatus()
 
 		UE_LOG(LogTemp, Warning, TEXT("[Cheat] 보유 증강: %s"),
 			OwnedText.IsEmpty() ? TEXT("없음") : *OwnedText);
+	}
+
+	//인벤토리 상점 UI가 아직 없어서 파츠와 꿈의 조각은 여기서 확인함
+	if (Inventory)
+	{
+		const TArray<FWeaponPart> OwnedParts = Inventory->GetParts();
+
+		UE_LOG(LogTemp, Warning, TEXT("[Cheat] 꿈의 조각 %d개, 파츠 %d개"),
+			Inventory->GetDreamShards(), OwnedParts.Num());
+
+		for (int32 PartIndex = 0; PartIndex < OwnedParts.Num(); ++PartIndex)
+		{
+			//번호를 같이 찍는 이유 EquipPart EnhancePart SellPart가 전부 이 목록 순서의 번호를 받음
+			UE_LOG(LogTemp, Warning, TEXT("[Cheat]  %d. %s %s %s +%d %s"),
+				PartIndex,
+				*UEnum::GetValueAsString(OwnedParts[PartIndex].Weapon),
+				*UEnum::GetValueAsString(OwnedParts[PartIndex].Slot),
+				*UEnum::GetValueAsString(OwnedParts[PartIndex].Tier),
+				OwnedParts[PartIndex].EnhanceLevel,
+				OwnedParts[PartIndex].bEquipped ? TEXT("장착") : TEXT("보관"));
+		}
 	}
 }
 

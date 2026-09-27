@@ -124,6 +124,10 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Level")
 	bool IsLevelCleared(int32 LevelNumber) const;
 
+	//테스트용 깬 레벨 수를 그대로 바꿈 상점의 등급 해금과 소총 판매 조건이 이 값만 보므로 이 하나로 상점을 전부 열 수 있음
+	//BlueprintCallable을 달지 않은 이유 UI가 진행도를 직접 바꾸기 시작하면 해금 규칙이 두 군데로 갈라짐
+	void CheatSetClearedLevelCount(int32 NewClearedCount);
+
 	// 난이도
 
 	//난이도를 정함 메인 메뉴에서 새 게임을 시작하기 전에 부를 것

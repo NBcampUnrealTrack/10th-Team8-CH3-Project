@@ -453,6 +453,13 @@ bool UDreamVeilGameInstance::IsLevelCleared(int32 LevelNumber) const
     return LevelNumber >= 1 && LevelNumber <= ClearedLevelCount;
 }
 
+//테스트용 깬 레벨 수를 그대로 바꿈
+void UDreamVeilGameInstance::CheatSetClearedLevelCount(int32 NewClearedCount)
+{
+    //레벨 수를 넘긴 값이 들어오면 IsLevelUnlocked는 막아주지만 진행도 숫자 자체가 이상해지므로 여기서 잘라둠
+    ClearedLevelCount = FMath::Clamp(NewClearedCount, 0, LEVEL_COUNT);
+}
+
 //난이도를 정함
 void UDreamVeilGameInstance::SetDifficulty(EGameDifficulty NewDifficulty)
 {

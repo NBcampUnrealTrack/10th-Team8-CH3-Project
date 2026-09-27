@@ -269,6 +269,26 @@ public:
 	UFUNCTION(Exec)
 	void CheatGiveAllAugments();
 
+	//꿈의 조각을 넣음 상점 구매와 강화를 확인할 때 씀 예) CheatAddShards 5000
+	UFUNCTION(Exec)
+	void CheatAddShards(int32 Amount);
+
+	//깬 레벨 수를 바꿔 상점 해금을 열음 상점은 등급 번호만큼 레벨이 열려야 그 등급을 팔고 소총은 L3가 열려야 팖
+	//꿈의 조각만 넣으면 처음 로비에서는 Level1 파츠밖에 안 보임 4를 넣으면 전부 열림 예) CheatUnlockShop 4
+	UFUNCTION(Exec)
+	void CheatUnlockShop(int32 ClearedCount);
+
+	//파츠를 바로 하나 줌 상점에서 팔지 않는 보스 등급은 보스를 잡거나 이걸로만 얻을 수 있음
+	//무기 0 권총 1 소총 / 칸 0 총구 1 탄창 2 조준기 3 개머리판 4 앞손잡이 / 등급 0 L1 ~ 3 L4 4 보스
+	//예) CheatGivePart 1 3 4 는 소총 개머리판 보스 등급
+	UFUNCTION(Exec)
+	void CheatGivePart(int32 Weapon, int32 Slot, int32 Tier);
+
+	//가진 총의 모든 칸에 그 등급 파츠를 하나씩 줌 소켓 UI를 한 번에 채울 때 씀 예) CheatGiveAllParts 0
+	//아직 안 산 소총의 파츠는 주지 않음 못 끼우는 파츠만 목록에 쌓이면 UI 확인이 오히려 헷갈림
+	UFUNCTION(Exec)
+	void CheatGiveAllParts(int32 Tier);
+
 	//자기 자신에게 데미지 사망 흐름 확인용 예) CheatDamageMe 9999
 	UFUNCTION(Exec)
 	void CheatDamageMe(float Amount);
