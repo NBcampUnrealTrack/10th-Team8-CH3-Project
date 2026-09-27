@@ -205,7 +205,7 @@ void UDreamVeilGameInstance::ContinueAfterDeath()
     if (Difficulty == EGameDifficulty::Hard)
     {
         HandleHardGameOver();
-        UGameplayStatics::OpenLevel(this, LOBBY_MAP_PATH);
+        UGameplayStatics::OpenLevel(this, MAIN_MENU_MAP_PATH);
         return;
     }
 
