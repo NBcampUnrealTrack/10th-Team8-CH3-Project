@@ -7,6 +7,8 @@
 class AActor;
 class AMonsterBase;
 class AMonsterSpawnVolume;
+class USoundBase;
+class UAudioComponent;
 
 //웨이브가 바뀌었을 때 지금 웨이브와 전체 웨이브 수 HUD가 "3 / 6" 같은 표시에 씀
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
@@ -38,6 +40,45 @@ public:
 	// 잠식 진행률 (0 ~ 1)
 	UFUNCTION(BlueprintPure, Category = "Level")
 	float GetLevelTimeProgress() const;
+
+	// 잠식도 0 ~ 1
+	//레벨 제한 시간과 별개임 시간이 지나면 차오르고 몬스터를 잡으면 내려가며 1에 닿으면 사망
+	//값을 직접 들고 있어서 레벨과 Endless가 같은 규칙을 씀 모드별 처리가 필요 없음
+	UFUNCTION(BlueprintPure, Category = "Corruption")
+	float GetCorruption() const;
+
+	// 잠식도 0 ~ 100 게이지 표시용
+	UFUNCTION(BlueprintPure, Category = "Corruption")
+	float GetCorruptionPercent() const;
+
+	//잠식도를 내림 Amount는 0~1 단위 0.01이면 1퍼센트
+	//0 아래로는 안 내려감 음수가 되면 게이지가 이상해짐
+	UFUNCTION(BlueprintCallable, Category = "Corruption")
+	void ReduceCorruption(float Amount);
+
+	// 배경음
+	// 맵마다 게임모드가 새로 만들어지므로 여기서 틀면 레벨이 바뀔 때 알아서 갈린다
+
+	//로비와 메인 메뉴에서 나오는 배경음 싸우지 않는 곳이라 하나로 씀
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
+	TObjectPtr<USoundBase> LobbyBGM;
+
+	//레벨 1~4에서 나오는 배경음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
+	TObjectPtr<USoundBase> LevelBGM;
+
+	//보스가 살아 있는 동안 나오는 배경음 보스가 전부 죽으면 원래 곡으로 돌아감
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
+	TObjectPtr<USoundBase> BossBGM;
+
+	//Endless 전용 배경음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
+	TObjectPtr<USoundBase> EndlessBGM;
+
+	//배경음을 갈아 끼움 같은 곡을 다시 넣으면 처음부터 되감지 않고 그대로 둠
+	//비워서 부르면 배경음이 멈춤
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void PlayBGM(USoundBase* NewBGM);
 
 	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
 	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠
@@ -128,6 +169,50 @@ private:
 	//타이머를 건 적이 없거나 레벨을 이미 끝냈으면 무효 상태라서 레벨이 두 번 끝나는 걸 막는 표시로도 씀
 	FTimerHandle LevelTimerHandle;
 	bool bTimedOut = false;
+
+	//지금 잠식도 0~1 시간이 지나면 차오르고 몬스터를 잡으면 내려감
+	float Corruption = 0.0f;
+
+	//잠식도가 0에서 1까지 차오르는 데 걸리는 시간 초
+	//한 마리도 안 잡고 가만히 있으면 이 시간 뒤에 죽는다는 뜻 0으로 두면 잠식도가 안 오름
+	UPROPERTY(EditDefaultsOnly, Category = "Corruption", meta = (AllowPrivateAccess = "true"))
+	float CorruptionFillTime = 120.0f;
+
+	//잠식도를 갱신하는 주기 초 촘촘할수록 게이지가 매끄럽고 부담은 커짐
+	UPROPERTY(EditDefaultsOnly, Category = "Corruption", meta = (AllowPrivateAccess = "true"))
+	float CorruptionTickInterval = 0.1f;
+
+	//잠식도를 올리는 타이머 레벨과 Endless 양쪽에서 같이 걸림
+	FTimerHandle CorruptionTimerHandle;
+
+	//잠식도를 올리기 시작함 레벨과 Endless 준비가 끝난 뒤에 부름
+	void StartCorruption();
+
+	//주기마다 잠식도를 올리고 1에 닿으면 사망 처리
+	void TickCorruption();
+
+	//잠식도가 1에 닿음 멈출 타이머를 모드에 맞게 정리하고 실패 처리로 넘김
+	void HandleCorruptionFull();
+
+	//한 판이 실패로 끝났을 때의 공통 처리 게임 오버를 띄우고 로비로 보냄
+	//제한 시간 초과와 잠식도 100퍼센트가 결과는 같아서 한 곳에 모음
+	void HandleRunFailed();
+
+	//지금 맵에 맞는 기본 배경음 로비 레벨 Endless 중 하나
+	//보스 곡이 끝났을 때 무엇으로 돌아갈지도 이 값으로 정함
+	USoundBase* GetBaseBGM() const;
+
+	//살아 있는 보스가 있으면 보스 곡 없으면 기본 곡으로 맞춤
+	//보스가 나올 때와 죽을 때 양쪽에서 불러서 판정이 한 곳에 모이게 함
+	void UpdateBGMForBoss();
+
+	//지금 돌고 있는 배경음 곡을 갈아 끼울 때 멈추려고 들고 있음
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> BGMAudio;
+
+	//지금 틀고 있는 곡 같은 곡을 다시 넣었을 때 되감지 않으려고 기억함
+	UPROPERTY(Transient)
+	TObjectPtr<USoundBase> CurrentBGM;
 
 	//지금 살아있는 몬스터 수
 	int32 AliveMonsterCount = 0;

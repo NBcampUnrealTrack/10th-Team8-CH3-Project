@@ -283,7 +283,17 @@ float AMainPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 		return 0.0f;
 	}
 
-	return UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
+	const float AppliedDamage = UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
+
+	//실제로 체력이 깎였을 때만 소리를 냄
+	//방어력으로 전부 막혔거나 이미 죽어 있으면 0이 돌아와서 헛소리가 안 남
+	if (AppliedDamage > 0.0f && HitSound)
+	{
+		//몸에서 나는 소리라 위치를 줌 화면 밖에서 맞아도 어느 쪽인지 들림
+		UGameplayStatics::PlaySoundAtLocation(this, HitSound, GetActorLocation());
+	}
+
+	return AppliedDamage;
 }
 
 //플레이어가 죽었을 때

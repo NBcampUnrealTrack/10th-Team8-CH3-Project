@@ -104,6 +104,10 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         //경험치도 같은 자리에서 줌 꿈의 조각과 판정이 갈라지면 조각은 받았는데 경험치는 안 들어오는 일이 생김
         //등급별 값과 레벨 보정은 라이브러리가 정함 여기서는 누가 무엇을 잡았는지만 넘김
         UMonsterProgressionLibrary::GrantKillExperience(Killer, DamagedActor);
+
+        //잡은 만큼 잠식도를 내림 경험치와 같은 자리에 두어서 판정이 갈라지지 않게 함
+        //잡은 쪽을 넘기지 않는 이유 화염이나 가시 반사로 죽어도 플레이어가 잡은 것이라 잠식도는 내려가야 함
+        UMonsterProgressionLibrary::GrantKillCorruptionRelief(DamagedActor);
     }
 
     //반사로 들어온 데미지는 다시 반사하지 않고 상대를 회복시키지도 않음

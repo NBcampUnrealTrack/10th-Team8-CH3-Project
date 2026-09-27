@@ -295,6 +295,11 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sound")
 	TObjectPtr<USoundBase> HeartbeatSound;
 
+	//맞았을 때 나는 소리 비워두면 소리 없이 데미지만 들어감
+	//방어력으로 다 막혀 0이 되면 안 나옴 실제로 체력이 깎였을 때만 울림
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	TObjectPtr<USoundBase> HitSound;
+
 	float SprintSpeed;
 	float NoramalSpeed;
 	float SprintSpeedMultiplier;
