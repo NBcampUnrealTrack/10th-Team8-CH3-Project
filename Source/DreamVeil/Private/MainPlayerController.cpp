@@ -92,6 +92,11 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
 
     MenuWidgetInstance->AddToViewport();
 
+    //입력 모드를 UI로 바꾸기 전에 눌린 키를 버림
+    //순서가 중요함 UI로 바꾼 뒤에 버리면 이미 캐릭터가 이동 입력을 들고 있어서 늦음
+    //멈추지 않는 메뉴(침대 컴퓨터)도 이 줄 덕분에 W를 누른 채 열어도 캐릭터가 서 있음
+    ClearHeldInput();
+
     //버튼을 마우스로 누를 수 있게 UI 전용 입력으로 바꾸고 커서를 보여줌
     FInputModeUIOnly InputMode;
     InputMode.SetWidgetToFocus(MenuWidgetInstance->TakeWidget());
@@ -123,6 +128,18 @@ UUserWidget* AMainPlayerController::OpenMenuWidgetPaused(TSubclassOf<UUserWidget
 }
 
 //게임을 멈추거나 푼다
+void AMainPlayerController::ClearHeldInput()
+{
+	//누르고 있던 키를 버림 이걸 해야 키를 뗀 것으로 쳐서 이동 입력이 0이 됨
+	FlushPressedKeys();
+
+	//이미 쌓인 속도를 지움 입력만 끊으면 관성으로 잠깐 더 미끄러짐
+	if (ACharacter* PlayerCharacter = Cast<ACharacter>(GetPawn()))
+	{
+		PlayerCharacter->GetCharacterMovement()->StopMovementImmediately();
+	}
+}
+
 void AMainPlayerController::SetGameSuspended(bool bSuspended)
 {
 	//월드 시간을 멈춤 이러면 몬스터 움직임 공격 타이머(제한 시간 웨이브)가 전부 같이 멈춤
@@ -131,14 +148,8 @@ void AMainPlayerController::SetGameSuspended(bool bSuspended)
 
 	if (bSuspended)
 	{
-		//누르고 있던 키를 버림 안 버리면 W를 누른 상태로 멈춰서 푸는 순간까지 이동 입력이 살아 있음
-		FlushPressedKeys();
-
-		//멈추기 직전까지 쌓인 속도를 지움 멈춘 상태에서 캐릭터가 미끄러지는 것을 막음
-		if (ACharacter* PlayerCharacter = Cast<ACharacter>(GetPawn()))
-		{
-			PlayerCharacter->GetCharacterMovement()->StopMovementImmediately();
-		}
+		//누르고 있던 키와 쌓인 속도를 지움 안 지우면 W를 누른 상태로 멈춰서 푸는 순간까지 이동 입력이 살아 있음
+		ClearHeldInput();
 
 		//UI만 보는 동안에는 캐릭터가 움직이거나 카메라가 돌지 않게 입력 자체를 막음
 		//멈췄는데도 움직이는 일이 생기지 않도록 이중으로 걸어둠

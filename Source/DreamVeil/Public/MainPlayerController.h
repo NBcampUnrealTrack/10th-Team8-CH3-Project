@@ -90,6 +90,12 @@ private:
 	UFUNCTION()
 	void ShowGameOver();
 
+	//누르고 있던 키를 버리고 쌓인 속도를 지움
+	//메뉴가 뜨면 입력 모드가 UI로 바뀌어서 키를 떼는 신호가 캐릭터까지 오지 않음
+	//그래서 W를 누른 채로 침대를 누르면 메뉴가 떠 있는 동안에도 계속 앞으로 감
+	//멈추는 메뉴(증강)와 안 멈추는 메뉴(침대 컴퓨터)가 똑같이 이 처리를 쓰게 하려고 따로 뺌
+	void ClearHeldInput();
+
 	//지금 열려 있는 메뉴 위젯 닫을 때 필요해서 들고 있음 없으면 nullptr
 	UPROPERTY(Transient)
 	TObjectPtr<UUserWidget> MenuWidgetInstance;
