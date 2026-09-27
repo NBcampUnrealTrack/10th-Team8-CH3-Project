@@ -60,6 +60,14 @@ void AMonsterProjectile::SetDamage(float damage)
 	this->Damage = FMath::Max(0.0f, damage);
 }
 
+void AMonsterProjectile::IgnoreActorWhileMoving(AActor* OtherActor)
+{
+	if (IsValid(OtherActor) && BulletCollision)
+	{
+		BulletCollision->IgnoreActorWhenMoving(OtherActor, true);
+	}
+}
+
 // Called when the game starts or when spawned
 void AMonsterProjectile::BeginPlay()
 {
@@ -89,6 +97,13 @@ void AMonsterProjectile::HandleHit(UPrimitiveComponent* HitComp, AActor* OtherAc
 
 	bHitProcessed = true;
 
+	ProcessHit(OtherActor, Hit);
+
+	Destroy();
+}
+
+void AMonsterProjectile::ProcessHit(AActor* OtherActor, const FHitResult& Hit)
+{
 	// 예제에서는 Pawn에만 피해 적용
 	// 아근데이거 고장나려나 테스트필요
 	if (Cast<APawn>(OtherActor) && !Cast<AMonsterBase>(OtherActor))
@@ -100,8 +115,6 @@ void AMonsterProjectile::HandleHit(UPrimitiveComponent* HitComp, AActor* OtherAc
 			this,
 			UDamageType::StaticClass());
 	}
-
-	Destroy();
 }
 
 

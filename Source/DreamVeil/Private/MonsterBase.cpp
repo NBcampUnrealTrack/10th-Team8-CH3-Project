@@ -138,6 +138,11 @@ void AMonsterBase::HideAttackWarning()
 	AttackWarningEffect->SetVisibility(false);
 }
 
+UMaterialInterface* AMonsterBase::GetAttackWarningMaterial() const
+{
+	return IsValid(AttackWarningEffect) ? AttackWarningEffect->GetDecalMaterial() : nullptr;
+}
+
 
 void AMonsterBase::BeginPlay()
 {

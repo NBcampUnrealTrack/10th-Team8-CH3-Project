@@ -8,12 +8,16 @@
 #include "MonsterSkill.generated.h"
 
 class UAnimSequence;
+class UDecalComponent;
+class AMonsterProjectile;
 
 // 새 패턴은 여기에 추가하고 컴포넌트의 실행 분기에 구현한다.
 UENUM(BlueprintType)
 enum class EMonsterSkillType : uint8
 {
-    Charge
+    Charge,
+    // 부채꼴로 투사체 여러 발을 동시에 발사한다.
+    FanShot
 };
 
 USTRUCT(BlueprintType)
@@ -87,6 +91,46 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|Charge")
     TObjectPtr<UAnimSequence> ChargeRunAnimation;
 
+    // ---------------- 부채꼴 투사체 (FanShot) ----------------
+
+    //발사할 투사체. 비워두면 몬스터에 설정된 RangedProjectile을 사용한다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot")
+    TSubclassOf<AMonsterProjectile> FanShotProjectile;
+
+    //투사체 한 발당 피해량. 돌진과 마찬가지로 방어력 등은 기존 피해 처리에서 반영된다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotDamage = 15.0f;
+
+    //한 번에 발사하는 투사체 수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "1", ClampMax = "32"))
+    int32 FanShotCount = 5;
+
+    //부채꼴 전체 각도(도). 60이면 정면 기준 좌우 30도씩 퍼진다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0", ClampMax = "360"))
+    float FanShotAngle = 60.0f;
+
+    //플레이어가 이 거리 안에 있을 때만 발동한다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotTriggerDistance = 1500.0f;
+
+    //경고 표시 후 실제 발사까지의 준비 시간(초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotReadySeconds = 0.8f;
+
+    //발사 후 다시 움직이기까지의 경직 시간(초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotRecoverySeconds = 0.3f;
+
+    //경고 표시 길이와 폭(cm). 투사체 경로마다 한 줄씩 그린다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotWarningLength = 1500.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotWarningWidth = 60.0f;
+
+    //준비 동작과 발사 동작. 비워두면 원래 AnimBP를 그대로 쓴다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|FanShot")
+    TObjectPtr<UAnimSequence> FanShotReadyAnimation;
+
 protected:
     virtual void BeginPlay() override;
     virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -103,11 +147,28 @@ private:
     float ChargeWidth;
 
     //엘리트는 짧은 간격으로 거리와 쿨타임을 확인하고, 보스는 기존 선택 타이머를 사용한다.
-    void CheckChargeRange();
+    void CheckSkillRange();
+    bool TryUseCharge();
     void StartCharge();
     void CheckChargeHits(const FVector& Start, const FVector& End);
     void CleanupCharge();
     void PlayChargeAnimation(UAnimSequence* Animation);
+
+    //부채꼴 투사체
+    bool TryUseFanShot();
+    void FireFanShot();
+    void CleanupFanShot();
+    void ShowFanShotWarning(const FVector& Origin);
+    void HideFanShotWarning();
+    TArray<FVector> GetFanShotDirections() const;
+
+    FTimerHandle FanShotReadyTimer;
+    FTimerHandle FanShotRecoveryTimer;
+    FVector FanShotDirection = FVector::ZeroVector;
+    bool bFanShotPrepared = false;
+    //경로마다 하나씩 만드는 임시 경고 데칼
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<UDecalComponent>> FanShotWarningDecals;
 
     FTimerHandle ChargeCheckTimer;
     FTimerHandle ChargeReadyTimer;

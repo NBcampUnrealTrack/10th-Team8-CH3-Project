@@ -14,6 +14,8 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "GameFramework/RootMotionSource.h"
 #include "Kismet/GameplayStatics.h"
+#include "Components/DecalComponent.h"
+#include "MonsterProjectile.h"
 
 namespace
 {
@@ -46,14 +48,28 @@ void UMonsterSkill::BeginPlay()
     }
     if (Cast<AEliteMonster>(GetOwner()) && !Cast<ABossMonster>(GetOwner()))
     {
-        GetWorld()->GetTimerManager().SetTimer(ChargeCheckTimer, this, &UMonsterSkill::CheckChargeRange, 0.2f, true);
+        GetWorld()->GetTimerManager().SetTimer(ChargeCheckTimer, this, &UMonsterSkill::CheckSkillRange, 0.2f, true);
     }
 }
 
-void UMonsterSkill::CheckChargeRange()
+void UMonsterSkill::CheckSkillRange()
 {
-    //Skills에 Charge를 등록한 몬스터만 실제로 발동한다. 쿨타임 중에는 AI 행동을 건드리지 않는다.
-    TryUseSkill(EMonsterSkillType::Charge);
+    //Skills에 등록한 스킬 중 지금 쓸 수 있는 것만 모은다. 쿨타임 중에는 AI 행동을 건드리지 않는다.
+    TArray<EMonsterSkillType> ReadySkills;
+    for (const FMonsterSkillSettings& Settings : Skills)
+    {
+        if (CanUseSkill(Settings.Skill)) ReadySkills.AddUnique(Settings.Skill);
+    }
+
+    //항상 같은 순서로 시도하면 첫 스킬만 나오므로 섞어서 시도하고, 거리 조건이 맞는 첫 스킬을 쓴다.
+    for (int32 i = ReadySkills.Num() - 1; i > 0; --i)
+    {
+        ReadySkills.Swap(i, FMath::RandRange(0, i));
+    }
+    for (const EMonsterSkillType Skill : ReadySkills)
+    {
+        if (TryUseSkill(Skill)) return;
+    }
 }
 
 const FMonsterSkillSettings* UMonsterSkill::FindSettings(EMonsterSkillType Skill) const
@@ -111,15 +127,28 @@ void UMonsterSkill::FinishSkill()
     bIsUsingSkill = false;
     //AI를 재개하기 전에 쿨타임과 사용 상태를 갱신해 즉시 재발동하지 않게 한다.
     CleanupCharge();
+    CleanupFanShot();
 }
 
 bool UMonsterSkill::TryUseSkill(EMonsterSkillType Skill)
 {
+    //스킬 종류별 실제 패턴으로 연결한다. 새 스킬은 여기에 분기를 추가한다.
+    switch (Skill)
+    {
+    case EMonsterSkillType::Charge:  return TryUseCharge();
+    case EMonsterSkillType::FanShot: return TryUseFanShot();
+    default:                         return false;
+    }
+}
+
+bool UMonsterSkill::TryUseCharge()
+{
+    const EMonsterSkillType Skill = EMonsterSkillType::Charge;
     AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner());
     AMainPlayerCharacter* Player = Cast<AMainPlayerCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
 
-	//스킬 이중체크, 돌진이고 쿨돌았고 플레이어 감지 제대로 됐는지 확인...
-    if (Skill != EMonsterSkillType::Charge || !CanUseSkill(Skill) || !IsValid(Player)) return false;
+	//스킬 이중체크, 쿨돌았고 플레이어 감지 제대로 됐는지 확인...
+    if (!CanUseSkill(Skill) || !IsValid(Player)) return false;
     //죽은 플레이어에게 발동하지 않고, 시전자는 바닥에 서 있을 때만 준비한다.
     if (!Player->CombatStats || Player->CombatStats->IsDead() || !Monster->GetCharacterMovement()->IsMovingOnGround()) return false;
 
@@ -307,6 +336,7 @@ void UMonsterSkill::EndPlay(const EEndPlayReason::Type EndPlayReason)
     //제거된 컴포넌트가 예약된 준비 동작이나 거리 검사를 실행하지 않도록 정리한다.
     GetWorld()->GetTimerManager().ClearTimer(ChargeCheckTimer);
     CleanupCharge();
+    CleanupFanShot();
     Super::EndPlay(EndPlayReason);
 }
 
@@ -319,4 +349,173 @@ void UMonsterSkill::CancelSkill()
         Monster->HideAttackWarning();
     }
     FinishSkill();
+}
+
+// ======================== 부채꼴 투사체 (FanShot) ========================
+
+TArray<FVector> UMonsterSkill::GetFanShotDirections() const
+{
+    //부채꼴 전체 각도를 발사 수에 맞게 나눈다. 한 발이면 정면으로만 쏜다.
+    TArray<FVector> Directions;
+    const int32 Count = FMath::Max(1, FanShotCount);
+    //360도면 처음과 끝이 겹치므로 간격 수를 한 칸 늘린다.
+    const bool bFullCircle = FanShotAngle >= 360.0f - UE_KINDA_SMALL_NUMBER;
+    const float Step = Count > 1 ? FanShotAngle / static_cast<float>(bFullCircle ? Count : Count - 1) : 0.0f;
+    const float StartYaw = Count > 1 && !bFullCircle ? -FanShotAngle * 0.5f : 0.0f;
+    for (int32 i = 0; i < Count; ++i)
+    {
+        Directions.Add(FanShotDirection.RotateAngleAxis(StartYaw + Step * i, FVector::UpVector));
+    }
+    return Directions;
+}
+
+bool UMonsterSkill::TryUseFanShot()
+{
+    const EMonsterSkillType Skill = EMonsterSkillType::FanShot;
+    AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner());
+    AMainPlayerCharacter* Player = Cast<AMainPlayerCharacter>(UGameplayStatics::GetPlayerPawn(this, 0));
+
+    if (!CanUseSkill(Skill) || !IsValid(Player) || !IsValid(Monster)) return false;
+    if (!Player->CombatStats || Player->CombatStats->IsDead()) return false;
+    //쏠 투사체가 없으면 발동하지 않는다.
+    if (!FanShotProjectile && !Monster->GetRangedProjectileClass()) return false;
+
+    const FVector ToPlayer = Player->GetActorLocation() - Monster->GetActorLocation();
+    if (ToPlayer.SizeSquared() > FMath::Square(FanShotTriggerDistance) || ToPlayer.SizeSquared2D() <= UE_SMALL_NUMBER) return false;
+    if (!BeginSkill(Skill)) return false;
+
+    //방향은 준비 시작 시점에 고정한다. 경고를 보고 옆으로 피할 수 있게 하려는 것.
+    FanShotDirection = ToPlayer.GetSafeNormal2D();
+    bFanShotPrepared = true;
+
+    if (AMonsterAIController* AI = Cast<AMonsterAIController>(Monster->GetController()))
+    {
+        AI->SetSkillMovementLocked(true);
+    }
+    Monster->GetCharacterMovement()->StopMovementImmediately();
+    Monster->SetActorRotation(FanShotDirection.Rotation());
+
+    //데칼은 발밑 높이에서 투영한다.
+    const FVector Origin = Monster->GetActorLocation()
+        - FVector::UpVector * Monster->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
+    ShowFanShotWarning(Origin);
+    PlayChargeAnimation(FanShotReadyAnimation);
+
+    GetWorld()->GetTimerManager().SetTimer(FanShotReadyTimer, this, &UMonsterSkill::FireFanShot,
+        FMath::Max(FanShotReadySeconds, 0.01f), false);
+    return true;
+}
+
+void UMonsterSkill::FireFanShot()
+{
+    AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner());
+    if (!bIsUsingSkill || !bFanShotPrepared || !IsValid(Monster)) return;
+    if (!Monster->MonsterCombatStats || Monster->MonsterCombatStats->IsDead()) { CancelSkill(); return; }
+
+    HideFanShotWarning();
+    PlayChargeAnimation(nullptr);
+
+    const TSubclassOf<AMonsterProjectile> ProjectileClass = FanShotProjectile ? FanShotProjectile : Monster->GetRangedProjectileClass();
+    if (ProjectileClass)
+    {
+        //몬스터의 기존 발사 위치 오프셋을 발사 방향 기준으로 적용한다.
+        const FRotator BaseRotation = FanShotDirection.Rotation();
+        const FVector SpawnLocation = Monster->GetActorLocation() + BaseRotation.RotateVector(Monster->GetProjectileSpawnOffset());
+
+        TArray<AMonsterProjectile*> Spawned;
+        for (const FVector& Direction : GetFanShotDirections())
+        {
+            const FTransform SpawnTransform(Direction.Rotation(), SpawnLocation);
+            AMonsterProjectile* Projectile = GetWorld()->SpawnActorDeferred<AMonsterProjectile>(
+                ProjectileClass, SpawnTransform, Monster, Monster, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+            if (!Projectile) continue;
+
+            Projectile->SetDamage(FanShotDamage);
+            UGameplayStatics::FinishSpawningActor(Projectile, SpawnTransform);
+            Spawned.Add(Projectile);
+        }
+
+        //같은 위치에서 동시에 나가므로 서로 부딪혀 사라지지 않게 서로를 무시시킨다.
+        for (AMonsterProjectile* A : Spawned)
+        {
+            for (AMonsterProjectile* B : Spawned)
+            {
+                if (A != B) A->IgnoreActorWhileMoving(B);
+            }
+        }
+    }
+
+    //발사 직후 잠깐 멈춰 있다가 스킬을 끝낸다. 쿨타임은 FinishSkill에서 시작된다.
+    if (FanShotRecoverySeconds > 0.0f)
+    {
+        GetWorld()->GetTimerManager().SetTimer(FanShotRecoveryTimer, this, &UMonsterSkill::FinishSkill,
+            FanShotRecoverySeconds, false);
+    }
+    else
+    {
+        FinishSkill();
+    }
+}
+
+void UMonsterSkill::ShowFanShotWarning(const FVector& Origin)
+{
+    HideFanShotWarning();
+
+    AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner());
+    UMaterialInterface* WarningMaterial = Monster ? Monster->GetAttackWarningMaterial() : nullptr;
+    if (!WarningMaterial || FanShotWarningLength <= 0.0f || FanShotWarningWidth <= 0.0f) return;
+
+    //몬스터의 기존 경고 데칼과 같은 머티리얼로 투사체 경로마다 한 줄씩 그린다.
+    for (const FVector& Direction : GetFanShotDirections())
+    {
+        UDecalComponent* Decal = NewObject<UDecalComponent>(Monster);
+        if (!Decal) continue;
+        Decal->SetDecalMaterial(WarningMaterial);
+        Decal->SetFadeScreenSize(0.0f);
+        Decal->RegisterComponent();
+
+        //MonsterBase::ShowAttackWarning과 같은 방식: 바닥을 향하게 -90도, 길이 방향으로 Yaw 회전
+        const FVector Center = Origin + Direction * (FanShotWarningLength * 0.5f);
+        Decal->SetWorldLocationAndRotation(Center, FRotator(-90.0f, Direction.Rotation().Yaw, 0.0f));
+        Decal->SetWorldScale3D(FVector::OneVector);
+        Decal->DecalSize = FVector(100.0f, FanShotWarningWidth * 0.5f, FanShotWarningLength * 0.5f);
+        Decal->MarkRenderStateDirty();
+
+        FanShotWarningDecals.Add(Decal);
+    }
+}
+
+void UMonsterSkill::HideFanShotWarning()
+{
+    for (UDecalComponent* Decal : FanShotWarningDecals)
+    {
+        if (IsValid(Decal)) Decal->DestroyComponent();
+    }
+    FanShotWarningDecals.Reset();
+}
+
+void UMonsterSkill::CleanupFanShot()
+{
+    if (!bFanShotPrepared) return;
+    bFanShotPrepared = false;
+
+    if (UWorld* World = GetWorld())
+    {
+        World->GetTimerManager().ClearTimer(FanShotReadyTimer);
+        World->GetTimerManager().ClearTimer(FanShotRecoveryTimer);
+    }
+    HideFanShotWarning();
+    PlayChargeAnimation(nullptr);
+
+    if (AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner()))
+    {
+        //사망으로 정리되는 경우에는 BT를 다시 깨우지 않는다.
+        if (!Monster->IsActorBeingDestroyed() && Monster->MonsterCombatStats && !Monster->MonsterCombatStats->IsDead())
+        {
+            if (AMonsterAIController* AI = Cast<AMonsterAIController>(Monster->GetController()))
+            {
+                AI->SetSkillMovementLocked(false);
+            }
+        }
+    }
 }

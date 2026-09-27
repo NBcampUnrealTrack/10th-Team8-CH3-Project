@@ -17,6 +17,7 @@ class UCombatStatsComponent;
 class UDispatchTableComponent;
 class UDecalComponent;
 class UMonsterSkill;
+class UMaterialInterface;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(
 	FOnMonsterAttackFinished,
@@ -60,6 +61,13 @@ public:
 	// 시각 효과는 몬스터가 소유하고, 스킬 컴포넌트에서 필요할 때 요청한다.
 	void ShowAttackWarning(const FVector& StartPos, const FVector& EndPos, float AttackWidth);
 	void HideAttackWarning();
+
+	// 스킬이 경고 데칼을 추가로 만들 때 같은 머티리얼을 쓰기 위함
+	UMaterialInterface* GetAttackWarningMaterial() const;
+
+	// 스킬에서 몬스터의 기본 투사체 설정을 재사용하기 위함
+	TSubclassOf<AMonsterProjectile> GetRangedProjectileClass() const { return RangedProjectile; }
+	FVector GetProjectileSpawnOffset() const { return ProjectileSpawnOffset; }
 
 	//받은 데미지를 증강 라이브러리로 넘김 이게 없으면 체력이 안 깎임
 	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
