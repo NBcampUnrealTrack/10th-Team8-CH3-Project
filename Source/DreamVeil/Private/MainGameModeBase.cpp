@@ -60,6 +60,10 @@ void AMainGameModeBase::BeginPlay()
 	//주기마다 스폰 볼륨에게 내라고 신호 첫 신호도 주기만큼 기다렸다 나감
 	//레벨 시작과 동시에 눈앞에 몬스터가 튀어나오지 않게 하려는 것
 	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, FMath::Max(ContinuousSpawnInterval, 0.1f), true);
+
+	//제한 시간과 별개로 잠식도도 차오르기 시작함
+	//제한 시간은 "다 못 깼다" 판정이고 잠식도는 "버티지 못했다" 판정으로 서로 독립임
+	StartCorruption();
 }
 
 // 웨이브
@@ -136,6 +140,9 @@ void AMainGameModeBase::StartEndlessMode()
 
 	//첫 보스도 주기만큼 기다렸다 나옴 들어가자마자 보스와 마주치지 않게
 	GetWorldTimerManager().SetTimer(EndlessBossTimerHandle, this, &AMainGameModeBase::SpawnEndlessBoss, FMath::Max(EndlessBossInterval, 1.0f), true);
+
+	//잠식도는 레벨과 같은 규칙으로 돎 여기가 Endless라는 이유로 다르게 굴지 않음
+	StartCorruption();
 }
 
 void AMainGameModeBase::SpawnEndlessBoss()
@@ -285,6 +292,9 @@ bool AMainGameModeBase::StopLevel()
 	GetWorldTimerManager().ClearTimer(WaveTimerHandle);
 	GetWorldTimerManager().ClearTimer(ContinuousSpawnTimerHandle);
 
+	//레벨이 끝났으면 잠식도도 멈춤 클리어 화면이 떠 있는 동안 계속 차오르면 안 됨
+	GetWorldTimerManager().ClearTimer(CorruptionTimerHandle);
+
 	return true;
 }
 
@@ -330,7 +340,86 @@ void AMainGameModeBase::FailLevel()
 		return;
 	}
 
-	//죽은 뒤에 시간이 끝났으면 로비로 보내지 않음 게임 오버 쪽 흐름과 겹치지 않게
+	//제한 시간 초과도 잠식도가 다 찬 것과 결과는 같음 잠식 타이머는 StopLevel이 이미 정리했음
+	HandleRunFailed();
+}
+
+//잠식도를 올리기 시작함
+void AMainGameModeBase::StartCorruption()
+{
+	Corruption = 0.0f;
+
+	//0 이하가 되면 타이머가 매 프레임 돌아서 최소값으로 막음
+	const float SafeInterval = FMath::Max(CorruptionTickInterval, 0.01f);
+
+	GetWorldTimerManager().SetTimer(CorruptionTimerHandle, this, &AMainGameModeBase::TickCorruption, SafeInterval, true);
+}
+
+//주기마다 잠식도를 올림
+void AMainGameModeBase::TickCorruption()
+{
+	//채우는 시간이 0이면 나눌 수 없음 잠식도를 끄고 싶을 때 0을 넣게 두려는 것
+	if (CorruptionFillTime <= 0.0f)
+	{
+		return;
+	}
+
+	//한 주기에 오르는 양은 "주기 나누기 총 시간" 총 시간을 바꾸면 속도가 그대로 따라옴
+	Corruption += FMath::Max(CorruptionTickInterval, 0.01f) / CorruptionFillTime;
+
+	if (Corruption < 1.0f)
+	{
+		return;
+	}
+
+	Corruption = 1.0f;
+
+	HandleCorruptionFull();
+}
+
+//잠식도를 내림
+void AMainGameModeBase::ReduceCorruption(float Amount)
+{
+	//잠식도가 돌고 있지 않으면(로비 메인메뉴 끝난 레벨) 내릴 것도 없음
+	if (!CorruptionTimerHandle.IsValid() || Amount <= 0.0f)
+	{
+		return;
+	}
+
+	Corruption = FMath::Max(Corruption - Amount, 0.0f);
+}
+
+float AMainGameModeBase::GetCorruption() const
+{
+	return Corruption;
+}
+
+float AMainGameModeBase::GetCorruptionPercent() const
+{
+	return Corruption * 100.0f;
+}
+
+//잠식도가 1에 닿음
+void AMainGameModeBase::HandleCorruptionFull()
+{
+	//잠식 타이머를 먼저 멈춤 게임 오버 창이 떠 있는 동안 계속 돌면 안 됨
+	GetWorldTimerManager().ClearTimer(CorruptionTimerHandle);
+
+	//레벨이면 StopLevel이 제한 시간과 웨이브 스폰을 같이 정리함
+	//Endless는 LevelTimerHandle이 없어서 false가 돌아오므로 남은 타이머를 직접 멈춤
+	if (!StopLevel())
+	{
+		GetWorldTimerManager().ClearTimer(ContinuousSpawnTimerHandle);
+		GetWorldTimerManager().ClearTimer(EndlessBossTimerHandle);
+	}
+
+	HandleRunFailed();
+}
+
+//한 판이 실패로 끝났을 때의 공통 처리
+void AMainGameModeBase::HandleRunFailed()
+{
+	//죽은 뒤에 끝났으면 로비로 보내지 않음 게임 오버 쪽 흐름과 겹치지 않게
 	if (IsPlayerDead())
 	{
 		return;
@@ -361,7 +450,7 @@ bool AMainGameModeBase::IsBossMonster(const AActor* Actor)
 
 float AMainGameModeBase::GetLevelTimeRemaining() const
 {
-	// 타이머가 없으면 0
+	// 제한 시간 타이머가 없으면 0 잠식도와는 무관함
 	if (!LevelTimerHandle.IsValid())
 	{
 		return 0.0f;
@@ -369,26 +458,10 @@ float AMainGameModeBase::GetLevelTimeRemaining() const
 	// 현재 남은 시간
 	return GetWorldTimerManager().GetTimerRemaining(LevelTimerHandle);
 }
+
 float AMainGameModeBase::GetLevelTimeLimit() const
 {
 	// 전체 제한 시간
 	return LevelTimeLimit;
 }
-float AMainGameModeBase::GetLevelTimeProgress() const
-{
-	if (bTimedOut) return 1.0f;
-	// Lobby/Endless/finished levels must not look fully corrupted just because there is no timer.
-	if (!LevelTimerHandle.IsValid()) return 0.0f;
-	// 잘못된 값 방지
-	if (LevelTimeLimit <= 0.0f)
-	{
-		return 0.0f;
-	}
-	const float RemainingTime = GetLevelTimeRemaining();
-	// 시간이 줄수록 0 → 1
-	return FMath::Clamp(
-		1.0f - (RemainingTime / LevelTimeLimit),
-		0.0f,
-		1.0f
-	);
-}
+

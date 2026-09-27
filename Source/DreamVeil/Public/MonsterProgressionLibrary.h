@@ -42,7 +42,14 @@ const float ENDLESS_STAT_SCALE_PER_MINUTE = 0.25f;
 //짜게 달라는 요청이라 한 웨이브(4마리)로는 레벨이 오르지 않게 잡음
 const float MONSTER_EXPERIENCE_BY_GRADE[] = { 6.0f, 22.0f, 90.0f };
 
+//등급별로 잡았을 때 내려가는 잠식도 0~1 단위
+//잠식도가 자기 값이 되어서 레벨과 Endless가 같은 표를 씀 모드별 배율이 필요 없음
+//채우는 시간 120초 기준 초당 0.83퍼센트씩 오르므로 잡몹을 1초에 한 마리씩 잡으면 거의 제자리
+//그보다 빠르면 잠식도가 밀려나고 느려지면 밀린다 몬스터가 세질수록 자연히 밀리게 됨
+const float MONSTER_CORRUPTION_RELIEF_BY_GRADE[] = { 0.01f, 0.04f, 0.10f };
+
 //등급 수와 표 칸 수가 어긋나면 컴파일에서 바로 걸리게 막음
+static_assert(static_cast<int32>(UE_ARRAY_COUNT(MONSTER_CORRUPTION_RELIEF_BY_GRADE)) == static_cast<int32>(EMonsterGrade::Boss) + 1, "MONSTER_CORRUPTION_RELIEF_BY_GRADE needs one value per grade");
 static_assert(static_cast<int32>(UE_ARRAY_COUNT(MONSTER_STAT_SCALE_BY_GRADE)) == static_cast<int32>(EMonsterGrade::Boss) + 1, "MONSTER_STAT_SCALE_BY_GRADE needs one value per grade");
 static_assert(static_cast<int32>(UE_ARRAY_COUNT(MONSTER_EXPERIENCE_BY_GRADE)) == static_cast<int32>(EMonsterGrade::Boss) + 1, "MONSTER_EXPERIENCE_BY_GRADE needs one value per grade");
 
@@ -90,4 +97,10 @@ public:
 	//꿈의 조각 파츠와 같은 자리(AugmentDamageLibrary의 사망 처리)에서 불러서 판정이 두 벌로 갈라지지 않게 함
 	UFUNCTION(BlueprintCallable, Category = "Monster|Progression")
 	static void GrantKillExperience(AActor* Killer, AActor* DeadMonster);
+
+	//잡은 만큼 잠식도를 되돌림 등급이 높을수록 많이 줄어듦
+	//경험치와 같은 자리에서 불러서 "잡았다"는 판정이 두 벌로 갈라지지 않게 함
+	//잡은 쪽을 따지지 않는 이유 화염이나 가시 반사로 죽어도 플레이어가 잡은 것이라 시간은 돌려줘야 함
+	UFUNCTION(BlueprintCallable, Category = "Monster|Progression")
+	static void GrantKillCorruptionRelief(AActor* DeadMonster);
 };

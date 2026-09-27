@@ -119,6 +119,32 @@ float UMonsterProgressionLibrary::GetExperienceReward(const UObject* WorldContex
 	return BaseExperience * StageBonus;
 }
 
+//잡은 만큼 잠식도를 되돌림
+void UMonsterProgressionLibrary::GrantKillCorruptionRelief(AActor* DeadMonster)
+{
+    //몬스터를 잡았을 때만 상자나 오브젝트를 부순 것은 해당 없음
+    if (!Cast<AMonsterBase>(DeadMonster))
+    {
+        return;
+    }
+
+    AMainGameModeBase* GameMode = DeadMonster->GetWorld() ? DeadMonster->GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr;
+
+    //시간 제한을 들고 있는 쪽이 게임모드라 여기가 없으면 되돌릴 잠식도도 없음
+    if (!GameMode)
+    {
+        return;
+    }
+
+    const int32 GradeIndex = FMath::Clamp(
+        static_cast<int32>(GetMonsterGrade(DeadMonster)),
+        0,
+        static_cast<int32>(UE_ARRAY_COUNT(MONSTER_CORRUPTION_RELIEF_BY_GRADE)) - 1);
+
+    //레벨과 Endless가 같은 값을 씀 잠식도가 시간과 분리돼서 모드별 보정이 필요 없어짐
+    GameMode->ReduceCorruption(MONSTER_CORRUPTION_RELIEF_BY_GRADE[GradeIndex]);
+}
+
 void UMonsterProgressionLibrary::GrantKillExperience(AActor* Killer, AActor* DeadMonster)
 {
 	//몬스터를 잡았을 때만 경험치가 나감 상자나 오브젝트를 부순 것은 해당 없음

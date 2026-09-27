@@ -35,9 +35,21 @@ public:
 	// 전체 제한 시간
 	UFUNCTION(BlueprintPure, Category = "Level")
 	float GetLevelTimeLimit() const;
-	// 잠식 진행률 (0 ~ 1)
-	UFUNCTION(BlueprintPure, Category = "Level")
-	float GetLevelTimeProgress() const;
+	// 잠식도 0 ~ 1
+	//레벨 제한 시간과 완전히 별개임 제한 시간은 "못 깼다" 판정만 하고
+	//잠식도는 시간이 지나면 차오르고 몬스터를 잡으면 내려가며 1에 닿으면 사망
+	//두 모드가 같은 규칙을 쓰므로 Endless 전용 처리가 필요 없음
+	UFUNCTION(BlueprintPure, Category = "Corruption")
+	float GetCorruption() const;
+
+	// 잠식도 0 ~ 100 게이지 표시용
+	UFUNCTION(BlueprintPure, Category = "Corruption")
+	float GetCorruptionPercent() const;
+
+	//잠식도를 내림 Amount는 0~1 단위 0.01이면 1퍼센트
+	//0 아래로는 안 내려감 음수가 되면 게이지가 이상해짐
+	UFUNCTION(BlueprintCallable, Category = "Corruption")
+	void ReduceCorruption(float Amount);
 
 	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
 	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠
@@ -120,6 +132,36 @@ private:
 
 	//무한 모드에서 보스를 내는 타이머
 	FTimerHandle EndlessBossTimerHandle;
+
+	//지금 잠식도 0~1 시간이 지나면 차오르고 몬스터를 잡으면 내려감
+	//레벨과 Endless가 같은 값을 쓰므로 모드별 분기가 없음
+	float Corruption = 0.0f;
+
+	//잠식도가 0에서 1까지 차오르는 데 걸리는 시간 초
+	//몬스터를 한 마리도 안 잡고 가만히 있으면 이 시간 뒤에 죽는다는 뜻
+	//private이라 BlueprintReadOnly를 붙이지 않음 UHT가 막음 값은 디테일 패널에서 조절
+	UPROPERTY(EditDefaultsOnly, Category = "Corruption", meta = (AllowPrivateAccess = "true"))
+	float CorruptionFillTime = 120.0f;
+
+	//잠식도를 갱신하는 주기 초 촘촘할수록 게이지가 매끄럽고 부담은 커짐
+	UPROPERTY(EditDefaultsOnly, Category = "Corruption", meta = (AllowPrivateAccess = "true"))
+	float CorruptionTickInterval = 0.1f;
+
+	//잠식도를 올리는 타이머 레벨과 Endless 양쪽에서 같이 걸림
+	FTimerHandle CorruptionTimerHandle;
+
+	//잠식도를 올리기 시작함 레벨과 Endless 준비가 끝난 뒤에 부름
+	void StartCorruption();
+
+	//주기마다 잠식도를 올리고 1에 닿으면 사망 처리
+	void TickCorruption();
+
+	//잠식도가 1에 닿음 멈출 타이머를 모드에 맞게 정리하고 실패 처리로 넘김
+	void HandleCorruptionFull();
+
+	//한 판이 실패로 끝났을 때의 공통 처리 게임 오버를 띄우고 로비로 보냄
+	//제한 시간 초과와 잠식도 100퍼센트가 결과는 같아서 한 곳에 모음
+	void HandleRunFailed();
 
 	//보스를 냄 도전을 고른 뒤에 불림
 	void SpawnBoss();
