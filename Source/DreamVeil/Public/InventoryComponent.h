@@ -5,32 +5,22 @@
 #include "WeaponTypes.h"
 #include "InventoryComponent.generated.h"
 
+class USoundBase;
 class UWeaponBase;
 
-//상점에서 한 동작(구매 판매 강화)의 결과 UI가 결과 문구를 고를 때 씀
-//셋이 같은 enum을 쓰는 이유 세 화면 모두 결과를 같은 자리에 한 줄로 띄우는데
-//동작마다 enum을 따로 두면 문구를 만드는 함수도 세 개가 돼서 같은 말을 세 군데에서 고치게 됨
-//성공도 Bought Sold Enhanced로 나눠둔 이유 값 하나에 문구 하나가 붙어야 문구표에 갈래가 안 생김
+//강화를 시도한 결과 UI가 결과 문구를 고를 때 씀
 UENUM(BlueprintType)
-enum class EShopResult : uint8
+enum class EPartEnhanceResult : uint8
 {
-	//구매 성공 파츠와 무기가 같이 씀
-	Bought,
-	//판매 성공
-	Sold,
-	//강화 성공 한 단계 올라감
-	Enhanced,
-	//강화 실패 꿈의 조각만 쓰고 그대로
-	EnhanceFailed,
-	//강화에 실패하면서 파츠가 부서져 사라짐
-	PartDestroyed,
-	//꿈의 조각이 모자라서 시도하지 못함 구매와 강화가 같이 씀
+	//한 단계 올라감
+	Success,
+	//꿈의 조각만 쓰고 그대로
+	Fail,
+	//실패하면서 파츠가 부서져 사라짐
+	Destroyed,
+	//꿈의 조각이 모자라서 시도하지 못함
 	NotEnoughShards,
-	//아직 안 열린 등급이거나 그 총에 없는 칸이라 살 수 없음
-	NotForSale,
-	//끼운 파츠라 팔 수 없음
-	CannotSell,
-	//이미 최대 단계거나 없는 파츠라 더 강화할 수 없음
+	//이미 최대 단계거나 없는 파츠라 시도하지 못함
 	CannotEnhance
 };
 
@@ -49,10 +39,13 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
 	const FWeaponPart&, Part
 );
 
-//구매 판매 강화를 시도할 때마다 그 결과를 알림 UI가 결과 문구를 띄울 때 씀
+//구매 판매 강화를 시도할 때마다 화면에 띄울 문구를 알림
+//결과가 아니라 완성된 문구를 보내는 이유
+//위젯이 결과마다 스위치를 다시 짜지 않고 텍스트 칸 하나에 그대로 꽂기만 하면 되게 하려는 것
+//구매 버튼만 서른 개가 넘어서 버튼마다 문구를 이어 붙이면 같은 연결을 서른 번 해야 함
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
-	FOnShopResult,
-	EShopResult, Result
+	FOnShopMessage,
+	const FText&, Message
 );
 
 //플레이어 인벤토리 무기 파츠와 재화인 꿈의 조각을 들고 있음
@@ -81,12 +74,10 @@ public:
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
 	FOnPartAcquired OnPartAcquired;
 
-	//구매 판매 강화 결과가 나옴
-	//함수가 결과를 돌려주는데도 알림을 따로 보내는 이유
-	//구매 버튼만 서른 개가 넘어서 버튼마다 문구를 이어 붙이면 위젯에서 같은 연결을 서른 번 해야 함
-	//이걸 한 번만 묶어두면 세 화면에서 무엇을 하든 결과가 문구 한 칸으로 들어옴
+	//구매 판매 강화 결과 문구가 나옴 이걸 한 번만 묶어두면 세 화면의 결과가 전부 문구 한 칸으로 들어옴
+	//묶지 않아도 기존 동작에는 아무 영향이 없음 쓰고 싶을 때 붙이면 되는 덤임
 	UPROPERTY(BlueprintAssignable, Category = "Inventory")
-	FOnShopResult OnShopResult;
+	FOnShopMessage OnShopMessage;
 
 	// 조회
 
@@ -125,7 +116,7 @@ public:
 
 	//꿈의 조각을 내고 한 단계 강화를 시도 끼운 파츠도 강화할 수 있음 실패하면 낮은 확률로 파츠가 부서짐
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	EShopResult EnhancePart(int32 PartIndex);
+	EPartEnhanceResult EnhancePart(int32 PartIndex);
 
 	//다음 단계 강화에 드는 꿈의 조각
 	UFUNCTION(BlueprintPure, Category = "Inventory")
@@ -142,13 +133,13 @@ public:
 	// 상점 컴퓨터의 상점 UI
 
 	//꿈의 조각으로 파츠를 삼 해금 안 된 등급 보스 등급 그 총에 없는 칸 꿈의 조각 부족이면 실패
-	//bool이 아니라 결과를 돌려주는 이유 UI가 못 산 이유까지 알아야 꿈의 조각 부족을 따로 안내할 수 있음
+	//실패한 이유는 bool로 알 수 없지만 OnShopMessage가 문구로 알려줌
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	EShopResult BuyPart(EWeaponSlot Weapon, EWeaponPartSlot Slot, EWeaponPartTier Tier);
+	bool BuyPart(EWeaponSlot Weapon, EWeaponPartSlot Slot, EWeaponPartTier Tier);
 
 	//안 쓰는 파츠를 팔아 꿈의 조각을 받음 끼운 파츠는 실수로 팔지 않게 먼저 빼야 팔 수 있음
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	EShopResult SellPart(int32 PartIndex);
+	bool SellPart(int32 PartIndex);
 
 	//상점에서 이 등급을 팔고 있는지 그 레벨이 열려 있어야 팔고 보스 등급은 팔지 않음
 	UFUNCTION(BlueprintPure, Category = "Inventory")
@@ -164,7 +155,7 @@ public:
 
 	//꿈의 조각으로 무기를 삼 지금은 소총만 팔고 L3가 열려야 살 수 있음 이미 가진 무기면 실패
 	UFUNCTION(BlueprintCallable, Category = "Inventory")
-	EShopResult BuyWeapon(EWeaponSlot Weapon);
+	bool BuyWeapon(EWeaponSlot Weapon);
 
 	//상점에서 이 무기를 팔고 있는지 UI가 무기 구매 버튼을 켤지 정할 때 씀
 	UFUNCTION(BlueprintPure, Category = "Inventory")
@@ -184,11 +175,11 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	static float GetPartFireRateBonus(const FWeaponPart& Part);
 
-	//결과를 화면에 띄울 한 줄 문구로 바꿈 구매 판매 강화 결과가 전부 이걸 거쳐서 같은 말투로 뜸
-	//블루프린트에서 결과마다 스위치를 짜지 않고 여기 둔 이유
-	//문구를 고칠 때 위젯 세 화면을 돌아다니지 않고 이 함수 하나만 보면 되게 하려는 것
-	UFUNCTION(BlueprintPure, Category = "Inventory")
-	static FText GetShopResultText(EShopResult Result);
+	//강화에 실패해서 파츠가 부서질 때 나는 소리 비워두면 소리 없이 문구만 뜸
+	//문구만으로는 부서진 걸 잘 못 알아채서 소리로도 알려주려는 것
+	//위젯이 아니라 여기 둔 이유 부서졌다는 사실을 아는 곳이 여기뿐이고 UI가 어떻게 생겼든 소리는 나야 함
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
+	TObjectPtr<USoundBase> PartDestroySound;
 
 	// 저장과 복원 GameInstance가 씀
 
@@ -207,9 +198,13 @@ private:
 	//꿈의 조각을 씀 모자라면 쓰지 않고 false
 	bool SpendDreamShards(int32 Amount);
 
-	//결과를 알리고 받은 결과를 그대로 돌려줌 return 자리에서 바로 쓰려고 돌려주는 형태로 둠
-	//구매 판매 강화가 끝나는 자리마다 알림 한 줄을 붙여 넣으면 한 군데만 빠뜨려도 문구가 안 떠서 한곳으로 모음
-	EShopResult NotifyShopResult(EShopResult Result);
+	//파츠가 부서지는 소리를 틂
+	//상점 화면은 게임을 멈춘 채로 떠서 그냥 틀면 소리가 멈춘 동안 나지 않음 UI 소리로 표시해야 들림
+	void PlayPartDestroySound();
+
+	//화면에 띄울 문구를 알림 구매 판매 강화가 끝나는 자리마다 한 줄씩 부름
+	//문구 자체는 cpp의 문구표가 만듦 고칠 때 그 표 한 곳만 보면 되게 하려는 것
+	void NotifyShopMessage(const FText& Message);
 
 	//끼운 파츠를 총마다 모아서 무기에게 넘김 장착 강화 파괴 복원 뒤에 부름
 	void ApplyPartsToWeapons();

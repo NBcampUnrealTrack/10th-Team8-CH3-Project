@@ -40,8 +40,22 @@ const float ENDLESS_SPAWN_INTERVAL_DECAY_PER_MINUTE = 0.15f;
 //0에 가까워지면 타이머가 거의 매 프레임 돌면서 스폰이 폭주해 게임이 멈춤
 const float ENDLESS_MIN_SPAWN_INTERVAL = 0.5f;
 
-//두 표의 칸 수가 어긋나면 컴파일에서 바로 걸리게 막음 한쪽만 레벨을 늘리면 다른 쪽이 마지막 값으로 눌림
+//레벨마다 잠식도가 0에서 100퍼센트까지 차오르는 데 걸리는 시간 초
+//한 마리도 안 잡고 가만히 있으면 이 시간 뒤에 죽는다는 뜻 뒤 레벨일수록 짧아서 더 바쁘게 잡아야 함
+//제한 시간(5분 300초)보다 짧게 둔 이유 시간만 버티면 되는 게 아니라 계속 잡아야 하게 만들려는 것
+const float CORRUPTION_FILL_TIME_BY_STAGE[] = { 270.0f, 240.0f, 210.0f, 180.0f };
+
+//Endless에서 1분이 지날 때마다 잠식도 차오르는 시간이 줄어드는 초
+//시작 값은 마지막 레벨과 같음 L4를 깨고 이어지는 곳이라 숫자를 따로 두지 않음
+const float ENDLESS_CORRUPTION_FILL_DECAY_PER_MINUTE = 15.0f;
+
+//Endless에서 아무리 오래 버텨도 이보다 빨리 차지는 않음
+//끝없이 빨라지면 잡는 속도로는 절대 못 따라가는 구간이 생겨서 실력과 상관없이 끝남
+const float ENDLESS_MIN_CORRUPTION_FILL_TIME = 90.0f;
+
+//레벨별 표의 칸 수가 어긋나면 컴파일에서 바로 걸리게 막음 한쪽만 레벨을 늘리면 다른 쪽이 마지막 값으로 눌림
 static_assert(UE_ARRAY_COUNT(MAX_ALIVE_MONSTERS_BY_STAGE) == UE_ARRAY_COUNT(SPAWN_INTERVAL_BY_STAGE), "spawn tables need one value per level");
+static_assert(UE_ARRAY_COUNT(MAX_ALIVE_MONSTERS_BY_STAGE) == UE_ARRAY_COUNT(CORRUPTION_FILL_TIME_BY_STAGE), "corruption table needs one value per level");
 
 //보스 클래스 기본값을 꽂아둠
 //블루프린트에서 채워도 되지만 안 채우면 보스가 아예 안 나와서 레벨이 끝나지 않으므로 코드가 기본값을 들고 있음
@@ -519,7 +533,17 @@ void AMainGameModeBase::PlayBGM(USoundBase* NewBGM)
 	//그러면 로비 곡 위에 레벨 곡이 겹쳐 흐르고 맵을 옮길수록 계속 쌓임
 	//크기는 1로 틂 실제 크기는 사운드 믹스가 배경음 클래스 전체에 걸어줌
 	//여기서 크기를 곱하지 않는 이유 맵마다 새 컴포넌트가 생기는데 컴포넌트마다 값을 맞춰 주려면 빠뜨리기 쉬움
-	BGMAudio = UGameplayStatics::SpawnSound2D(this, NewBGM, 1.0f, 1.0f, 0.0f, nullptr, false, false);
+	//바로 틀지 않고 만들어만 두는 이유 재생을 시작하기 전에 UI 소리로 표시해야 하기 때문
+	//게임 오버 화면과 증강 선택창이 게임을 멈추는데 UI 소리로 표시하지 않으면 배경음도 같이 멈춤
+	//화면만 멈춘 게 아니라 게임이 죽은 것처럼 들려서 게임 오버 곡이 아예 안 들리는 문제가 됨
+	BGMAudio = UGameplayStatics::CreateSound2D(this, NewBGM, 1.0f, 1.0f, 0.0f, nullptr, false, false);
+
+	if (BGMAudio)
+	{
+		BGMAudio->bIsUISound = true;
+
+		BGMAudio->Play();
+	}
 
 	//새 맵에도 믹스를 다시 걸어둠 같은 믹스면 아무 일도 하지 않으므로 중복 호출이 안전함
 	if (UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
@@ -529,6 +553,12 @@ void AMainGameModeBase::PlayBGM(USoundBase* NewBGM)
 
 	//안 들릴 때 에셋이 안 꽂힌 건지 재생이 실패한 건지 구분하려고 남김
 	UE_LOG(LogTemp, Log, TEXT("[BGM] %s 재생 %s"), *NewBGM->GetName(), BGMAudio ? TEXT("성공") : TEXT("실패"));
+}
+
+//게임 오버 곡으로 갈아 끼움
+void AMainGameModeBase::PlayGameOverBGM()
+{
+	PlayBGM(GameOverBGM);
 }
 
 //지금 맵에 맞는 기본 배경음
@@ -594,10 +624,32 @@ void AMainGameModeBase::StartCorruption()
 	GetWorldTimerManager().SetTimer(CorruptionTimerHandle, this, &AMainGameModeBase::TickCorruption, FMath::Max(CorruptionTickInterval, 0.01f), true);
 }
 
+//잠식도가 차오르는 데 걸리는 시간
+float AMainGameModeBase::GetCorruptionFillTime() const
+{
+	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+	if (DreamVeilGameInstance && DreamVeilGameInstance->IsInEndless())
+	{
+		//버틴 시간만큼 빨리 참 스폰 주기와 같은 기준이라 후반에 몬스터도 잠식도도 같이 몰아침
+		const float ElapsedMinutes = GetWorld() ? GetWorld()->GetTimeSeconds() / 60.0f : 0.0f;
+		const float StartFillTime = CORRUPTION_FILL_TIME_BY_STAGE[UE_ARRAY_COUNT(CORRUPTION_FILL_TIME_BY_STAGE) - 1];
+
+		return FMath::Max(
+			StartFillTime - ENDLESS_CORRUPTION_FILL_DECAY_PER_MINUTE * ElapsedMinutes,
+			ENDLESS_MIN_CORRUPTION_FILL_TIME);
+	}
+
+	return CORRUPTION_FILL_TIME_BY_STAGE[GetStageIndex()];
+}
+
 //주기마다 잠식도를 올림
 void AMainGameModeBase::TickCorruption()
 {
-	//채우는 시간이 0이면 나눌 수 없음 잠식도를 끄고 싶을 때 0을 넣게 두려는 것
+	//Endless는 시간이 갈수록 값이 바뀌므로 매 주기 다시 물어봄
+	const float CorruptionFillTime = GetCorruptionFillTime();
+
+	//채우는 시간이 0이면 나눌 수 없음 표에 0을 넣어 잠식도를 끄고 싶을 때를 위해 남겨둠
 	if (CorruptionFillTime <= 0.0f)
 	{
 		return;

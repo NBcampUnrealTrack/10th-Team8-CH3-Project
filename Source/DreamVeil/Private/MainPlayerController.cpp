@@ -7,6 +7,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/TextBlock.h"
 #include "DreamVeilGameInstance.h"
+#include "MainGameModeBase.h"
 #include "Components/InputComponent.h"
 
 //배경음 조절 키를 한 번 누를 때 움직이는 크기
@@ -89,6 +90,13 @@ void AMainPlayerController::OnPossess(APawn* InPawn)
 void AMainPlayerController::ShowGameOver()
 {
     if (bGameOverOpen) return;
+
+    //게임 오버 곡으로 갈아 끼움 어떤 곡인지는 배경음을 들고 있는 게임모드가 정함
+    if (AMainGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr)
+    {
+        GameMode->PlayGameOverBGM();
+    }
+
     bCorruptionGameOver = false;
     bGameOverOpen = OpenMenuWidgetPaused(GameOverWidgetClass) != nullptr;
 
@@ -118,6 +126,13 @@ void AMainPlayerController::ShowGameOver()
 bool AMainPlayerController::ShowCorruptionGameOver()
 {
     if (bGameOverOpen) return true;
+
+    //맞아 죽었을 때와 같은 곡을 씀 끝났다는 신호라 원인에 따라 다를 이유가 없음
+    if (AMainGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr)
+    {
+        GameMode->PlayGameOverBGM();
+    }
+
     if (auto* GI = GetGameInstance<UDreamVeilGameInstance>()) GI->HandleHardGameOver();
     UUserWidget* Screen = OpenMenuWidgetPaused(GameOverWidgetClass);
     if (!Screen) return false;

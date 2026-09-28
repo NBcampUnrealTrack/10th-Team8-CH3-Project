@@ -79,10 +79,20 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
 	TObjectPtr<USoundBase> EndlessBGM;
 
+	//게임 오버 화면에서 나오는 배경음 맞아 죽었을 때와 잠식됐을 때 둘 다 이걸 씀
+	//비워두면 게임 오버 순간 배경음이 멈춤 조용한 것도 연출이라 그 자체는 고장이 아님
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
+	TObjectPtr<USoundBase> GameOverBGM;
+
 	//배경음을 갈아 끼움 같은 곡을 다시 넣으면 처음부터 되감지 않고 그대로 둠
 	//비워서 부르면 배경음이 멈춤
 	UFUNCTION(BlueprintCallable, Category = "BGM")
 	void PlayBGM(USoundBase* NewBGM);
+
+	//게임 오버 곡으로 갈아 끼움 컨트롤러가 게임 오버 화면을 띄울 때 부름
+	//곡을 고르는 일을 컨트롤러가 아니라 여기서 하는 이유 배경음을 들고 있는 쪽이 게임모드라서
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void PlayGameOverBGM();
 
 
 	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
@@ -192,17 +202,17 @@ private:
 	//지금 잠식도 0~1 시간이 지나면 차오르고 몬스터를 잡으면 내려감
 	float Corruption = 0.0f;
 
-	//잠식도가 0에서 1까지 차오르는 데 걸리는 시간 초
-	//한 마리도 안 잡고 가만히 있으면 이 시간 뒤에 죽는다는 뜻 0으로 두면 잠식도가 안 오름
-	UPROPERTY(EditDefaultsOnly, Category = "Corruption", meta = (AllowPrivateAccess = "true"))
-	float CorruptionFillTime = 120.0f;
-
 	//잠식도를 갱신하는 주기 초 촘촘할수록 게이지가 매끄럽고 부담은 커짐
 	UPROPERTY(EditDefaultsOnly, Category = "Corruption", meta = (AllowPrivateAccess = "true"))
 	float CorruptionTickInterval = 0.1f;
 
 	//잠식도를 올리는 타이머 레벨과 Endless 양쪽에서 같이 걸림
 	FTimerHandle CorruptionTimerHandle;
+
+	//지금 상황에서 잠식도가 0에서 1까지 차오르는 데 걸리는 시간 초
+	//한 마리도 안 잡고 가만히 있으면 이 시간 뒤에 죽는다는 뜻
+	//뒤 레벨일수록 짧아지고 Endless는 버틴 시간만큼 더 짧아짐
+	float GetCorruptionFillTime() const;
 
 	//잠식도를 올리기 시작함 레벨과 Endless 준비가 끝난 뒤에 부름
 	void StartCorruption();
