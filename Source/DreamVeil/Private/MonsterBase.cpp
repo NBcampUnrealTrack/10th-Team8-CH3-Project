@@ -24,6 +24,7 @@
 #include "MonsterCollision.h"
 #include "AI/Navigation/AvoidanceManager.h"
 #include "Particles/ParticleSystem.h"
+#include "Misc/AssertionMacros.h"
 
 AMonsterBase::AMonsterBase()
 {
@@ -193,6 +194,27 @@ void AMonsterBase::BeginPlay()
 		);
 	}
 	
+}
+
+void AMonsterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
+{
+#if !UE_BUILD_SHIPPING
+	//일반 몬스터는 제외하고 보스의 종료 이유와 실제 체력을 남겨 정상 사망인지 먼저 구분함
+	if (ActorHasTag(TEXT("Boss")))
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[BossRemoval] Name=%s Reason=%s Age=%.3f Location=%s Health=%.1f/%.1f Dead=%d LifeSpan=%.3f"),
+			*GetName(), *UEnum::GetValueAsString(EndPlayReason), GetGameTimeSinceCreation(), *GetActorLocation().ToString(),
+			IsValid(MonsterCombatStats) ? MonsterCombatStats->GetCurrentHealth() : -1.0f,
+			IsValid(MonsterCombatStats) ? MonsterCombatStats->GetMaxHealth() : -1.0f,
+			IsValid(MonsterCombatStats) && MonsterCombatStats->IsDead(), GetLifeSpan());
+		//PIE 종료나 맵 이동은 제외하고 실제 Destroy 호출일 때만 삭제를 요청한 함수 경로를 기록함
+		if (EndPlayReason == EEndPlayReason::Destroyed)
+		{
+			FDebug::DumpStackTraceToLog(TEXT("[BossRemoval] Destroy call stack"), ELogVerbosity::Warning);
+		}
+	}
+#endif
+	Super::EndPlay(EndPlayReason);
 }
 
 //몬스터 초기화 작업. 몬스터가 전장에 투입될 때 스탯 초기화 등

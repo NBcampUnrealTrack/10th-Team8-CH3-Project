@@ -129,6 +129,8 @@ public:
 	virtual void OnDeath();
 protected:
 	virtual void BeginPlay() override;
+	//보스가 체력 사망 외의 경로로 사라지는 원인을 확인하기 위해 종료 시점의 상태를 기록함
+	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
 	virtual void MonsterInit();
 
 	//사망 후 1초 뒤 시체 위치에 생성할 파티클. 액터와 따로 생성해서 몬스터가 사라져도 재생됨
