@@ -54,6 +54,11 @@ protected:
 	TObjectPtr<UCapsuleComponent> MonsterCapsuleCollisionComponent;
 	TObjectPtr<USkeletalMeshComponent> MonsterSkeletalMeshComponent;
 
+	//일반 맵은 레벨로만 패턴을 해금함. 켜면 체력 페이즈도 사용하며 엔드리스에서는 자동으로 켜짐
+	//플레이 도중 바꾸면 스킬의 진행 조건과 어긋나므로 시작 전에 BP 기본값이나 배치 인스턴스에서 설정함
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Boss")
+	bool bUseHealthPhases = false;
+
 	//페이즈가 오를 때마다 이동 속도에 곱해지는 값 페이즈 4면 세 번 곱해짐
 	//1.0으로 두면 속도가 안 변하고 페이즈 연출은 스킬로만 드러남
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Boss")

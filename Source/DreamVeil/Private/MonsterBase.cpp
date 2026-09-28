@@ -29,7 +29,11 @@ AMonsterBase::AMonsterBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	// 월드에 스폰됐을 경우 AIController Possess 시키기
-	AutoPossessAI = EAutoPossessAI::PlacedInWorld;
+	//PlacedInWorld는 레벨에 손으로 놓아둔 몬스터에게만 컨트롤러를 붙여줌
+	//스폰 볼륨이 낸 몬스터는 컨트롤러가 없어서 행동트리가 아예 돌지 않고 그 자리에 가만히 서 있음
+	//지금까지 몬스터를 전부 손으로 놓아뒀기 때문에 안 드러나 있던 것
+	//놓아둔 것과 스폰된 것 둘 다 받는 값으로 바꿈
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	MonsterCombatStats = CreateDefaultSubobject<UCombatStatsComponent>(TEXT("MonsterCombatStats"));
 	MonsterDispatchTable = CreateDefaultSubobject<UDispatchTableComponent>(TEXT("MonsterDispatchTable"));
 	MonsterSkill = CreateDefaultSubobject<UMonsterSkill>(TEXT("MonsterSkill"));
@@ -772,6 +776,23 @@ void AMonsterBase::OnDeath()
 	//시체가 플레이어나 무기 광선을 막지 않게 하고 바닥과의 물리 충돌은 유지함
 	GetMesh()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 	GetWorldTimerManager().SetTimer(DeathTimer, this, &AMonsterBase::FinishDeath, 1.0f, false);
+
+	if (ActorHasTag(TEXT("Boss")))
+	{
+		//보스 액터는 1초 뒤 사라지므로 this에 묶으면 5초 뒤 신호를 보낼 수 없음
+		//수신 목록만 복사해서 월드 타이머가 전달함. AddUObject로 등록한 수신자는 약한 참조라 파괴되면 호출하지 않음
+		//맵을 떠나 기존 게임모드가 파괴되면 복사한 수신 목록에서도 호출이 생략되어 새 게임모드에는 전달되지 않음
+		FTimerHandle DeathReportTimer;
+		GetWorldTimerManager().SetTimer(DeathReportTimer, FTimerDelegate::CreateLambda([DeathReport = OnDeathReported]()
+		{
+			DeathReport.Broadcast();
+		}), 5.0f, false);
+	}
+	else
+	{
+		//일반 몬스터의 처치 수는 기존처럼 사망 즉시 반영함
+		OnDeathReported.Broadcast();
+	}
 }
 
 void AMonsterBase::FinishDeath()

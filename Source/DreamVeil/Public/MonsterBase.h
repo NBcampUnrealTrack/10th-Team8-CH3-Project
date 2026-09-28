@@ -20,6 +20,9 @@ class UMonsterSkill;
 class UMaterialInterface;
 class UParticleSystem;
 
+//사망 연출과 별개로 게임모드에 처치 완료를 알림. 보스는 사망 5초 뒤 전달함
+DECLARE_MULTICAST_DELEGATE(FOnMonsterDeathReported);
+
 DECLARE_MULTICAST_DELEGATE_OneParam(
 	FOnMonsterAttackFinished,
 	bool
@@ -46,6 +49,9 @@ public:
 	void CancelAttack();
 
 	FOnMonsterAttackFinished OnAttackFinished;
+
+	//게임모드는 체력 컴포넌트의 즉시 사망 이벤트 대신 이 신호로 처치 수와 클리어를 처리함
+	FOnMonsterDeathReported OnDeathReported;
 
 	// 날릴 속도를 입력값으로 받아서 레그돌로 만들어서 날려버리깅
 	UFUNCTION(BlueprintCallable, Category="Monster|Ragdoll")

@@ -69,7 +69,8 @@ void ABossMonster::BeginPlay()
 
 	//체력이 바뀔 때마다 페이즈를 다시 계산함
 	//Tick으로 매 프레임 재지 않는 이유 체력은 맞았을 때만 바뀌므로 그때만 보면 충분함
-	if (IsValid(MonsterCombatStats))
+	//일반 맵의 기본 동작에서는 체력 변화로 패턴이나 이동 속도가 바뀌지 않음
+	if (bUseHealthPhases && IsValid(MonsterCombatStats))
 	{
 		MonsterCombatStats->OnCurrentHealthChanged.AddDynamic(this, &ABossMonster::HandleHealthChanged);
 	}
@@ -110,6 +111,9 @@ void ABossMonster::HandleHealthChanged(float OldValue, float NewValue)
 
 void ABossMonster::UpdatePhase(float HealthPercentage)
 {
+	//체력 페이즈를 사용하는 보스만 기존 단계 상승과 속도 증가를 적용함
+	if (!bUseHealthPhases) return;
+
 	//체력을 페이즈 수만큼 나눠서 지금 몇 번째 칸인지 구함
 	//페이즈가 4면 100~75%가 1페이즈 75~50%가 2페이즈 식으로 나뉨
 	//1에서 빼는 이유 체력이 줄수록 페이즈가 올라가야 함
@@ -163,10 +167,13 @@ void ABossMonster::ApplySkillProgression()
 	if (DreamVeilGameInstance && DreamVeilGameInstance->IsInEndless())
 	{
 		LevelNumber = DreamVeilGameInstance->GetLevelCount();
+		//엔드리스는 마지막 맵의 패턴 후보를 사용하되 체력이 줄어들 때 차례로 해금함
+		bUseHealthPhases = true;
 	}
 
 	//레벨을 같이 넘기는 이유 같은 보스라도 L1에서는 기본 패턴만 L4에서는 전부 쓰게 하려는 것
-	MonsterSkill->SetProgression(CurrentPhase, FMath::Max(LevelNumber, 1));
+	//체력 페이즈가 꺼져 있으면 RequiredPhase는 무시하고 RequiredLevel만 해금 조건으로 사용함
+	MonsterSkill->SetProgression(CurrentPhase, FMath::Max(LevelNumber, 1), bUseHealthPhases);
 }
 
 void ABossMonster::RestartSkillTimer()
