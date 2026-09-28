@@ -223,30 +223,30 @@ void AMonsterBase::MonsterInit()
 		//페이즈를 4개 만들어놔도 배울 기회가 없어지므로 데미지만 따로 완만하게 올림
 		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage * FMath::Sqrt(StatScale));
 	}
-	// 어택타입 보기
-	switch (GetAttackType())
-	{
-	case EMonsterAttackType::Melee:
-	{
-		MonsterAttackRange = MELEE_ATTACK_RADIUS_BASE;
-		break;
-	}
-	case EMonsterAttackType::Ranged:
-	{
-		MonsterAttackRange = RANGED_ATTACK_RADIUS_BASE;
-		break;
-	}
-	case EMonsterAttackType::Hybrid:
-	{
-		MonsterAttackRange = HYBRID_ATTACK_RADIUS_BASE;
-		break;
-	}
-	default:
-	{
-		AttackType = EMonsterAttackType::Melee;
-		MonsterAttackRange = MELEE_ATTACK_RADIUS_BASE;
-	}
-	}
+	//// 어택타입 보기
+	//switch (GetAttackType())
+	//{
+	//case EMonsterAttackType::Melee:
+	//{
+	//	MonsterAttackRange = MELEE_ATTACK_RADIUS_BASE;
+	//	break;
+	//}
+	//case EMonsterAttackType::Ranged:
+	//{
+	//	MonsterAttackRange = RANGED_ATTACK_RADIUS_BASE;
+	//	break;
+	//}
+	//case EMonsterAttackType::Hybrid:
+	//{
+	//	MonsterAttackRange = HYBRID_ATTACK_RADIUS_BASE;
+	//	break;
+	//}
+	//default:
+	//{
+	//	AttackType = EMonsterAttackType::Melee;
+	//	MonsterAttackRange = MELEE_ATTACK_RADIUS_BASE;
+	//}
+	//}
 }
 
 void AMonsterBase::PerformMeleeCheck()
@@ -368,6 +368,19 @@ bool AMonsterBase::StartAttack(AActor* Target)
 	bAttackExecuted = false;
 	bIsAttacking = true;
 	ActiveAttackMontage = nullptr;
+
+	//전용 공격 애니메이션이 없는 몬스터도 공격 상태를 유지해야 스킬이 평타 중간에 끼어들지 않음
+	if (!bUseAttackMontage)
+	{
+		//기존 발사 함수를 재사용하므로 타깃 확인과 투사체 피해량은 몽타주 공격과 동일하게 처리됨
+		GetWorldTimerManager().SetTimer(AttackHitTimer, this, &AMonsterBase::ExecuteAttack, 0.5f, false);
+		//BT가 종료 알림을 기다리므로 발사 후 후딜레이까지 끝나면 기존 종료 함수로 알림을 보냄
+		//기존 타이머 핸들을 사용해 사망이나 레그돌로 공격이 취소될 때 예약된 발사도 함께 정리됨
+		FTimerDelegate EndAttackDelegate;
+		EndAttackDelegate.BindUObject(this, &AMonsterBase::FinishAttack, true);
+		GetWorldTimerManager().SetTimer(AttackEndTimer, EndAttackDelegate, 1.0f, false);
+		return true;
+	}
 
 	if (USkeletalMeshComponent* TempSkeletalMesh = Cast<USkeletalMeshComponent>(GetMonsterMesh()))
 	{
