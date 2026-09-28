@@ -27,6 +27,8 @@ class DREAMVEIL_API AMainGameModeBase : public AGameModeBase
 	GENERATED_BODY()
 
 public:
+	AMainGameModeBase();
+
 	//스포너가 이번 레벨에 낼 몬스터를 다 냈을 때 부를 것
 	//이 뒤로 살아있는 몬스터가 0이 되면 클리어 부르지 않으면 다 잡아도 클리어되지 않고 시간이 넘어가서 실패함
 	UFUNCTION(BlueprintCallable, Category = "Level")
@@ -102,16 +104,19 @@ public:
 	int32 GetWaveCount() const;
 
 protected:
-	//레벨 제한 시간 초 이 안에 다 잡아야 클리어 넘기면 실패 블루프린트 게임모드에서 바꿀 수 있음
+	//레벨 제한 시간 초 앞 3분은 잡몹만 나오고 3분이 되면 보스가 나와서 남은 2분 안에 보스를 잡아야 클리어
+	//시간을 넘기면 실패라 다음 레벨이 열리지 않음 블루프린트 게임모드에서 바꿀 수 있음
+	//보스가 나오는 시각은 WaveInterval x WaveCount 라서 이 값만 늘리면 보스와 싸울 시간이 길어짐
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
-	float LevelTimeLimit = 180.0f;
+	float LevelTimeLimit = 300.0f;
 
 	//웨이브 사이 간격 초 30초면 0 30 60 90 120 150초에 한 번씩 나옴
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	float WaveInterval = 30.0f;
 
-	//이 레벨의 전체 웨이브 수 마지막 웨이브를 내고 나면 더 안 나옴
-	//제한 시간과 맞추려면 WaveInterval x WaveCount 가 LevelTimeLimit 이하여야 함
+	//이 레벨의 전체 웨이브 수 마지막 웨이브까지 다 지나가면 그 순간 보스가 나옴
+	//즉 보스 등장 시각이 곧 WaveInterval x WaveCount 30초 x 6이면 3분
+	//따로 보스 등장 시각 변수를 두지 않는 이유 두 값이 어긋나면 잡몹이 끊긴 뒤에도 보스가 안 나오는 빈 시간이 생김
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	int32 WaveCount = 6;
 
@@ -126,8 +131,8 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
 	float EndlessBossInterval = 30.0f;
 
-	//보스로 쓸 몬스터 마지막 레벨에서 도전을 고르면 이걸 냄
-	//비워두면 보스 선택지 자체가 뜨지 않고 웨이브를 다 넘긴 순간 바로 클리어됨
+	//보스로 쓸 몬스터 웨이브가 다 지난 시각에 이걸 냄 레벨마다 다른 보스를 쓰려면 블루프린트에서 바꿀 것
+	//기본값은 생성자에서 BP_BossMonster를 꽂아둠 비워두면 보스 없이 잡몹만 다 잡으면 클리어되는 예전 방식으로 돌아감
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
 	TSubclassOf<AMonsterBase> BossClass;
 
@@ -165,8 +170,9 @@ private:
 	//무한 모드에서 보스를 내는 타이머
 	FTimerHandle EndlessBossTimerHandle;
 
-	//보스를 냄 도전을 고른 뒤에 불림
-	void SpawnBoss();
+	//보스를 냄 실제로 나왔으면 true 보스 클래스가 비었거나 플레이어가 없으면 false
+	//결과를 돌려주는 이유 보스가 못 나온 맵에서는 잡몹을 다 잡으면 클리어되는 예전 방식으로 돌아가야 해서
+	bool SpawnBoss();
 
 	//레벨 제한 시간 타이머 L1~L4에서만 걸림
 	//타이머를 건 적이 없거나 레벨을 이미 끝냈으면 무효 상태라서 레벨이 두 번 끝나는 걸 막는 표시로도 씀

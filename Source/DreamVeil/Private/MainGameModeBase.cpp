@@ -11,10 +11,25 @@
 #include "MonsterBase.h"
 #include "MonsterSpawnVolume.h"
 #include "TimerManager.h"
+#include "UObject/ConstructorHelpers.h"
 
 //보스 몬스터에 붙이는 액터 태그
 //보스 클래스가 아직 없어서 태그로 구분함 보스 블루프린트의 Class Defaults > Actor > Tags에 Boss를 넣을 것
 const FName BOSS_TAG = TEXT("Boss");
+
+//보스 클래스 기본값을 꽂아둠
+//블루프린트에서 채워도 되지만 안 채우면 보스가 아예 안 나와서 레벨이 끝나지 않으므로 코드가 기본값을 들고 있음
+//BedActor ComputerActor가 메시를 찾는 것과 같은 방식 블루프린트에서 다른 보스로 바꾸면 그쪽이 이김
+AMainGameModeBase::AMainGameModeBase()
+{
+	static ConstructorHelpers::FClassFinder<AMonsterBase>
+		BossClassFinder(TEXT("/Game/Blueprint/Monsters/BP_BossMonster"));
+
+	if (BossClassFinder.Succeeded())
+	{
+		BossClass = BossClassFinder.Class;
+	}
+}
 
 //레벨이 시작될 때
 void AMainGameModeBase::BeginPlay()
@@ -82,15 +97,31 @@ void AMainGameModeBase::StartNextWave()
 {
 	CurrentWave++;
 
-	//마지막 웨이브까지 다 지났으면 이제 그만 냄
+	//마지막 웨이브까지 다 지났으면 잡몹 웨이브는 여기서 끝이고 이제 보스 차례
 	//웨이브가 끝나는 순간이 아니라 마지막 웨이브가 제 시간을 다 쓴 뒤에 멈춰야
 	//6웨이브에도 몬스터가 계속 나오다가 끊김 여기서 바로 멈추면 6웨이브가 텅 빈 채로 끝남
 	if (CurrentWave > WaveCount)
 	{
 		GetWorldTimerManager().ClearTimer(WaveTimerHandle);
 
-		//스폰 신호도 멈춰야 살아있는 수가 0으로 떨어질 수 있음
-		//이걸 안 멈추면 3초마다 새 몬스터가 나와서 영원히 클리어되지 않음
+		//보스는 웨이브가 다 지난 시각에 나옴 30초 x 6웨이브면 3분
+		//보스가 나오면 SpawnBoss 안에서 보스 곡으로 갈리고 남은 2분 안에 잡아야 클리어됨
+		if (!bBossSpawned)
+		{
+			bBossSpawned = SpawnBoss();
+		}
+
+		//보스가 나왔으면 잡몹 스폰을 멈추지 않고 클리어 판정도 걸지 않음
+		//스폰을 멈추지 않는 이유 잠식도는 몬스터를 잡아야 내려가는데 보스만 남기면 보스를 잡기 전에 잠식으로 먼저 죽음
+		//NotifyAllMonstersSpawned를 안 부르는 이유 이걸 부르면 잡몹이 잠깐 0마리가 된 순간 보스를 두고 클리어돼버림
+		//그래서 보스가 있는 레벨의 클리어 조건은 보스 사망 하나뿐임 HandleBossDead가 맡음
+		if (bBossSpawned)
+		{
+			return;
+		}
+
+		//여기부터는 보스를 못 낸 맵의 안전장치 예전처럼 잡몹을 다 잡으면 클리어시킴
+		//이게 없으면 보스 클래스를 안 꽂아둔 맵에서 레벨이 영원히 끝나지 않음
 		GetWorldTimerManager().ClearTimer(ContinuousSpawnTimerHandle);
 
 		NotifyAllMonstersSpawned();
@@ -99,15 +130,6 @@ void AMainGameModeBase::StartNextWave()
 	}
 
 	OnWaveChanged.Broadcast(CurrentWave, WaveCount);
-
-	//마지막 웨이브에 보스 등장 레벨마다 하나씩 나옴
-	//선택창을 띄우지 않는 이유 보스를 잡는 것이 곧 해금 조건이라 건너뛸 수 있으면 조건이 성립하지 않음
-	if (CurrentWave >= WaveCount && !bBossSpawned)
-	{
-		bBossSpawned = true;
-
-		SpawnBoss();
-	}
 
 	//다음 웨이브 예약 이미 돌고 있으면 다시 걸지 않아도 되지만
 	//첫 웨이브는 타이머 없이 들어오므로 여기서 한 번 걸어둠
@@ -172,11 +194,11 @@ int32 AMainGameModeBase::GetWaveCount() const
 }
 
 //보스를 냄
-void AMainGameModeBase::SpawnBoss()
+bool AMainGameModeBase::SpawnBoss()
 {
 	if (!BossClass)
 	{
-		return;
+		return false;
 	}
 
 	//플레이어 위치를 기준으로 앞쪽에 냄 보스 전용 스폰 지점이 생기면 그쪽으로 바꿀 것
@@ -184,7 +206,7 @@ void AMainGameModeBase::SpawnBoss()
 
 	if (!PlayerPawn)
 	{
-		return;
+		return false;
 	}
 
 	const FVector SpawnLocation = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector() * BossSpawnDistance;
@@ -209,12 +231,19 @@ void AMainGameModeBase::SpawnBoss()
 		}
 	}
 
+	//보스를 못 냈으면 부른 쪽이 예전 클리어 방식으로 돌아가야 하므로 실패를 알림
+	if (!Boss)
+	{
+		UE_LOG(LogTemp, Warning, TEXT("[Level] 보스를 못 냄 BossClass와 스폰 위치 확인"));
+
+		return false;
+	}
+
 	//보스가 나왔으니 보스 곡으로 갈아 끼움
 	//여기서 직접 PlayBGM을 부르지 않는 이유 나올 때와 죽을 때가 같은 판정을 쓰게 하려는 것
-	if (Boss)
-	{
-		UpdateBGMForBoss();
-	}
+	UpdateBGMForBoss();
+
+	return true;
 }
 
 //스포너가 이번 레벨에 낼 몬스터를 다 냈을 때
@@ -288,10 +317,10 @@ void AMainGameModeBase::TryClearLevel()
 		return;
 	}
 
-	//보스는 이제 마지막 웨이브에 레벨마다 자동으로 나오므로 여기서 도전할지 묻지 않음
-	//보스를 잡는 것이 다음 레벨 해금 조건이라 건너뛸 수 있으면 조건이 성립하지 않음
-	//보스가 아직 살아 있으면 AliveMonsterCount가 0이 아니라 위에서 이미 돌아감
+	//보스가 나온 레벨은 여기까지 오지 않음 bAllMonstersSpawned를 켜지 않아서 위에서 바로 돌아감
+	//보스를 잡는 것이 다음 레벨 해금 조건이라 잡몹을 다 잡았다고 건너뛸 수 있으면 조건이 성립하지 않음
 	//보스를 잡으면 HandleBossDead가 남은 잡몹과 상관없이 바로 클리어시킴
+	//즉 여기로 오는 건 보스를 못 낸 맵뿐이고 그때는 예전처럼 다 잡으면 클리어됨
 	ClearLevel();
 }
 

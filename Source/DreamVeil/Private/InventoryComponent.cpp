@@ -110,6 +110,14 @@ bool UInventoryComponent::SpendDreamShards(int32 Amount)
 	return true;
 }
 
+//결과를 알리고 그대로 돌려줌
+EShopResult UInventoryComponent::NotifyShopResult(EShopResult Result)
+{
+	OnShopResult.Broadcast(Result);
+
+	return Result;
+}
+
 //몬스터를 잡았을 때
 void UInventoryComponent::ReceiveKillRewards(AActor* KilledActor)
 {
@@ -206,38 +214,39 @@ bool UInventoryComponent::UnequipPart(int32 PartIndex)
 }
 
 //한 단계 강화를 시도
-EPartEnhanceResult UInventoryComponent::EnhancePart(int32 PartIndex)
+EShopResult UInventoryComponent::EnhancePart(int32 PartIndex)
 {
 	if (!Parts.IsValidIndex(PartIndex) || Parts[PartIndex].EnhanceLevel >= MAX_PART_ENHANCE_LEVEL)
 	{
-		return EPartEnhanceResult::CannotEnhance;
+		return NotifyShopResult(EShopResult::CannotEnhance);
 	}
 
 	//성공 실패와 상관없이 시도할 때 비용을 냄
 	if (!SpendDreamShards(GetEnhanceCost(Parts[PartIndex])))
 	{
-		return EPartEnhanceResult::NotEnoughShards;
+		return NotifyShopResult(EShopResult::NotEnoughShards);
 	}
 
-	EPartEnhanceResult Result = EPartEnhanceResult::Fail;
+	EShopResult Result = EShopResult::EnhanceFailed;
 
 	if (FMath::FRand() < GetEnhanceSuccessChance(Parts[PartIndex]))
 	{
 		Parts[PartIndex].EnhanceLevel++;
-		Result = EPartEnhanceResult::Success;
+		Result = EShopResult::Enhanced;
 	}
 	else if (FMath::FRand() < GetEnhanceDestroyChance(Parts[PartIndex]))
 	{
 		//실패한 뒤 한 번 더 굴려서 낮은 확률로 파츠가 부서짐 끼워져 있던 파츠면 무기에서도 빠짐
 		Parts.RemoveAt(PartIndex);
-		Result = EPartEnhanceResult::Destroyed;
+		Result = EShopResult::PartDestroyed;
 	}
 
 	//끼워져 있던 파츠면 수치가 바뀌었거나 사라졌으니 무기에 다시 반영
 	ApplyPartsToWeapons();
 	OnInventoryChanged.Broadcast();
 
-	return Result;
+	//목록을 먼저 다시 그리게 하고 문구를 띄움 부서진 파츠가 목록에 남은 채로 문구만 바뀌는 걸 막음
+	return NotifyShopResult(Result);
 }
 
 //다음 단계 강화 비용
@@ -271,11 +280,11 @@ float UInventoryComponent::GetEnhanceDestroyChance(const FWeaponPart& Part)
 }
 
 //상점에서 파츠를 삼
-bool UInventoryComponent::BuyPart(EWeaponSlot Weapon, EWeaponPartSlot Slot, EWeaponPartTier Tier)
+EShopResult UInventoryComponent::BuyPart(EWeaponSlot Weapon, EWeaponPartSlot Slot, EWeaponPartTier Tier)
 {
 	if (!IsTierForSale(Tier))
 	{
-		return false;
+		return NotifyShopResult(EShopResult::NotForSale);
 	}
 
 	//그 총에 없는 칸은 팔지 않음 꿈의 조각을 쓰기 전에 먼저 걸러야 헛돈을 안 씀
@@ -283,12 +292,13 @@ bool UInventoryComponent::BuyPart(EWeaponSlot Weapon, EWeaponPartSlot Slot, EWea
 
 	if (!TargetWeapon || !TargetWeapon->GetPartSlots().Contains(Slot))
 	{
-		return false;
+		return NotifyShopResult(EShopResult::NotForSale);
 	}
 
+	//꿈의 조각 부족은 못 사는 다른 이유와 문구가 달라야 해서 여기서만 따로 돌려줌
 	if (!SpendDreamShards(GetBuyPrice(Tier)))
 	{
-		return false;
+		return NotifyShopResult(EShopResult::NotEnoughShards);
 	}
 
 	FWeaponPart NewPart;
@@ -298,16 +308,16 @@ bool UInventoryComponent::BuyPart(EWeaponSlot Weapon, EWeaponPartSlot Slot, EWea
 
 	AddPart(NewPart);
 
-	return true;
+	return NotifyShopResult(EShopResult::Bought);
 }
 
 //안 쓰는 파츠를 팖
-bool UInventoryComponent::SellPart(int32 PartIndex)
+EShopResult UInventoryComponent::SellPart(int32 PartIndex)
 {
 	//끼운 파츠는 실수로 팔지 않게 막음 소켓 UI에서 먼저 빼고 팔 것
 	if (!Parts.IsValidIndex(PartIndex) || Parts[PartIndex].bEquipped)
 	{
-		return false;
+		return NotifyShopResult(EShopResult::CannotSell);
 	}
 
 	//지우기 전에 값을 계산해둠 지운 뒤에는 그 번호에 다른 파츠가 들어옴
@@ -318,7 +328,7 @@ bool UInventoryComponent::SellPart(int32 PartIndex)
 	AddDreamShards(SellPrice);
 	OnInventoryChanged.Broadcast();
 
-	return true;
+	return NotifyShopResult(EShopResult::Sold);
 }
 
 //상점에서 이 등급을 팔고 있는지
@@ -355,19 +365,24 @@ int32 UInventoryComponent::GetSellPrice(const FWeaponPart& Part)
 }
 
 //무기를 삼
-bool UInventoryComponent::BuyWeapon(EWeaponSlot Weapon)
+EShopResult UInventoryComponent::BuyWeapon(EWeaponSlot Weapon)
 {
 	//이미 가졌거나 아직 해금 전이거나 팔지 않는 무기면 꿈의 조각을 쓰기 전에 거름
 	if (!IsWeaponForSale(Weapon))
 	{
-		return false;
+		return NotifyShopResult(EShopResult::NotForSale);
 	}
 
 	AMainPlayerCharacter* OwnerPlayer = Cast<AMainPlayerCharacter>(GetOwner());
 
-	if (!OwnerPlayer || !SpendDreamShards(GetWeaponPrice(Weapon)))
+	if (!OwnerPlayer)
 	{
-		return false;
+		return NotifyShopResult(EShopResult::NotForSale);
+	}
+
+	if (!SpendDreamShards(GetWeaponPrice(Weapon)))
+	{
+		return NotifyShopResult(EShopResult::NotEnoughShards);
 	}
 
 	//얻기만 하고 바로 들지는 않음 숫자 2로 바꿔 듦
@@ -376,7 +391,7 @@ bool UInventoryComponent::BuyWeapon(EWeaponSlot Weapon)
 	//이제 이 총의 파츠도 사고 끼울 수 있어서 소켓 상점 UI가 목록을 다시 그려야 함
 	OnInventoryChanged.Broadcast();
 
-	return true;
+	return NotifyShopResult(EShopResult::Bought);
 }
 
 //상점에서 이 무기를 팔고 있는지
@@ -410,6 +425,43 @@ float UInventoryComponent::GetPartDamageBonus(const FWeaponPart& Part)
 float UInventoryComponent::GetPartFireRateBonus(const FWeaponPart& Part)
 {
 	return CalculatePartFireRateBonus(Part);
+}
+
+//결과를 화면에 띄울 한 줄 문구로 바꿈
+//switch에 default를 두지 않는 이유 나중에 결과를 하나 더 늘리면 컴파일러가 빠뜨린 자리를 경고해 줌
+FText UInventoryComponent::GetShopResultText(EShopResult Result)
+{
+	switch (Result)
+	{
+	case EShopResult::Bought:
+		return NSLOCTEXT("DreamVeilShop", "Bought", "구매했습니다");
+
+	case EShopResult::Sold:
+		return NSLOCTEXT("DreamVeilShop", "Sold", "판매했습니다");
+
+	case EShopResult::Enhanced:
+		return NSLOCTEXT("DreamVeilShop", "Enhanced", "강화에 성공했습니다");
+
+	case EShopResult::EnhanceFailed:
+		return NSLOCTEXT("DreamVeilShop", "EnhanceFailed", "강화에 실패했습니다");
+
+	case EShopResult::PartDestroyed:
+		return NSLOCTEXT("DreamVeilShop", "PartDestroyed", "강화에 실패해 파츠가 부서졌습니다");
+
+	case EShopResult::NotEnoughShards:
+		return NSLOCTEXT("DreamVeilShop", "NotEnoughShards", "꿈의 조각이 부족합니다");
+
+	case EShopResult::NotForSale:
+		return NSLOCTEXT("DreamVeilShop", "NotForSale", "지금은 구매할 수 없습니다");
+
+	case EShopResult::CannotSell:
+		return NSLOCTEXT("DreamVeilShop", "CannotSell", "장착 중인 파츠는 뺀 뒤에 팔 수 있습니다");
+
+	case EShopResult::CannotEnhance:
+		return NSLOCTEXT("DreamVeilShop", "CannotEnhance", "더 강화할 수 없습니다");
+	}
+
+	return FText::GetEmpty();
 }
 
 //저장해둔 내용으로 되돌림
