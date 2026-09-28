@@ -29,7 +29,11 @@ AMonsterBase::AMonsterBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
 	// 월드에 스폰됐을 경우 AIController Possess 시키기
-	AutoPossessAI = EAutoPossessAI::PlacedInWorld;
+	//PlacedInWorld는 레벨에 손으로 놓아둔 몬스터에게만 컨트롤러를 붙여줌
+	//스폰 볼륨이 낸 몬스터는 컨트롤러가 없어서 행동트리가 아예 돌지 않고 그 자리에 가만히 서 있음
+	//지금까지 몬스터를 전부 손으로 놓아뒀기 때문에 안 드러나 있던 것
+	//놓아둔 것과 스폰된 것 둘 다 받는 값으로 바꿈
+	AutoPossessAI = EAutoPossessAI::PlacedInWorldOrSpawned;
 	MonsterCombatStats = CreateDefaultSubobject<UCombatStatsComponent>(TEXT("MonsterCombatStats"));
 	MonsterDispatchTable = CreateDefaultSubobject<UDispatchTableComponent>(TEXT("MonsterDispatchTable"));
 	MonsterSkill = CreateDefaultSubobject<UMonsterSkill>(TEXT("MonsterSkill"));
