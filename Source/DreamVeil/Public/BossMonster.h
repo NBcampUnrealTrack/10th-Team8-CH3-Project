@@ -30,6 +30,9 @@ class DREAMVEIL_API ABossMonster : public AMonsterBase
 public:
 	ABossMonster();
 
+	//평타를 시작하기 전에 준비된 스킬부터 시도하고, 발동할 스킬이 없을 때만 부모 평타를 실행함
+	virtual bool StartAttack(AActor* Target) override;
+
 	//페이즈가 바뀔 때마다 알림 HUD가 받을 것
 	UPROPERTY(BlueprintAssignable, Category = "Monster|Boss")
 	FOnBossPhaseChanged OnBossPhaseChanged;
@@ -80,7 +83,8 @@ private:
 	void ApplySkillProgression();
 
 	//쓸 수 있는 스킬 중 하나를 무작위로 씀 없으면 아무 일도 안 함
-	void TryUseRandomSkill();
+	//실제로 스킬을 시작했는지 반환해 평타 진입점에서도 같은 선택 로직을 재사용함
+	bool TryUseRandomSkill();
 
 	//스킬 확인 타이머를 지금 페이즈에 맞는 간격으로 다시 검
 	void RestartSkillTimer();

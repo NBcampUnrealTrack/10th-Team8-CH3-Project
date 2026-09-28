@@ -35,7 +35,8 @@ public:
 
 	//하단 세 함수는 공격 관련인데 외부에서 호출해야 될 수도 있어서 public으로 둠
 	// 공격 시작 성공 여부
-	bool StartAttack(AActor* target);
+	//BT는 부모 타입으로 호출하므로 보스의 스킬 우선 판단도 실행되도록 가상 함수로 둠
+	virtual bool StartAttack(AActor* target);
 	
 	// Anim Notify에서 호출할 예정
 	void ExecuteAttack();
@@ -112,6 +113,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void MonsterInit();
+
+	//공격 애니메이션이 있는 몬스터는 노티파이를 쓰고, 없는 몬스터는 기존 공격 타이머로 발사와 종료를 처리함
+	bool bUseAttackMontage = true;
 
 	// 얘가 근거리인지 원거리인지
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Attack")

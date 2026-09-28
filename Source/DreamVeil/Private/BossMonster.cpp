@@ -30,13 +30,37 @@ ABossMonster::ABossMonster()
 
 	AIControllerClass = AMonsterAIController::StaticClass();
 
+	AttackType = EMonsterAttackType::Ranged;
+	//보스 메시에는 호환되는 공격 몽타주가 없으므로 타이머로 평타를 발사함
+	//Stickman 몽타주 재생 성공 여부에 평타가 막히지 않도록 보스만 애니메이션 경로를 끔
+	bUseAttackMontage = false;
+
 	// SkeletalMeshComponent만의 고유한 기능을 쓸 수도 있으니 이렇게 두 변수로 나눕니다. 둘 다 가리키는 컴포넌트는 동일
 	MonsterSkeletalMeshComponent = GetMesh();
 	MonsterMeshComponent->SetupAttachment(RootComponent);
 
 	MonsterCombatStats->SetMaxHealth(MaxHealth);
 
-	MonsterWalkSpeed = 500.0f;
+	MonsterWalkSpeed = 800.0f;
+}
+
+bool ABossMonster::StartAttack(AActor* Target)
+{
+	//잘못된 타깃이나 행동 불가 상태에서는 스킬 선택과 평타 모두 시작하지 않음
+	if (!IsValid(Target) || Target == this || IsRagdoll()
+		|| (IsValid(MonsterCombatStats) && MonsterCombatStats->IsDead()))
+	{
+		return false;
+	}
+
+	//주기 타이머를 기다리면 BT의 다음 평타가 먼저 시작될 수 있으므로 여기서 스킬을 먼저 선택함
+	//스킬이 시작되면 평타 태스크는 실패로 끝내고, 스킬이 관리하는 AI 정지와 재개 흐름을 따름
+	if (TryUseRandomSkill())
+	{
+		return false;
+	}
+
+	return Super::StartAttack(Target);
 }
 
 void ABossMonster::BeginPlay()
@@ -153,26 +177,30 @@ void ABossMonster::RestartSkillTimer()
 	//0 이하가 되면 타이머가 매 프레임 돌아서 최소값으로 막음
 	const float SafeInterval = FMath::Max(PhaseInterval, 0.1f);
 
-	GetWorldTimerManager().SetTimer(SkillCheckTimerHandle, this, &ABossMonster::TryUseRandomSkill, SafeInterval, true);
+	//추격 중에도 스킬을 확인하는 기존 타이머는 유지하며, 반환값은 평타 진입점에서만 사용함
+	GetWorldTimerManager().SetTimer(SkillCheckTimerHandle, FTimerDelegate::CreateWeakLambda(this, [this]()
+	{
+		TryUseRandomSkill();
+	}), SafeInterval, true);
 }
 
-void ABossMonster::TryUseRandomSkill()
+bool ABossMonster::TryUseRandomSkill()
 {
 	if (!IsValid(MonsterSkill))
 	{
-		return;
+		return false;
 	}
 
 	//이미 스킬을 쓰는 중이거나 평타를 치는 중이면 끼어들지 않음
-	if (MonsterSkill->IsUsingSkill() || IsAttacking())
+	if (MonsterSkill->IsUsingSkill() || IsAttacking() || IsRagdoll())
 	{
-		return;
+		return false;
 	}
 
 	//죽었으면 더 쓰지 않음
 	if (IsValid(MonsterCombatStats) && MonsterCombatStats->IsDead())
 	{
-		return;
+		return false;
 	}
 
 	//지금 페이즈와 레벨에서 쓸 수 있고 쿨타임도 끝난 스킬만 모음
@@ -189,12 +217,24 @@ void ABossMonster::TryUseRandomSkill()
 
 	if (ReadySkills.Num() == 0)
 	{
-		return;
+		return false;
 	}
 
 	//쓸 수 있는 것 중 무작위로 하나 패턴이 순서대로 나오면 외워져서 재미가 없음
 	//사용 상태 설정뿐 아니라 경고와 실제 패턴 실행까지 연결한다.
-	MonsterSkill->TryUseSkill(ReadySkills[FMath::RandRange(0, ReadySkills.Num() - 1)]);
+	//쿨타임이 끝났어도 거리 조건 때문에 실패할 수 있으므로 남은 후보도 무작위 순서로 시도함
+	//한 스킬이 실패했다는 이유만으로 다른 사용 가능한 스킬보다 평타가 먼저 나가지 않게 함
+	while (ReadySkills.Num() > 0)
+	{
+		const int32 SkillIndex = FMath::RandRange(0, ReadySkills.Num() - 1);
+		if (MonsterSkill->TryUseSkill(ReadySkills[SkillIndex]))
+		{
+			return true;
+		}
+		ReadySkills.RemoveAtSwap(SkillIndex);
+	}
+
+	return false;
 }
 
 void ABossMonster::OnDeath()
