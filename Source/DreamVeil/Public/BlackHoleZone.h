@@ -31,6 +31,9 @@ public:
 	//BP에 WarningMaterial을 안 넣었을 때 대신 쓸 경고 머티리얼 스킬이 몬스터의 경고 데칼 머티리얼을 넘겨줌
 	void SetFallbackWarningMaterial(UMaterialInterface* Material);
 
+	//DamagePerTick에 곱할 배율 스킬이 시전 몬스터의 스킬 피해 배율을 넘겨줌 따로 안 넘기면 1
+	void SetDamageScale(float NewScale);
+
 protected:
 	virtual void BeginPlay() override;
 	virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
@@ -62,7 +65,7 @@ protected:
 
 	// ---------------- 피해 ----------------
 
-	//한 번에 주는 화염 피해
+	//쉬움 L1 기준 한 번에 주는 화염 피해 실제 피해는 시전 몬스터의 스킬 피해 배율이 곱해짐
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "BlackHole|Damage", meta = (ClampMin = "0"))
 	float DamagePerTick = 5.0f;
 
@@ -156,6 +159,9 @@ private:
 	FTimerHandle DamageTimer;
 	FTimerHandle DurationTimer;
 	bool bZoneActive = false;
+
+	//시전 몬스터의 스킬 피해 배율 쉬움 L1이면 1
+	float DamageScale = 1.0f;
 	bool bZoneExpired = false;
 
 	//이 장판이 불을 붙인 대상과 장판 밖에서 남은 연소 시간

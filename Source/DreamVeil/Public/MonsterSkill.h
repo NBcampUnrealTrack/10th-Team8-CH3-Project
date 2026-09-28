@@ -83,9 +83,30 @@ public:
     UFUNCTION(BlueprintCallable, Category = "Monster|Skill")
     bool TryUseSkill(EMonsterSkillType Skill);
 
-    //플레이어에게 적용할 기본 피해량이며 기존 피해 처리에서 방어력 등이 반영된다.
+    //쉬움 L1 기준 피해량. 실제 피해는 여기에 몬스터의 스킬 피해 배율(AMonsterBase::GetSkillDamageScale)이 곱해진다.
+    //방어력 등은 기존 피해 처리에서 반영된다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "0"))
     float ChargeDamage = 30.0f;
+
+    //플레이어가 이 거리(cm) 안에 있을 때만 돌진을 준비한다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "0"))
+    float ChargeTriggerDistance = 800.0f;
+
+    //돌진으로 이동하는 거리(cm). 경고 데칼 길이도 이 값을 따른다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "100"))
+    float ChargeDistance = 1200.0f;
+
+    //돌진 속도(cm/s). 돌진 시간 = 거리 / 속도
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "100"))
+    float ChargeSpeed = 5000.0f;
+
+    //경고 표시 후 실제로 달려나가기까지의 준비 시간(초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "0"))
+    float ChargeReadySeconds = 1.0f;
+
+    //경고와 공격 판정의 전체 가로 폭(cm). 500이면 좌우 합쳐 5m
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "10"))
+    float ChargeWidth = 500.0f;
 
     //아직 모션이 없으면 비워 둔다. 준비 중에는 이 제자리 걷기를 반복 재생한다.
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|Charge")
@@ -101,7 +122,7 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot")
     TSubclassOf<AMonsterProjectile> FanShotProjectile;
 
-    //투사체 한 발당 피해량. 돌진과 마찬가지로 방어력 등은 기존 피해 처리에서 반영된다.
+    //쉬움 L1 기준 투사체 한 발당 피해량. 실제 피해는 스킬 피해 배율이 곱해지고 방어력 등은 기존 피해 처리에서 반영된다.
     UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
     float FanShotDamage = 15.0f;
 
@@ -167,9 +188,6 @@ protected:
 private:
     //진행 방식을 전달받아 저장함. 기존 엘리트와 BP 호출은 원래의 페이즈 조건을 유지함
     bool bCheckRequiredPhase = true;
-
-    //돌진의 전체 가로 폭(cm). 생성자에서 설정하고 데칼과 공격 판정이 함께 사용한다.
-    float ChargeWidth;
 
     //엘리트는 짧은 간격으로 거리와 쿨타임을 확인하고, 보스는 기존 선택 타이머를 사용한다.
     void CheckSkillRange();

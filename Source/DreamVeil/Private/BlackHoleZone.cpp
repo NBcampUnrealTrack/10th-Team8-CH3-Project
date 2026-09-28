@@ -36,6 +36,11 @@ ABlackHoleZone::ABlackHoleZone()
 	DamageInterval = CONTINUOUS_ATTACK_INTERVAL;
 }
 
+void ABlackHoleZone::SetDamageScale(float NewScale)
+{
+	DamageScale = FMath::Max(NewScale, 0.0f);
+}
+
 void ABlackHoleZone::SetFallbackWarningMaterial(UMaterialInterface* Material)
 {
 	FallbackWarningMaterial = Material;
@@ -290,7 +295,8 @@ void ABlackHoleZone::ApplyDamageTick()
 
 		//화염탄과 같은 표식 방어력 무시 흡혈 가시 갑옷 반사 없음
 		//대상이 이미 죽어서 데미지가 안 들어가면 0이 돌아오고 그때 불을 끔
-		const float AppliedDamage = UAugmentDamageLibrary::ApplyFireDamage(this, Target, DamagePerTick);
+		//DamagePerTick은 쉬움 L1 기준 시전 몬스터의 스킬 피해 배율을 곱해서 줌
+		const float AppliedDamage = UAugmentDamageLibrary::ApplyFireDamage(this, Target, DamagePerTick * DamageScale);
 		if (AppliedDamage <= 0.0f)
 		{
 			ExtinguishTarget(Target);

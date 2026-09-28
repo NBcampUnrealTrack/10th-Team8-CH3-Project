@@ -10,6 +10,7 @@
 #include "NiagaraSystem.h"
 #include "Particles/ParticleSystem.h"
 #include "Sound/SoundBase.h"
+#include "MonsterBase.h"
 
 
 UWeaponBase::UWeaponBase()
@@ -112,6 +113,9 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 		PlayImpactEffect(Hit);
 
 		//쏜 캐릭터를 넘김 데미지 방어력 흡혈 가시 갑옷 적중 증강을 한 번에 처리
+		//피해 적용으로 레그돌이 시작되기 전에 기존 머리 판정 함수를 재사용함
+		const AMonsterBase* HitMonster = Cast<AMonsterBase>(Hit.GetActor());
+		const bool bHeadshot = HitMonster && HitMonster->IsHeadshotHit(Hit);
 		const float AppliedDamage = UAugmentDamageLibrary::ApplyWeaponHit(GetOwner(), Hit, GetFinalDamage());
 
 		//실제로 데미지가 들어갔을 때만 히트 마커를 알림
@@ -122,7 +126,7 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 			const UCombatStatsComponent* HitStats = Hit.GetActor()
 				? Hit.GetActor()->FindComponentByClass<UCombatStatsComponent>() : nullptr;
 
-			OnHitConfirmed.Broadcast(HitStats && HitStats->IsDead());
+			OnHitConfirmed.Broadcast(HitStats && HitStats->IsDead(), bHeadshot);
 		}
 	}
 }

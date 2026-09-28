@@ -880,9 +880,11 @@ void AMainPlayerCharacter::UpdateRecoilRecovery(float DeltaTime)
 }
 
 //무기가 적을 맞혔다고 알려주면 HUD 쪽으로 넘김
-void AMainPlayerCharacter::HandleWeaponHitConfirmed(bool bKilled)
+void AMainPlayerCharacter::HandleWeaponHitConfirmed(bool bKilled, bool bHeadshot)
 {
 	OnHitMarker.Broadcast(bKilled);
+	//일반 적중과 처치 표시는 그대로 보내고 머리에 실제 피해가 들어온 경우만 추가 연출함
+	if (bHeadshot) OnHeadshotConfirmed.Broadcast();
 }
 
 void AMainPlayerCharacter::SetupPlayerInputComponent(UInputComponent* PlayerInputComponent)

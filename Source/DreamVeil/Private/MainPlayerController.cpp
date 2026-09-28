@@ -9,6 +9,10 @@
 #include "DreamVeilGameInstance.h"
 #include "MainGameModeBase.h"
 #include "Components/InputComponent.h"
+#include "HeadshotFeedbackWidget.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
+#include "TimerManager.h"
 
 //배경음 조절 키를 한 번 누를 때 움직이는 크기
 //0.1이면 기본값 0.3에서 세 번 내리면 무음 일곱 번 올리면 최대라 조작 횟수가 적당함
@@ -25,7 +29,9 @@ EquipPistolAction(nullptr),
 EquipRifleAction(nullptr),
 InteractAction(nullptr)
 {
-
+	//기본 확인음을 제공하면서 BP에서는 원하는 헤드샷 효과음으로 교체할 수 있게 함
+	static ConstructorHelpers::FObjectFinder<USoundBase> DefaultHeadshotSound(TEXT("/Game/Audio/SFX/S_HeadshotConfirm.S_HeadshotConfirm"));
+	if (DefaultHeadshotSound.Succeeded()) HeadshotSound = DefaultHeadshotSound.Object;
 }
 
 void AMainPlayerController::BeginPlay()
@@ -83,7 +89,46 @@ void AMainPlayerController::OnPossess(APawn* InPawn)
     if (AMainPlayerCharacter* PlayerCharacter = Cast<AMainPlayerCharacter>(InPawn))
     {
         PlayerCharacter->OnPlayerDied.AddUniqueDynamic(this, &AMainPlayerController::ShowGameOver);
+		//같은 폰을 다시 조종하더라도 효과음이 겹치지 않도록 기존 구독을 제거하고 연결함
+		PlayerCharacter->OnHeadshotConfirmed.RemoveAll(this);
+		PlayerCharacter->OnHeadshotConfirmed.AddUObject(this, &AMainPlayerController::ShowHeadshotFeedback);
     }
+}
+
+void AMainPlayerController::OnUnPossess()
+{
+	if (AMainPlayerCharacter* PlayerCharacter = Cast<AMainPlayerCharacter>(GetPawn()))
+	{
+		PlayerCharacter->OnHeadshotConfirmed.RemoveAll(this);
+	}
+	if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->SetVisibility(ESlateVisibility::Hidden);
+	Super::OnUnPossess();
+}
+
+void AMainPlayerController::ShowHeadshotFeedback()
+{
+	//실제로 조종 중인 로컬 플레이어에게만 표시해서 다른 화면이나 게임 오버 메뉴에 겹치지 않음
+	if (!IsLocalController() || bGameOverOpen || IsMenuWidgetOpen()) return;
+	if (!HeadshotFeedbackWidget)
+	{
+		HeadshotFeedbackWidget = CreateWidget<UHeadshotFeedbackWidget>(this);
+		if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->AddToViewport(10);
+	}
+	if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->ShowHit();
+	if (HeadshotSound)
+	{
+		//X 표시는 즉시 보여주고 효과음만 0.1초 늦춰 총성과 동시에 겹쳐 들리는 것을 줄임
+		//적중마다 별도 예약하므로 연속 헤드샷이 이전 효과음의 재생 시점을 계속 뒤로 미루지 않음
+		FTimerHandle HeadshotSoundTimer;
+		const TWeakObjectPtr<APawn> HitPawn = GetPawn();
+		//약한 바인딩이라 컨트롤러가 파괴되면 호출되지 않음. 대기 중 조종 대상이 바뀐 경우도 걸러냄
+		GetWorldTimerManager().SetTimer(HeadshotSoundTimer, FTimerDelegate::CreateWeakLambda(this, [this, HitPawn]()
+		{
+			if (!HitPawn.IsValid() || GetPawn() != HitPawn.Get() || !IsLocalController()
+				|| bGameOverOpen || IsMenuWidgetOpen() || !HeadshotSound) return;
+			UGameplayStatics::PlaySound2D(this, HeadshotSound);
+		}), 0.1f, false);
+	}
 }
 
 //플레이어가 죽었을 때
@@ -175,6 +220,8 @@ bool AMainPlayerController::ShowCorruptionGameOver()
 //메뉴 위젯을 띄움
 UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> MenuWidgetClass)
 {
+	//일시정지하면 위젯 틱도 멈추므로 메뉴를 열 때 남아 있는 X 표시를 바로 숨김
+	if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->SetVisibility(ESlateVisibility::Hidden);
     // Do not let pending augment/interaction events replace the terminal screen.
     if (bGameOverOpen) return nullptr;
     //위젯을 안 넣었으면 띄울 게 없음
