@@ -55,6 +55,12 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	float SpawnTickGap = 0.3f;
 
+	//플레이어와 이 거리보다 가까운 자리에는 내지 않음
+	//문 앞에 볼륨을 놓으면 플레이어가 문 앞에 서 있을 때 몸 안에서 몬스터가 솟아오름
+	//0으로 두면 검사를 하지 않음 문 뒤처럼 플레이어가 절대 못 오는 자리에 놓을 때 씀
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
+	float MinPlayerDistance = 300.0f;
+
 	// 최대 엘리토 몬스터가 스폰되는 레벨. 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	int32 MaxDifficultyLevel;
@@ -85,6 +91,16 @@ private:
 	void SpawnOneFromWave();
 
 	float GetEliteRate();
+
+	//낼 자리를 찾음 내비메시 위이고 플레이어와 너무 가깝지 않은 자리를 몇 번 뽑아봄
+	//한 번만 뽑지 않는 이유 볼륨 한쪽이 벽이나 문턱에 걸쳐 있으면 한 번에 걸릴 확률이 낮아서
+	//그대로 두면 문 앞 볼륨이 자꾸 빈손으로 돌아가 몬스터가 뜸하게 나옴
+	bool FindSpawnLocation(FVector& OutLocation);
+
+	//플레이어를 찾아서 들고 있음 아직 못 찾았으면 이번에 다시 찾아봄
+	//BeginPlay 한 번만 찾지 않는 이유 볼륨이 플레이어보다 먼저 시작하면 영영 못 찾은 채로 남음
+	//그러면 엘리트가 한 마리도 안 나오고 최소 거리 검사도 통째로 꺼진 것처럼 굴어서 원인 찾기가 어려움
+	AMainPlayerCharacter* GetPlayerCharacter();
 
 	//고른 목록에서 하나를 뽑아 땅 위에 냄 목록이 비었거나 스폰에 실패하면 nullptr
 	//잡몹과 엘리트가 같은 절차를 타게 하려고 따로 뺌

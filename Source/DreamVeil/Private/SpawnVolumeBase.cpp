@@ -2,6 +2,7 @@
 
 
 #include "SpawnVolumeBase.h"
+#include "Components/ArrowComponent.h"
 #include "Components/BoxComponent.h"
 #include "NavigationSystem.h"
 
@@ -12,7 +13,26 @@ ASpawnVolumeBase::ASpawnVolumeBase()
 	PrimaryActorTick.bCanEverTick = false;
 	SpawnArea = CreateDefaultSubobject<UBoxComponent>(TEXT("Spawn Area"));
 	SetRootComponent(SpawnArea);
-	
+
+	//레벨에 끌어다 놓자마자 쓸 수 있게 문 한 짝 폭 정도로 키워둠
+	//기본값 32는 너무 작아서 뷰포트에서 잘 보이지도 않고 랜덤으로 뽑을 자리도 거의 한 점임
+	SpawnArea->SetBoxExtent(FVector(200.0f, 200.0f, 100.0f));
+
+	//부딪히는 물건이 아니라 "이 안에 낸다"는 범위 표시일 뿐이라 충돌을 끔
+	//켜두면 몬스터나 총알이 이 상자에 걸려서 문 앞에서 이상하게 막히거나 튕김
+	SpawnArea->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+
+	//이 상자가 내비메시를 건드리지 못하게 막음
+	//스폰할 자리를 찾는 데 내비메시를 쓰는데 자기가 그 자리를 깎아버리면 낼 곳이 사라짐
+	SpawnArea->SetCanEverAffectNavigation(false);
+
+	//어느 쪽이 앞인지 뷰포트에서 보이게 하는 화살표
+	//문 앞에 놓을 때 이 화살표를 방 안쪽으로 돌려두면 몬스터가 문을 등지고 나옴
+	//에디터 전용이라 게임에는 나오지 않음 UArrowComponent가 스스로 그렇게 정해 둠
+	SpawnDirection = CreateDefaultSubobject<UArrowComponent>(TEXT("Spawn Direction"));
+	SpawnDirection->SetupAttachment(SpawnArea);
+	SpawnDirection->SetArrowColor(FLinearColor::Red);
+	SpawnDirection->ArrowSize = 2.0f;
 }
 
 // virtual로 순수 가상함수 만들라했더니 오류나서 이리 빈 상태로 둠

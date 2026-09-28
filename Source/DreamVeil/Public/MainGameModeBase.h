@@ -126,6 +126,13 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	float ContinuousSpawnInterval = 3.0f;
 
+	//살아 있는 몬스터가 이 수에 닿으면 새로 내지 않음 잡으면 그만큼 다시 나옴
+	//볼륨을 문마다 놓으면 3초마다 볼륨 수만큼 나와서 5분이면 수백 마리가 됨
+	//볼륨이 아니라 게임모드가 막는 이유 볼륨은 자기가 낸 수만 알지 판 전체에 몇 마리가 있는지 모름
+	//0 이하로 두면 제한 없음
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
+	int32 MaxAliveMonsters = 40;
+
 	//무한 모드에서 보스가 나오는 주기 초
 	//레벨과 달리 끝이 없어서 웨이브가 아니라 시간으로 보스를 냄
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")

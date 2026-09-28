@@ -142,6 +142,13 @@ void AMainGameModeBase::StartNextWave()
 //맵에 있는 스폰 볼륨 전부에게 이번 웨이브 몬스터를 내라고 시킴
 void AMainGameModeBase::RequestContinuousSpawn()
 {
+	//이미 꽉 찼으면 이번 신호는 건너뜀 볼륨을 여러 개 놓아도 총 수는 여기 한 곳에서 막힘
+	//타이머를 멈추지 않는 이유 몇 마리 잡아서 자리가 나면 다음 신호에 바로 다시 나와야 함
+	if (MaxAliveMonsters > 0 && AliveMonsterCount >= MaxAliveMonsters)
+	{
+		return;
+	}
+
 	//볼륨을 미리 모아두지 않고 매번 찾는 이유
 	//도중에 볼륨이 생기거나 사라져도 알아서 반영되고 목록을 관리할 필요가 없음
 	//몇 마리를 낼지 여기서 정하지 않는 이유 좁은 방과 넓은 마당의 적정 밀도가 다름 볼륨이 스스로 정함

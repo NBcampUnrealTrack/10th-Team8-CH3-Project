@@ -11,6 +11,24 @@
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "DreamVeilGameInstance.h"
+#include "UObject/ConstructorHelpers.h"
+
+//낼 자리를 몇 번까지 뽑아볼지
+//튜닝할 값이 아니라 "한 번 실패했다고 포기하지 말자" 정도의 수라서 프로퍼티로 빼지 않음
+const int32 SPAWN_LOCATION_TRY_COUNT = 5;
+
+//경로로 몬스터 블루프린트를 찾아 목록에 넣음 못 찾으면 아무것도 넣지 않음
+//생성자 안에서만 부를 것 ConstructorHelpers는 생성자 밖에서는 쓰지 못함
+//같은 다섯 줄을 복사해 붙이지 않으려고 뺌
+void AddMonsterClass(TArray<TSubclassOf<AMonsterBase>>& OutMonsters, const TCHAR* BlueprintPath)
+{
+	ConstructorHelpers::FClassFinder<AMonsterBase> MonsterFinder(BlueprintPath);
+
+	if (MonsterFinder.Succeeded())
+	{
+		OutMonsters.Add(MonsterFinder.Class);
+	}
+}
 
 AMonsterSpawnVolume::AMonsterSpawnVolume()
 {
@@ -18,6 +36,16 @@ AMonsterSpawnVolume::AMonsterSpawnVolume()
 	EliteMonsterMinRate = 5.0f;
 	EliteMonsterMaxRate = 50.0f;
 	DifficultyCurve = 1.0f;
+
+	//레벨에 끌어다 놓기만 하면 바로 몬스터가 나오게 기본 목록을 코드가 채워둠
+	//목록을 비워두면 볼륨을 놓아도 아무 일이 없는데 그게 배치한 사람 눈에는 고장난 것처럼 보임
+	//디테일 패널에서 목록을 바꾸면 그쪽이 이김 볼륨마다 다른 몬스터를 내고 싶을 때 그렇게 쓸 것
+	AddMonsterClass(BaseMonsters, TEXT("/Game/Blueprint/Monsters/BP_MeleeMonster"));
+	AddMonsterClass(BaseMonsters, TEXT("/Game/Blueprint/Monsters/BP_RangedMonster"));
+
+	AddMonsterClass(EliteMonsters, TEXT("/Game/Blueprint/Monsters/BP_EliteMonster1"));
+	AddMonsterClass(EliteMonsters, TEXT("/Game/Blueprint/Monsters/BP_EliteMonster2"));
+	AddMonsterClass(EliteMonsters, TEXT("/Game/Blueprint/Monsters/BP_EliteMonster3"));
 }
 
 void AMonsterSpawnVolume::ExecuteSpawnActor()
@@ -26,7 +54,7 @@ void AMonsterSpawnVolume::ExecuteSpawnActor()
 
 	//땅 위 설 수 있는 자리를 못 찾으면 이번 한 마리는 건너뜀
 	//공중이나 벽 속에 내면 몬스터가 끼거나 떨어져서 플레이어에게 오지 못함
-	if (!TryGetRandomNavLocation(SpawnLocation))
+	if (!FindSpawnLocation(SpawnLocation))
 	{
 		return;
 	}
@@ -42,6 +70,36 @@ void AMonsterSpawnVolume::ExecuteSpawnActor()
 	}
 
 	SpawnOneMonster(BaseMonsters, SpawnLocation);
+}
+
+//낼 자리를 찾음
+bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
+{
+	const AMainPlayerCharacter* Player = GetPlayerCharacter();
+
+	for (int32 TryCount = 0; TryCount < SPAWN_LOCATION_TRY_COUNT; TryCount++)
+	{
+		FVector Candidate;
+
+		//내비메시 위가 아니면 다시 뽑음 볼륨이 벽에 걸쳐 있으면 절반은 여기서 걸림
+		if (!TryGetRandomNavLocation(Candidate))
+		{
+			continue;
+		}
+
+		//플레이어 몸 안에서 솟아오르는 것만 막음 문 앞에 볼륨을 놓았을 때 생김
+		if (Player && MinPlayerDistance > 0.0f
+			&& FVector::Dist(Candidate, Player->GetActorLocation()) < MinPlayerDistance)
+		{
+			continue;
+		}
+
+		OutLocation = Candidate;
+
+		return true;
+	}
+
+	return false;
 }
 
 AMonsterBase* AMonsterSpawnVolume::SpawnOneMonster(const TArray<TSubclassOf<AMonsterBase>>& MonsterClasses, const FVector& SpawnLocation)
@@ -87,15 +145,14 @@ AMonsterBase* AMonsterSpawnVolume::SpawnOneMonster(const TArray<TSubclassOf<AMon
 	//좁은 곳이라 겹쳐도 일단 냄 안 그러면 몬스터가 몰린 웨이브에서 스폰이 통째로 실패함
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	//플레이어 쪽을 보고 나오게 함 등을 돌린 채 나와서 한 바퀴 도는 모습을 없앰
-	FRotator SpawnRotation = FRotator::ZeroRotator;
+	//볼륨이 보는 쪽을 보고 나옴 문 앞에 놓고 화살표를 방 안쪽으로 돌려두면 문에서 걸어나온 것처럼 보임
+	//플레이어 쪽을 보게 하지 않는 이유 플레이어가 문 옆에 서 있으면 문을 등지지 않고 옆을 보고 나와서
+	//문에서 나왔다는 느낌이 깨짐 어차피 나온 뒤에는 AI가 바로 플레이어 쪽으로 돌림
+	//Pitch Roll을 0으로 두는 이유 볼륨을 기울여 놓아도 몬스터가 누운 채로 나오지 않게
+	FRotator SpawnRotation = GetActorForwardVector().Rotation();
 
-	if (PlayerPawn)
-	{
-		SpawnRotation = (PlayerPawn->GetActorLocation() - AdjustedLocation).Rotation();
-		SpawnRotation.Pitch = 0.0f;
-		SpawnRotation.Roll = 0.0f;
-	}
+	SpawnRotation.Pitch = 0.0f;
+	SpawnRotation.Roll = 0.0f;
 
 	//낸 몬스터를 등록하거나 스펙을 걸어주는 일은 하지 않음
 	//게임모드가 액터 스폰을 지켜보고 있다가 알아서 등록하고 스펙은 몬스터가 스스로 MonsterInit에서 검
@@ -129,10 +186,29 @@ void AMonsterSpawnVolume::BeginPlay()
 	);
 }
 
+//플레이어를 찾아서 들고 있음
+AMainPlayerCharacter* AMonsterSpawnVolume::GetPlayerCharacter()
+{
+	if (!PlayerPawn)
+	{
+		PlayerPawn = Cast<AMainPlayerCharacter>(UGameplayStatics::GetPlayerPawn(GetWorld(), 0));
+	}
+
+	return PlayerPawn;
+}
+
 float AMonsterSpawnVolume::GetEliteRate()
 {
-	if (!PlayerPawn) return 0;
-	int32 PlayerLevel = PlayerPawn->GetPlayerLevel();
+	const AMainPlayerCharacter* Player = GetPlayerCharacter();
+
+	//플레이어를 아직 못 찾았으면 최소 확률로 둠
+	//0을 돌려주면 엘리트가 한 마리도 안 나오는데 그게 기획인지 사고인지 구분이 안 됨
+	if (!Player)
+	{
+		return EliteMonsterMinRate;
+	}
+
+	int32 PlayerLevel = Player->GetPlayerLevel();
 
 	float LevelAlpha = FMath::Clamp(
 		static_cast<float>(PlayerLevel - 1) / (MaxDifficultyLevel - 1),
