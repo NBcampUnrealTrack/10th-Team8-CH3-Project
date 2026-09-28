@@ -81,8 +81,10 @@ const FMonsterSkillSettings* UMonsterSkill::FindSettings(EMonsterSkillType Skill
     });
 }
 
-void UMonsterSkill::SetProgression(int32 Phase, int32 Level)
+void UMonsterSkill::SetProgression(int32 Phase, int32 Level, bool bCheckPhase)
 {
+    //페이즈 값을 억지로 최대로 올리지 않고, 해당 조건을 사용할지 별도로 저장함
+    bCheckRequiredPhase = bCheckPhase;
     CurrentPhase = FMath::Max(1, Phase);
     CurrentLevel = FMath::Max(1, Level);
 }
@@ -102,7 +104,8 @@ bool UMonsterSkill::CanUseSkill(EMonsterSkillType Skill) const
     return GetWorld() && IsValid(Monster) && Settings
         && !bIsUsingSkill && !Monster->IsAttacking()
         && Monster->MonsterCombatStats && !Monster->MonsterCombatStats->IsDead()
-        && CurrentPhase >= Settings->RequiredPhase
+        //맵 진행 방식에서는 체력 페이즈와 관계없이 해당 레벨에 열린 스킬을 사용할 수 있음
+        && (!bCheckRequiredPhase || CurrentPhase >= Settings->RequiredPhase)
         && CurrentLevel >= Settings->RequiredLevel
         && GetCooldownRemaining(Skill) <= 0.0f;
 }
