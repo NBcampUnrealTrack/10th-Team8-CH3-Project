@@ -31,6 +31,37 @@ void FAugmentPool::BuildDefault()
 
     //무기 증강은 소총 권총 강화가 기획되면 EAugmentCategory::Weapon으로 여기에 추가
 
+    FillDisplayTexts();
+}
+
+//보스가 뽑을 증강만 채움
+void FAugmentPool::BuildBossDefault()
+{
+    //플레이어용 목록이 이미 들어 있을 수 있어서 비우고 다시 채움
+    Augments.Empty();
+
+    //공방체 증가는 먹을 때마다 수치가 더해지므로 반복 획득 허용
+    //Endless에서 보스가 여러 번 나올수록 고유 증강이 바닥나고 여기에 계속 쌓임
+    Augments.Add(FAugmentData(EAugmentID::AttackUp, EAugmentCategory::Passive, 20.0f, true));
+    Augments.Add(FAugmentData(EAugmentID::DefenceUp, EAugmentCategory::Passive, 20.0f, true));
+    Augments.Add(FAugmentData(EAugmentID::HealthUp, EAugmentCategory::Passive, 20.0f, true));
+
+    //두 번째로 뽑혀도 효과가 없는 증강은 반복 획득 금지 한 번 뽑히면 풀에서 빠짐
+    //보스에게 붙어도 말이 되는 것만 넣음 맞으면 반사하고 때리면 회복하고 몰리면 세지는 것들
+    Augments.Add(FAugmentData(EAugmentID::Berserker, EAugmentCategory::Passive, 8.0f, false));
+    Augments.Add(FAugmentData(EAugmentID::LastFortress, EAugmentCategory::Passive, 8.0f, false));
+    Augments.Add(FAugmentData(EAugmentID::ThornArmor, EAugmentCategory::Passive, 8.0f, false));
+    Augments.Add(FAugmentData(EAugmentID::Vampire, EAugmentCategory::Passive, 8.0f, false));
+    Augments.Add(FAugmentData(EAugmentID::Regeneration, EAugmentCategory::Passive, 8.0f, false));
+
+    //스태미나 넉백 범위공격 지속공격은 일부러 뺌 보스가 뽑으면 아무 일도 안 일어나는 빈 칸이 됨
+
+    FillDisplayTexts();
+}
+
+//목록의 이름과 설명을 채움
+void FAugmentPool::FillDisplayTexts()
+{
     //이름과 설명은 한곳에서 관리하고 여기서 복사해옴 블루프린트에서 따로 고칠 수도 있음
     for (FAugmentData& AugmentData : Augments)
     {

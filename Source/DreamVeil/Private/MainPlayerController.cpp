@@ -123,6 +123,26 @@ void AMainPlayerController::ShowGameOver()
     }
 }
 
+//엔딩 화면을 띄움
+bool AMainPlayerController::ShowEnding()
+{
+    //게임 오버가 먼저 떠 있으면 그 위에 덮지 않음 죽은 것과 깬 것이 같이 뜨면 어느 쪽인지 알 수 없음
+    if (bGameOverOpen || !EndingWidgetClass)
+    {
+        return false;
+    }
+
+    //레벨 곡을 먼저 멈춤 엔딩 영상에 소리가 들어 있어서 겹치면 둘 다 안 들림
+    //로비로 가면 로비 곡이 알아서 시작되고 제자리에서 닫을 때는 위젯이 PlayBaseBGM을 부르면 됨
+    if (AMainGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr)
+    {
+        GameMode->PlayBGM(nullptr);
+    }
+
+    //게임을 멈추고 띄움 뒤에서 몬스터가 계속 움직이면 엔딩이 아니라 전투 화면이 됨
+    return OpenMenuWidgetPaused(EndingWidgetClass) != nullptr;
+}
+
 bool AMainPlayerController::ShowCorruptionGameOver()
 {
     if (bGameOverOpen) return true;

@@ -184,6 +184,19 @@ void UDreamVeilGameInstance::CompleteCurrentLevel()
 //죽는 것도 실패의 한 종류라 규칙을 따로 두지 않고 여기 하나로 처리함
 void UDreamVeilGameInstance::FailCurrentLevel()
 {
+    //Endless는 본편을 다 깬 뒤에 덤으로 도는 곳이라 죽어도 잃는 것이 없음
+    //난이도 규칙을 그대로 걸면 어려움에서 한 번 들어갔다가 죽는 순간 저장까지 날아가서 아무도 안 들어감
+    //얻은 증강과 파츠를 그대로 들고 로비로 돌아감 쉬움에서 실패한 것과 같은 처리
+    //여기서 로비로 갈 수 있는 이유 HandleHardGameOver가 Endless에서 먼저 돌아가서 진행도와 저장이 그대로 남아 있음
+    if (IsInEndless())
+    {
+        SaveCurrentPlayerProgress();
+
+        OpenLobbyWithAutoSave();
+
+        return;
+    }
+
     if (Difficulty == EGameDifficulty::Hard)
     {
         ContinueAfterDeath();
@@ -206,7 +219,9 @@ void UDreamVeilGameInstance::FailCurrentLevel()
 void UDreamVeilGameInstance::ContinueAfterDeath()
 {
     // Hard ends the run and returns to the lobby without creating a new save.
-    if (Difficulty == EGameDifficulty::Hard)
+    //Endless에서는 이 갈래를 타지 않음 어려움이어도 판이 끝난 게 아니라서 메인 메뉴로 쫓아내면 안 됨
+    //아래 FailCurrentLevel이 Endless를 알아보고 로비로 보냄
+    if (Difficulty == EGameDifficulty::Hard && !IsInEndless())
     {
         HandleHardGameOver();
         UGameplayStatics::OpenLevel(this, MAIN_MENU_MAP_PATH);
@@ -220,10 +235,24 @@ void UDreamVeilGameInstance::ContinueAfterDeath()
 
 void UDreamVeilGameInstance::HandleHardGameOver()
 {
+    //Endless에서 죽은 것은 한 판이 끝난 게 아님 본편을 다 깬 뒤 덤으로 도는 곳이라 저장과 진행도를 건드리지 않음
+    //이 가드가 제일 중요함 컨트롤러가 게임 오버 화면을 띄우는 순간 이 함수를 부르기 때문에
+    //여기서 안 막으면 확인 버튼을 누르기도 전에 저장이 지워지고 bHardRunEnded 때문에 다시 저장도 안 됨
+    //그러면 아래 실패 처리를 아무리 고쳐도 이미 다 지워진 상태로 로비에 도착함
+    if (IsInEndless()) return;
+
     if (Difficulty != EGameDifficulty::Hard || bHardRunEnded) return;
     DeleteSavedGame();
     ClearRunProgress();
     bHardRunEnded = true;
+}
+
+//마지막 레벨을 이번에 처음 깼는지
+bool UDreamVeilGameInstance::IsFinalLevelFirstClear() const
+{
+    //지금 맵이 마지막 레벨이어야 하고 아직 그 레벨을 깬 기록이 없어야 함
+    //깬 기록으로 거르는 이유 L4는 보스 파츠 때문에 반복해서 돌 텐데 돌 때마다 엔딩이 뜨면 성가심
+    return GetCurrentLevelNumber() == LEVEL_COUNT && ClearedLevelCount < LEVEL_COUNT;
 }
 
 //L4까지 다 깨서 Endless가 열렸는지

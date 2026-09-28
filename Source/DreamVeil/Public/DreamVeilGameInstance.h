@@ -90,6 +90,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Level")
 	bool IsEndlessUnlocked() const;
 
+	//지금 깬 레벨이 마지막 레벨이고 그걸 처음 깬 것인지 게임모드가 엔딩을 띄울지 정할 때 씀
+	//진행도를 올리기 전에 물어봐야 함 CompleteCurrentLevel이 진행도를 올리고 나면 항상 false가 됨
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsFinalLevelFirstClear() const;
+
 	//무한 모드로 들어감 로비의 Endless 버튼과 침대의 꿈 선택 UI가 부를 것
 	//아직 안 열렸으면 아무것도 하지 않고 false라서 UI가 버튼을 막지 못해도 안전함
 	UFUNCTION(BlueprintCallable, Category = "Level")

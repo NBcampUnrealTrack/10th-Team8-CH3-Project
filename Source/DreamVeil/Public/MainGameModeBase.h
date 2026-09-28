@@ -94,6 +94,11 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BGM")
 	void PlayGameOverBGM();
 
+	//지금 맵에 맞는 기본 곡으로 되돌림 엔딩 화면처럼 배경음을 잠깐 멈췄다가 다시 트는 곳이 부를 것
+	//맵을 옮기면 게임모드가 새로 만들어지면서 알아서 틀기 때문에 제자리에서 닫을 때만 필요함
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void PlayBaseBGM();
+
 
 	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
 	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠
@@ -190,9 +195,14 @@ private:
 	//무한 모드에서 보스를 내는 타이머
 	FTimerHandle EndlessBossTimerHandle;
 
-	//보스를 냄 실제로 나왔으면 true 보스 클래스가 비었거나 플레이어가 없으면 false
-	//결과를 돌려주는 이유 보스가 못 나온 맵에서는 잡몹을 다 잡으면 클리어되는 예전 방식으로 돌아가야 해서
-	bool SpawnBoss();
+	//보스를 냄 못 냈으면 nullptr 보스 클래스가 비었거나 플레이어가 없을 때
+	//bool이 아니라 낸 보스를 돌려주는 이유 Endless가 그 보스에게 증강을 걸어야 해서
+	//레벨 쪽은 nullptr인지만 보면 돼서 예전과 똑같이 쓸 수 있음
+	AMonsterBase* SpawnBoss();
+
+	//Endless에서 지금까지 낸 보스 수 몇 번째 보스인지가 곧 붙여줄 증강 개수가 됨
+	//레벨에서는 쓰지 않음 레벨은 보스가 하나뿐이라 셀 것이 없음
+	int32 EndlessBossCount = 0;
 
 	//레벨 제한 시간 타이머 L1~L4에서만 걸림
 	//타이머를 건 적이 없거나 레벨을 이미 끝냈으면 무효 상태라서 레벨이 두 번 끝나는 걸 막는 표시로도 씀

@@ -55,6 +55,11 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TSubclassOf<UUserWidget> GameOverWidgetClass;
 
+	//엔딩 화면 위젯 블루프린트 마지막 레벨을 처음 깼을 때 뜸 BP_MainPlayerController에 WBP_Ending을 넣을 것
+	//비워두면 엔딩 없이 예전처럼 바로 로비로 감 아직 위젯을 안 만들었어도 깨지지 않게 하려는 것
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TSubclassOf<UUserWidget> EndingWidgetClass;
+
 	//항상 떠 있는 화면 체력 스태미나 꿈의 조각 표시용 WBP_HUD를 넣을 것
 	//레벨이 시작될 때 자동으로 뜨고 메뉴 위젯과 달리 입력 모드를 바꾸지 않음
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
@@ -106,6 +111,12 @@ public:
 
 	// Timeout reuses the Game Over screen, without converting it into a Hard-mode death.
 	bool ShowCorruptionGameOver();
+
+	//엔딩 화면을 띄움 위젯을 안 꽂아뒀으면 false라서 게임모드가 예전처럼 바로 로비로 보냄
+	//띄우면서 배경음을 멈춤 트레일러에 소리가 들어 있어서 레벨 곡과 겹치면 둘 다 안 들림
+	//진행도를 올리고 로비로 가는 일은 엔딩 위젯의 버튼이 CompleteCurrentLevel로 함
+	UFUNCTION(BlueprintCallable, Category = "UI")
+	bool ShowEnding();
 	UFUNCTION(BlueprintPure, Category = "UI")
 	bool IsCorruptionGameOver() const { return bCorruptionGameOver; }
 

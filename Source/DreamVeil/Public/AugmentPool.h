@@ -59,8 +59,15 @@ struct FAugmentPool
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
 	TArray<FAugmentData> Augments;
 
-	//기본 증강 목록을 채움 이미 채워져 있으면 건너뜀
+	//기본 증강 목록을 채움 이미 채워져 있으면 건너뜀 플레이어용
 	void BuildDefault();
+
+	//보스가 뽑을 증강만 채움 이미 들어 있던 목록은 비우고 다시 채움
+	//BuildDefault처럼 "비어 있을 때만"으로 두지 않는 이유
+	//컴포넌트 생성자가 이미 플레이어용 목록을 채워둬서 그냥 두면 그게 그대로 남음
+	//스태미나 넉백 범위공격 지속공격을 빼는 이유 총을 쏘고 달리는 플레이어에게만 뜻이 있는 것들이라
+	//보스가 뽑으면 아무 일도 안 일어나는 빈 칸이 됨
+	void BuildBossDefault();
 
 	//번호로 증강 정보를 찾음 없으면 nullptr
 	const FAugmentData* Find(EAugmentID AugmentID) const;
@@ -70,4 +77,7 @@ struct FAugmentPool
 
 	//반복 획득이 안 되는 증강이면 풀에서 제거
 	void RemoveIfNotRepeatable(EAugmentID AugmentID);
+
+	//목록의 이름과 설명을 채움 목록을 만드는 곳마다 같은 반복문을 복사하지 않으려고 뺌
+	void FillDisplayTexts();
 };

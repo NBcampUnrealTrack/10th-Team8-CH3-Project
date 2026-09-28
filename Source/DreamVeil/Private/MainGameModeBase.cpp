@@ -4,6 +4,7 @@
 #include "Sound/SoundBase.h"
 #include "MainPlayerController.h"
 #include "CombatStatsComponent.h"
+#include "DispatchTableComponent.h"
 #include "DreamVeilGameInstance.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
@@ -148,7 +149,7 @@ void AMainGameModeBase::StartNextWave()
 		//보스가 나오면 SpawnBoss 안에서 보스 곡으로 갈리고 남은 2분 안에 잡아야 클리어됨
 		if (!bBossSpawned)
 		{
-			bBossSpawned = SpawnBoss();
+			bBossSpawned = SpawnBoss() != nullptr;
 		}
 
 		//보스가 나왔으면 잡몹 스폰을 멈추지 않고 클리어 판정도 걸지 않음
@@ -281,7 +282,34 @@ void AMainGameModeBase::SpawnEndlessBoss()
 {
 	//앞 보스가 아직 살아 있어도 또 냄 오래 버틸수록 보스가 쌓이는 것이 무한 모드의 압박
 	//스펙은 몬스터가 스스로 월드 시간을 보고 걸기 때문에 나중에 나온 보스일수록 셈
-	SpawnBoss();
+	AMonsterBase* Boss = SpawnBoss();
+
+	if (!Boss)
+	{
+		return;
+	}
+
+	EndlessBossCount++;
+
+	//몇 번째 보스인지만큼 증강을 붙임 첫 보스는 하나 다섯 번째 보스는 다섯 개
+	//시간 배율과 따로 두는 이유 배율은 숫자만 커지는데 증강은 굴리는 방식이 바뀌어서 체감이 다름
+	//풀에서 뽑기 때문에 같은 순서의 보스라도 판마다 다른 조합이 나옴
+	//뽑을 수 있는 증강은 보스 전용 목록으로 제한돼 있음 ABossMonster 생성자 참고
+	UDispatchTableComponent* BossDispatchTable = Boss->FindComponentByClass<UDispatchTableComponent>();
+
+	if (!BossDispatchTable)
+	{
+		return;
+	}
+
+	for (int32 AugmentIndex = 0; AugmentIndex < EndlessBossCount; AugmentIndex++)
+	{
+		//한 번 뽑힌 고유 증강은 풀에서 빠지고 공방체 증가만 계속 쌓임
+		//다 떨어지면 false가 돌아오는데 그때는 더 붙일 것이 없다는 뜻이라 그냥 둠
+		BossDispatchTable->DrawAndApplyAugment();
+	}
+
+	UE_LOG(LogTemp, Log, TEXT("[Endless] %d번째 보스 등장 증강 %d개"), EndlessBossCount, EndlessBossCount);
 }
 
 //지금 몇 번째 웨이브인지
@@ -297,11 +325,11 @@ int32 AMainGameModeBase::GetWaveCount() const
 }
 
 //보스를 냄
-bool AMainGameModeBase::SpawnBoss()
+AMonsterBase* AMainGameModeBase::SpawnBoss()
 {
 	if (!BossClass)
 	{
-		return false;
+		return nullptr;
 	}
 
 	//플레이어 위치를 기준으로 앞쪽에 냄 보스 전용 스폰 지점이 생기면 그쪽으로 바꿀 것
@@ -309,7 +337,7 @@ bool AMainGameModeBase::SpawnBoss()
 
 	if (!PlayerPawn)
 	{
-		return false;
+		return nullptr;
 	}
 
 	const FVector SpawnLocation = PlayerPawn->GetActorLocation() + PlayerPawn->GetActorForwardVector() * BossSpawnDistance;
@@ -340,14 +368,14 @@ bool AMainGameModeBase::SpawnBoss()
 	{
 		UE_LOG(LogTemp, Warning, TEXT("[Level] 보스를 못 냄 BossClass와 스폰 위치 확인"));
 
-		return false;
+		return nullptr;
 	}
 
 	//보스가 나왔으니 보스 곡으로 갈아 끼움
 	//여기서 직접 PlayBGM을 부르지 않는 이유 나올 때와 죽을 때가 같은 판정을 쓰게 하려는 것
 	UpdateBGMForBoss();
 
-	return true;
+	return Boss;
 }
 
 //스포너가 이번 레벨에 낼 몬스터를 다 냈을 때
@@ -481,6 +509,21 @@ void AMainGameModeBase::ClearLevel()
 		return;
 	}
 
+	//마지막 레벨을 처음 깼으면 로비로 보내기 전에 엔딩을 띄움 2탄을 예고하는 화면
+	//진행도를 올리기 전에 물어봐야 함 CompleteCurrentLevel이 올리고 나면 처음 깬 것인지 알 수 없음
+	//진행도 올리기와 로비 이동은 엔딩 위젯의 버튼이 CompleteCurrentLevel을 불러서 함
+	//위젯을 안 꽂아뒀으면 ShowEnding이 false라서 아래 예전 흐름으로 그대로 내려감
+	if (DreamVeilGameInstance->IsFinalLevelFirstClear())
+	{
+		if (AMainPlayerController* PlayerController = Cast<AMainPlayerController>(UGameplayStatics::GetPlayerController(this, 0)))
+		{
+			if (PlayerController->ShowEnding())
+			{
+				return;
+			}
+		}
+	}
+
 	//증강 저장 진행도 올리기 로비 이동은 GameInstance가 한 번에 함
 	DreamVeilGameInstance->CompleteCurrentLevel();
 }
@@ -520,8 +563,8 @@ void AMainGameModeBase::PlayBGM(USoundBase* NewBGM)
 
 	if (!NewBGM)
 	{
-		//이 맵에 틀 곡이 없다는 뜻 조용한 게 정상인 맵이 아니면 게임모드 기본값이 비어 있는 것
-		UE_LOG(LogTemp, Warning, TEXT("[BGM] 이 맵에 틀 곡이 없음 BP_MainGameModeBase의 BGM 칸 확인"));
+		//일부러 멈춘 것일 수도 있고(엔딩 화면) 곡을 안 꽂아둔 것일 수도 있어서 둘 다 알아보게 적음
+		UE_LOG(LogTemp, Log, TEXT("[BGM] 배경음을 멈춤 일부러 멈춘 게 아니면 BP_MainGameModeBase의 BGM 칸 확인"));
 
 		return;
 	}
@@ -559,6 +602,12 @@ void AMainGameModeBase::PlayBGM(USoundBase* NewBGM)
 void AMainGameModeBase::PlayGameOverBGM()
 {
 	PlayBGM(GameOverBGM);
+}
+
+//지금 맵에 맞는 기본 곡으로 되돌림
+void AMainGameModeBase::PlayBaseBGM()
+{
+	PlayBGM(GetBaseBGM());
 }
 
 //지금 맵에 맞는 기본 배경음

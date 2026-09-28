@@ -1,6 +1,7 @@
 #include "BossMonster.h"
 
 #include "CombatStatsComponent.h"
+#include "DispatchTableComponent.h"
 #include "DreamVeilGameInstance.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TimerManager.h"
@@ -42,6 +43,12 @@ ABossMonster::ABossMonster()
 	MonsterCombatStats->SetMaxHealth(MaxHealth);
 
 	MonsterWalkSpeed = 800.0f;
+
+	//보스가 뽑을 증강 목록을 보스 전용으로 바꿈
+	//증강 컴포넌트 생성자가 이미 플레이어용 목록을 채워둔 상태라 그걸 비우고 다시 채우는 것
+	//그대로 두면 Endless 보스가 스태미나 증가나 넉백 같은 걸 뽑아서 아무 일도 안 일어나는 칸을 쓰게 됨
+	//실제로 몇 개를 붙일지는 게임모드가 정함 Endless에서 몇 번째로 나온 보스인지가 곧 개수
+	MonsterDispatchTable->AugmentPool.BuildBossDefault();
 }
 
 bool ABossMonster::StartAttack(AActor* Target)
