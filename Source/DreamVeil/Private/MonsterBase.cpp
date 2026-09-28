@@ -148,6 +148,28 @@ UMaterialInterface* AMonsterBase::GetAttackWarningMaterial() const
 	return IsValid(AttackWarningEffect) ? AttackWarningEffect->GetDecalMaterial() : nullptr;
 }
 
+float AMonsterBase::GetAttackPowerScale() const
+{
+	// 기본 공격력이 0이면 비율을 낼 수 없으니 배율 없이 1
+	if (!IsValid(MonsterCombatStats) || MonsterDamage <= UE_KINDA_SMALL_NUMBER)
+	{
+		return 1.0f;
+	}
+
+	// MonsterInit에서 공격력 = MonsterDamage x sqrt(난이도 x 레벨 x 등급)으로 잡히고 이후 증강으로 더 오를 수 있음
+	// 지금 공격력을 기본값으로 나누면 그 모든 배율이 한 숫자로 나옴
+	return MonsterCombatStats->GetAttackPower() / MonsterDamage;
+}
+
+float AMonsterBase::GetSkillDamageScale() const
+{
+	// 등급 배율도 공격력에는 제곱근으로 들어갔으므로 같은 방식으로 나눠서 뺌
+	const float GradeScale = UMonsterProgressionLibrary::GetGradeStatScale(UMonsterProgressionLibrary::GetMonsterGrade(this));
+	const float GradeAttackScale = FMath::Sqrt(FMath::Max(GradeScale, UE_KINDA_SMALL_NUMBER));
+
+	return GetAttackPowerScale() / GradeAttackScale;
+}
+
 
 void AMonsterBase::BeginPlay()
 {

@@ -20,12 +20,7 @@
 
 namespace
 {
-    //요청한 거리와 준비 시간은 고정하고, 피해와 쿨타임만 에디터에서 조절한다.
-    constexpr float ChargeTriggerDistance = 800.0f;
-    constexpr float ChargeDistance = 1200.0f;
-    constexpr float ChargeReadySeconds = 1.0f;
-    //초당 1200cm로 1초 동안 돌진한다. 경사와 바닥 충돌은 CharacterMovement가 처리한다.
-    constexpr float ChargeSpeed = 5000.0f;
+    //돌진 거리 속도 준비 시간 폭은 헤더의 UPROPERTY로 옮겨서 BP에서 조절한다.
     const FName ChargeMotionName(TEXT("MonsterCharge"));
 }
 
@@ -35,8 +30,6 @@ UMonsterSkill::UMonsterSkill()
     //쿨타임에는 Tick이 필요 없지만 돌진의 구간 충돌 검사에만 잠시 사용한다.
     PrimaryComponentTick.bCanEverTick = true;
     PrimaryComponentTick.bStartWithTickEnabled = false;
-    //이 값 하나로 경고와 공격의 전체 가로 폭을 설정한다. 200cm는 좌우 합쳐 2m다.
-    ChargeWidth = 500.0f;
 }
 
 void UMonsterSkill::BeginPlay()
@@ -182,7 +175,8 @@ bool UMonsterSkill::TryUseCharge()
     Monster->ShowAttackWarning(WarningStart, WarningStart + ChargeDirection * ChargeDistance,
         ChargeWidth);
     PlayChargeAnimation(ChargeReadyAnimation);
-    GetWorld()->GetTimerManager().SetTimer(ChargeReadyTimer, this, &UMonsterSkill::StartCharge, ChargeReadySeconds, false);
+    //준비 시간이 0이어도 타이머가 걸리도록 최소값을 둔다.
+    GetWorld()->GetTimerManager().SetTimer(ChargeReadyTimer, this, &UMonsterSkill::StartCharge, FMath::Max(ChargeReadySeconds, 0.01f), false);
     return true;
 }
 
@@ -294,7 +288,8 @@ void UMonsterSkill::CheckChargeHits(const FVector& Start, const FVector& End)
             if (!Player->CombatStats || Player->CombatStats->IsDead()) continue;
             //플레이어는 캐릭터 이동 컴포넌트에 질량을 무시하는 순간 충격을 더한다.
             Player->GetCharacterMovement()->AddImpulse(ChargeDirection * 600.0f + FVector::UpVector * 300.0f, true);
-            UGameplayStatics::ApplyDamage(Player, ChargeDamage, Monster->GetController(), Monster, nullptr);
+            //쉬움 L1 기준 피해에 몬스터의 스킬 피해 배율(난이도 레벨 증강)을 곱한다. 평타와 같은 비율로 강해진다.
+            UGameplayStatics::ApplyDamage(Player, ChargeDamage * Monster->GetSkillDamageScale(), Monster->GetController(), Monster, nullptr);
             if (!bCharging || !IsValid(Monster)) return;
         }
         else if (AMonsterBase* OtherMonster = Cast<AMonsterBase>(Target))
@@ -437,7 +432,8 @@ void UMonsterSkill::FireFanShot()
                 ProjectileClass, SpawnTransform, Monster, Monster, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
             if (!Projectile) continue;
 
-            Projectile->SetDamage(FanShotDamage);
+            //쉬움 L1 기준 피해에 스킬 피해 배율을 곱한다. 폭발탄이면 폭발 피해도 이 값을 기준으로 계산된다.
+            Projectile->SetDamage(FanShotDamage * Monster->GetSkillDamageScale());
             UGameplayStatics::FinishSpawningActor(Projectile, SpawnTransform);
             Spawned.Add(Projectile);
         }
@@ -577,6 +573,8 @@ bool UMonsterSkill::TryUseBlackHole()
     {
         //장판 BP에 경고 머티리얼이 없으면 몬스터의 경고 데칼 머티리얼을 쓴다.
         Zone->SetFallbackWarningMaterial(Monster->GetAttackWarningMaterial());
+        //장판 BP의 DamagePerTick은 쉬움 L1 기준 깔리는 순간의 배율로 고정한다.
+        Zone->SetDamageScale(Monster->GetSkillDamageScale());
         UGameplayStatics::FinishSpawningActor(Zone, ZoneTransform);
     }
 

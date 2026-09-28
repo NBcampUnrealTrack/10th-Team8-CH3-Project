@@ -75,6 +75,16 @@ public:
 
 	// 스킬에서 몬스터의 기본 투사체 설정을 재사용하기 위함
 	TSubclassOf<AMonsterProjectile> GetRangedProjectileClass() const { return RangedProjectile; }
+
+	// 지금 공격력이 기본 공격력(MonsterDamage)의 몇 배인지
+	// 난이도 레벨 등급 배율(제곱근)과 공격력 증강이 모두 들어 있음 스킬 피해를 평타와 같은 비율로 키울 때 씀
+	float GetAttackPowerScale() const;
+
+	// 스킬 피해 배율 쉬움 L1에서 1이 되도록 등급 배율을 뺀 값
+	// 스킬마다 적어둔 피해(돌진 30 부채꼴 15 장판 5)가 쉬움 L1에서는 그대로 들어가고
+	// 난이도 레벨이 오르거나 공격력 증강을 얻으면 평타와 같은 비율로 커짐
+	// 엘리트와 보스가 같은 수치를 써도 쉬움 L1에서 같은 피해가 나오게 하려고 등급은 빼둠
+	float GetSkillDamageScale() const;
 	FVector GetProjectileSpawnOffset() const { return ProjectileSpawnOffset; }
 
 	//받은 데미지를 증강 라이브러리로 넘김 이게 없으면 체력이 안 깎임

@@ -42,7 +42,8 @@ ABossMonster::ABossMonster()
 
 	MonsterCombatStats->SetMaxHealth(MaxHealth);
 
-	MonsterWalkSpeed = 800.0f;
+	MinWalkSpeed = 800.0f;
+	MaxWalkSpeed = 800.0f;
 
 	//보스가 뽑을 증강 목록을 보스 전용으로 바꿈
 	//증강 컴포넌트 생성자가 이미 플레이어용 목록을 채워둔 상태라 그걸 비우고 다시 채우는 것
@@ -89,6 +90,7 @@ void ABossMonster::MonsterInit()
 {
 	Super::MonsterInit();
 
+	MonsterAttackRange = 1500.0f;
 	//시작은 항상 1페이즈
 	CurrentPhase = 1;
 
