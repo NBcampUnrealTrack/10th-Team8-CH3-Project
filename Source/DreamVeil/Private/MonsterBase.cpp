@@ -772,6 +772,23 @@ void AMonsterBase::OnDeath()
 	//시체가 플레이어나 무기 광선을 막지 않게 하고 바닥과의 물리 충돌은 유지함
 	GetMesh()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
 	GetWorldTimerManager().SetTimer(DeathTimer, this, &AMonsterBase::FinishDeath, 1.0f, false);
+
+	if (ActorHasTag(TEXT("Boss")))
+	{
+		//보스 액터는 1초 뒤 사라지므로 this에 묶으면 5초 뒤 신호를 보낼 수 없음
+		//수신 목록만 복사해서 월드 타이머가 전달함. AddUObject로 등록한 수신자는 약한 참조라 파괴되면 호출하지 않음
+		//맵을 떠나 기존 게임모드가 파괴되면 복사한 수신 목록에서도 호출이 생략되어 새 게임모드에는 전달되지 않음
+		FTimerHandle DeathReportTimer;
+		GetWorldTimerManager().SetTimer(DeathReportTimer, FTimerDelegate::CreateLambda([DeathReport = OnDeathReported]()
+		{
+			DeathReport.Broadcast();
+		}), 5.0f, false);
+	}
+	else
+	{
+		//일반 몬스터의 처치 수는 기존처럼 사망 즉시 반영함
+		OnDeathReported.Broadcast();
+	}
 }
 
 void AMonsterBase::FinishDeath()

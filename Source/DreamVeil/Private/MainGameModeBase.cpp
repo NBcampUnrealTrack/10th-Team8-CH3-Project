@@ -203,9 +203,10 @@ void AMainGameModeBase::SpawnBoss()
 		Boss->Tags.Add(BOSS_TAG);
 
 		//태그가 없는 채로 등록됐으니 보스 사망 구독을 여기서 걸어줌
-		if (UCombatStatsComponent* BossStats = Boss->FindComponentByClass<UCombatStatsComponent>())
+		if (Boss->FindComponentByClass<UCombatStatsComponent>())
 		{
-			BossStats->OnDead.AddDynamic(this, &AMainGameModeBase::HandleBossDead);
+			//실제 대기는 몬스터가 담당하고 게임모드는 전달된 처치 완료 신호만 받음
+			Boss->OnDeathReported.AddUObject(this, &AMainGameModeBase::HandleBossDead);
 		}
 	}
 
@@ -244,13 +245,15 @@ void AMainGameModeBase::RegisterMonster(AMonsterBase* Monster)
 
 	AliveMonsterCount++;
 
-	MonsterStats->OnDead.AddDynamic(this, &AMainGameModeBase::HandleMonsterDead);
+	//보스의 처치 수도 5초 뒤 신호로 반영해야 마지막 몬스터 판정이 지연을 건너뛰지 않음
+	Monster->OnDeathReported.AddUObject(this, &AMainGameModeBase::HandleMonsterDead);
 
 	//보스는 죽는 순간 따로 클리어 처리 L4는 보스를 잡아야 Endless가 열림
 	//살아있는 수에서도 빠져야 하므로 위의 HandleMonsterDead 구독은 그대로 둠
 	if (IsBossMonster(Monster))
 	{
-		MonsterStats->OnDead.AddDynamic(this, &AMainGameModeBase::HandleBossDead);
+		//아래 클리어 처리는 그대로 두고 보스가 보내는 5초 뒤 신호에 연결함
+		Monster->OnDeathReported.AddUObject(this, &AMainGameModeBase::HandleBossDead);
 	}
 }
 

@@ -56,7 +56,8 @@ public:
     TArray<FMonsterSkillSettings> Skills;
 
     UFUNCTION(BlueprintCallable, Category = "Monster|Skill")
-    void SetProgression(int32 Phase, int32 Level);
+    //기존 호출은 페이즈 조건을 유지하고, 맵 레벨만 쓰는 보스는 마지막 인자로 false를 전달함
+    void SetProgression(int32 Phase, int32 Level, bool bCheckPhase = true);
 
     UFUNCTION(BlueprintPure, Category = "Monster|Skill")
     bool CanUseSkill(EMonsterSkillType Skill) const;
@@ -164,6 +165,9 @@ protected:
     int32 CurrentLevel = 1;
 
 private:
+    //진행 방식을 전달받아 저장함. 기존 엘리트와 BP 호출은 원래의 페이즈 조건을 유지함
+    bool bCheckRequiredPhase = true;
+
     //돌진의 전체 가로 폭(cm). 생성자에서 설정하고 데칼과 공격 판정이 함께 사용한다.
     float ChargeWidth;
 
