@@ -23,6 +23,7 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "MonsterCollision.h"
 #include "AI/Navigation/AvoidanceManager.h"
+#include "Particles/ParticleSystem.h"
 
 AMonsterBase::AMonsterBase()
 {
@@ -525,6 +526,15 @@ void AMonsterBase::BeginRagdoll(const FVector& LaunchVelocity)
 	// 이미 레그돌이거나, 몬스터 스탯이 존재하지 않거나, 죽었으면 나가라
 	if (bIsRagdoll || !MonsterCombatStats || MonsterCombatStats->IsDead()) return;
 
+	ActivateRagdoll(LaunchVelocity);
+	if (!bIsRagdoll) return;
+
+	// 일정 시간 뒤 기상 시도
+	GetWorldTimerManager().SetTimer(RagdollRecoverTimer, this, &AMonsterBase::TryEndRagdoll, FMath::Max(0.1f, RagdollRecoverDelay), false);
+}
+
+void AMonsterBase::ActivateRagdoll(const FVector& LaunchVelocity)
+{
 	// 캐싱 시도, 스켈레탈 안 쓰는 친구면 여기서 실패할듯
 	USkeletalMeshComponent* SkeletalMesh = Cast<USkeletalMeshComponent>(GetMesh());
 
@@ -590,8 +600,6 @@ void AMonsterBase::BeginRagdoll(const FVector& LaunchVelocity)
 		true			//false면 해당 자식의 몸체에만 적용, true면 지정한 시작 뼈의 물리 몸체도 포함함.
 	);
 
-	// 일정 시간 뒤 기상 시도
-	GetWorldTimerManager().SetTimer(RagdollRecoverTimer, this, &AMonsterBase::TryEndRagdoll, FMath::Max(0.1f, RagdollRecoverDelay), false);
 }
 
 void AMonsterBase::TryEndRagdoll()
@@ -731,10 +739,52 @@ bool AMonsterBase::IsHeadshotHit(const FHitResult& HitResult) const
 
 void AMonsterBase::OnDeath()
 {
+	//사망 알림이 다시 들어와도 1초 대기 시간이 처음부터 시작되지 않도록 막음
+	if (GetWorldTimerManager().TimerExists(DeathTimer)) return;
+
 	// 레그돌 중에 죽으면 기상 시도하지 않도록
 	GetWorldTimerManager().ClearTimer(RagdollRecoverTimer);
 	CancelAttack();
 	HideAttackWarning();
+
+	//기상 중에는 이미 물리가 꺼져 있으므로 레그돌을 다시 시작할 수 있게 상태를 정리함
+	if (bIsGettingUp) bIsRagdoll = false;
+	bIsGettingUp = false;
+	ActiveGetUpMontage = nullptr;
+	if (UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance())
+	{
+		//기상 상태를 먼저 해제했으므로 몽타주 종료 콜백이 AI를 다시 활성화하지 않음
+		AnimInstance->StopAllMontages(0.0f);
+	}
+
+	//이미 쓰러져 있다면 현재 물리 속도를 유지하고, 서 있었다면 추가 충격 없이 쓰러뜨림
+	if (!bIsRagdoll) ActivateRagdoll(FVector::ZeroVector);
+	//물리 에셋이 없는 몬스터도 사망 후 공격하거나 이동하지 않도록 처리함
+	bIsRagdoll = true;
+	DetachFromControllerPendingDestroy();
+	GetCharacterMovement()->StopMovementImmediately();
+	GetCharacterMovement()->DisableMovement();
+	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	if (IsValid(MonsterCollisionComponent))
+	{
+		MonsterCollisionComponent->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+	}
+	//시체가 플레이어나 무기 광선을 막지 않게 하고 바닥과의 물리 충돌은 유지함
+	GetMesh()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
+	GetWorldTimerManager().SetTimer(DeathTimer, this, &AMonsterBase::FinishDeath, 1.0f, false);
+}
+
+void AMonsterBase::FinishDeath()
+{
+	if (DeathParticle)
+	{
+		//레그돌은 캡슐과 떨어져 움직이므로 액터 위치 대신 현재 골반 위치에서 파티클을 생성함
+		USkeletalMeshComponent* SkeletalMesh = GetMesh();
+		const FName PelvisBone = SkeletalMesh->DoesSocketExist(PelvisBoneName) ? PelvisBoneName : SkeletalMesh->GetBoneName(0);
+		const FVector EffectLocation = PelvisBone.IsNone() ? SkeletalMesh->GetComponentLocation() : SkeletalMesh->GetSocketLocation(PelvisBone);
+		//월드에 독립적으로 생성하고 재생이 끝나면 자동 정리하므로 시체 제거 후에도 연출이 남음
+		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), DeathParticle, EffectLocation, FRotator::ZeroRotator, true);
+	}
 	Destroy();
 }
 

@@ -18,6 +18,7 @@ class UDispatchTableComponent;
 class UDecalComponent;
 class UMonsterSkill;
 class UMaterialInterface;
+class UParticleSystem;
 
 DECLARE_MULTICAST_DELEGATE_OneParam(
 	FOnMonsterAttackFinished,
@@ -113,6 +114,10 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void MonsterInit();
+
+	//사망 후 1초 뒤 시체 위치에 생성할 파티클. 액터와 따로 생성해서 몬스터가 사라져도 재생됨
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Death")
+	TObjectPtr<UParticleSystem> DeathParticle;
 
 	//공격 애니메이션이 있는 몬스터는 노티파이를 쓰고, 없는 몬스터는 기존 공격 타이머로 발사와 종료를 처리함
 	bool bUseAttackMontage = true;
@@ -212,6 +217,11 @@ protected:
 	bool bFlipRagdollFaceUpCheck = false;
 
 private:
+	//피격과 사망에서 같은 물리 전환을 사용하되, 기상 예약은 살아 있을 때만 따로 처리함
+	void ActivateRagdoll(const FVector& LaunchVelocity);
+	//사망 연출 대기가 끝나면 파티클을 생성하고 몬스터를 제거함
+	void FinishDeath();
+	FTimerHandle DeathTimer;
 
 	void PerformMeleeCheck();
 	void SpawnAttackProjectile();
