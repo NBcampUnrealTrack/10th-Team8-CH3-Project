@@ -11,6 +11,8 @@ class UInventoryComponent;
 class AMainPlayerCharacter;
 class APawn;
 class USoundBase;
+class USoundClass;
+class USoundMix;
 
 //난이도 죽거나 시간 초과로 실패했을 때 증강 파츠 꿈의 조각 소총을 얼마나 잃는지
 //팀에서 상의해서 안 쓸 난이도는 빼도 됨 규칙은 FailCurrentLevel ContinueAfterDeath에만 있음
@@ -133,9 +135,15 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BGM")
 	void AddBGMVolume(float Delta);
 
-	//배경음을 껐다 켰다 함 껐을 때도 크기 값은 그대로 두어서 다시 켜면 원래 크기로 돌아옴
+	//배경음을 껐다 켰다 함 소리만 0으로 줄이고 곡은 계속 흐름
+	//곡을 멈추지 않는 이유 멈췄다 다시 틀면 처음으로 돌아가서 껐다 켜면 노래가 처음부터 다시 나옴
 	UFUNCTION(BlueprintCallable, Category = "BGM")
 	void ToggleBGMMute();
+
+	//지금 크기를 배경음 전체에 먹임 사운드 믹스를 쓰므로 어느 맵의 어느 컴포넌트가 틀고 있든 한 번에 걸림
+	//곡을 틀기 시작할 때와 크기를 바꿀 때 부름 크기를 바꾼다고 곡이 다시 시작되지 않음
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void ApplyBGMVolume();
 
 	//메인 메뉴 배경음을 틂 메인 메뉴 위젯의 Construct가 부름
 	//게임모드가 아니라 여기 있는 이유 메인 메뉴 맵만 엔진 기본 게임모드를 씀
@@ -230,6 +238,14 @@ private:
 	//다른 곡들은 게임모드 블루프린트에서 지정함
 	UPROPERTY(Transient)
 	TObjectPtr<USoundBase> MainMenuBGM;
+
+	//배경음 다섯 곡이 모두 속한 사운드 클래스 볼륨을 여기에 걸면 전체에 걸림
+	UPROPERTY(Transient)
+	TObjectPtr<USoundClass> BGMSoundClass;
+
+	//위 클래스의 볼륨을 덮어쓸 때 쓰는 믹스 내용은 비어 있고 값은 게임에서 넣음
+	UPROPERTY(Transient)
+	TObjectPtr<USoundMix> BGMSoundMix;
 
 	//배경음 크기 0~1 처음 값을 1이 아니라 낮게 잡은 이유 총성과 피격음이 묻히지 않게 하려는 것
 	float BGMVolume = 0.3f;

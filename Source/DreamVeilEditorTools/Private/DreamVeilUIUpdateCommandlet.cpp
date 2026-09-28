@@ -117,6 +117,8 @@ int32 UDreamVeilUIUpdateCommandlet::Main(const FString& Params)
 {
     if (FParse::Param(*Params, TEXT("FixShop"))) return FixDreamVeilShopAndInventory() ? 0 : 21;
     if (FParse::Param(*Params, TEXT("WireMenuBGM"))) return WireMainMenuBGM() ? 0 : 23;
+    if (FParse::Param(*Params, TEXT("BGMMix"))) return SetupDreamVeilBGMMix() ? 0 : 24;
+    if (FParse::Param(*Params, TEXT("MenuGameMode"))) return SetMainMenuGameMode() ? 0 : 25;
 
     FString BGMDirectory;
 

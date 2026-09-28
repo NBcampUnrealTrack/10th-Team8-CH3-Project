@@ -92,8 +92,6 @@ private:
 	//M 키로 배경음 껐다 켰다
 	void ToggleBGMMute();
 
-	//바뀐 크기를 지금 흐르는 곡에 반영 값은 게임 인스턴스가 들고 재생은 게임모드가 함
-	void ApplyBGMVolume();
 
 public:
 

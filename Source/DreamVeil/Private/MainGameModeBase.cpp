@@ -396,28 +396,18 @@ void AMainGameModeBase::PlayBGM(USoundBase* NewBGM)
 	//마지막에서 두 번째가 false인 이유 맵이 바뀔 때 이 소리도 같이 정리되게 하려는 것
 	//true로 두면 월드를 비울 때 살아남는데 게임모드는 맵마다 새로 만들어져서 멈출 사람이 없어짐
 	//그러면 로비 곡 위에 레벨 곡이 겹쳐 흐르고 맵을 옮길수록 계속 쌓임
-	//처음부터 저장된 크기로 틂 1로 틀었다가 줄이면 맵을 넘길 때마다 한순간 크게 터짐
-	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-	const float StartVolume = DreamVeilGameInstance ? DreamVeilGameInstance->GetBGMVolume() : 1.0f;
+	//크기는 1로 틂 실제 크기는 사운드 믹스가 배경음 클래스 전체에 걸어줌
+	//여기서 크기를 곱하지 않는 이유 맵마다 새 컴포넌트가 생기는데 컴포넌트마다 값을 맞춰 주려면 빠뜨리기 쉬움
+	BGMAudio = UGameplayStatics::SpawnSound2D(this, NewBGM, 1.0f, 1.0f, 0.0f, nullptr, false, false);
 
-	BGMAudio = UGameplayStatics::SpawnSound2D(this, NewBGM, StartVolume, 1.0f, 0.0f, nullptr, false, false);
-
-	//안 들릴 때 에셋이 안 꽂힌 건지 재생이 실패한 건지 구분하려고 남김
-	UE_LOG(LogTemp, Log, TEXT("[BGM] %s 재생 %s 크기 %.2f"), *NewBGM->GetName(), BGMAudio ? TEXT("성공") : TEXT("실패"), StartVolume);
-}
-
-//흐르고 있는 배경음 크기를 다시 맞춤
-void AMainGameModeBase::RefreshBGMVolume()
-{
-	//틀어둔 곡이 없으면 맞출 대상도 없음 크기 값 자체는 게임 인스턴스에 이미 들어가 있음
-	if (!BGMAudio)
+	//새 맵에도 믹스를 다시 걸어둠 같은 믹스면 아무 일도 하지 않으므로 중복 호출이 안전함
+	if (UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>())
 	{
-		return;
+		DreamVeilGameInstance->ApplyBGMVolume();
 	}
 
-	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
-
-	BGMAudio->SetVolumeMultiplier(DreamVeilGameInstance ? DreamVeilGameInstance->GetBGMVolume() : 1.0f);
+	//안 들릴 때 에셋이 안 꽂힌 건지 재생이 실패한 건지 구분하려고 남김
+	UE_LOG(LogTemp, Log, TEXT("[BGM] %s 재생 %s"), *NewBGM->GetName(), BGMAudio ? TEXT("성공") : TEXT("실패"));
 }
 
 //지금 맵에 맞는 기본 배경음

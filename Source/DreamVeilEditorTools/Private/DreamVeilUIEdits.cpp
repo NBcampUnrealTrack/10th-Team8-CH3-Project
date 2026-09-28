@@ -26,6 +26,11 @@
 #include "MainPlayerController.h"
 #include "MainGameModeBase.h"
 #include "Sound/SoundWave.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
+#include "GameFramework/WorldSettings.h"
+#include "MainMenuGameMode.h"
+#include "Engine/World.h"
 #include "AutomatedAssetImportData.h"
 #include "EdGraphSchema_K2.h"
 #include "Misc/PackageName.h"
@@ -213,6 +218,103 @@ UK2Node_CallFunction* FindCall(UEdGraph* Graph, FName FunctionName)
 
     return nullptr;
 }
+}
+
+//메인 메뉴 맵이 메인 메뉴 전용 게임모드를 쓰게 함
+//이걸 해야 메뉴에서도 배경음 조절 키가 먹고 마우스 클릭도 그대로 됨
+bool SetMainMenuGameMode()
+{
+    bOK = true;
+
+    UWorld* MainMenuWorld = LoadObject<UWorld>(nullptr, TEXT("/Game/Maps/MainMenu.MainMenu"));
+
+    if (!MainMenuWorld || !MainMenuWorld->GetWorldSettings())
+    {
+        UE_LOG(LogTemp, Error, TEXT("Missing MainMenu map or its world settings"));
+        return false;
+    }
+
+    MainMenuWorld->GetWorldSettings()->DefaultGameMode = AMainMenuGameMode::StaticClass();
+
+    //맵은 확장자가 umap이라 위의 Save를 쓰면 uasset으로 나감 여기서만 따로 저장함
+    UPackage* Package = MainMenuWorld->GetOutermost();
+    const FString Filename = FPackageName::LongPackageNameToFilename(Package->GetName(), FPackageName::GetMapPackageExtension());
+
+    FSavePackageArgs Args;
+    Args.TopLevelFlags = RF_Public | RF_Standalone;
+    Args.SaveFlags = SAVE_NoError;
+
+    return UPackage::SavePackage(Package, MainMenuWorld, *Filename, Args);
+}
+
+//배경음 전용 사운드 클래스와 믹스를 만들고 BGM 다섯 곡을 그 클래스에 넣음
+//이렇게 해두면 볼륨을 오디오 컴포넌트마다 걸지 않고 믹스 하나로 전체에 걸 수 있음
+//맵이 바뀌어 새 컴포넌트가 생겨도 같은 클래스에 속하므로 볼륨을 다시 먹일 필요가 없음
+bool SetupDreamVeilBGMMix()
+{
+    bOK = true;
+
+    const TCHAR* const BGMFolder = TEXT("/Game/Audio/BGM");
+
+    //이미 있으면 그대로 쓰고 없으면 만듦 두 번 돌려도 덮어쓰지 않음
+    USoundClass* BGMSoundClass = LoadObject<USoundClass>(nullptr, TEXT("/Game/Audio/BGM/SC_BGM.SC_BGM"));
+
+    if (!BGMSoundClass)
+    {
+        UPackage* Package = CreatePackage(*FString::Printf(TEXT("%s/SC_BGM"), BGMFolder));
+        BGMSoundClass = NewObject<USoundClass>(Package, TEXT("SC_BGM"), RF_Public | RF_Standalone);
+        FAssetRegistryModule::AssetCreated(BGMSoundClass);
+
+        if (!Save(BGMSoundClass))
+        {
+            return false;
+        }
+    }
+
+    USoundMix* BGMSoundMix = LoadObject<USoundMix>(nullptr, TEXT("/Game/Audio/BGM/SMix_BGM.SMix_BGM"));
+
+    if (!BGMSoundMix)
+    {
+        UPackage* Package = CreatePackage(*FString::Printf(TEXT("%s/SMix_BGM"), BGMFolder));
+        BGMSoundMix = NewObject<USoundMix>(Package, TEXT("SMix_BGM"), RF_Public | RF_Standalone);
+
+        //비어 있는 믹스로 둠 어느 클래스를 얼마로 줄일지는 게임에서 SetSoundMixClassOverride로 정함
+        FAssetRegistryModule::AssetCreated(BGMSoundMix);
+
+        if (!Save(BGMSoundMix))
+        {
+            return false;
+        }
+    }
+
+    for (const TCHAR* WaveName : {TEXT("BGM_MainMenu"), TEXT("BGM_Lobby"), TEXT("BGM_Level"), TEXT("BGM_Boss"), TEXT("BGM_Endless")})
+    {
+        USoundWave* Wave = LoadObject<USoundWave>(nullptr, *FString::Printf(TEXT("%s/%s.%s"), BGMFolder, WaveName, WaveName));
+
+        if (!Wave)
+        {
+            bOK = false;
+            UE_LOG(LogTemp, Error, TEXT("Missing BGM wave %s"), WaveName);
+            continue;
+        }
+
+        //음소거는 소리를 0으로 만드는 방식이라 그동안에도 곡이 계속 흘러야 함
+        //PlayWhenSilent가 아니면 안 들리는 동안 소리가 통째로 멈춰서 다시 켤 때 처음부터 나옴
+        if (Wave->SoundClassObject == BGMSoundClass && Wave->VirtualizationMode == EVirtualizationMode::PlayWhenSilent)
+        {
+            continue;
+        }
+
+        Wave->SoundClassObject = BGMSoundClass;
+        Wave->VirtualizationMode = EVirtualizationMode::PlayWhenSilent;
+
+        if (!Save(Wave))
+        {
+            bOK = false;
+        }
+    }
+
+    return bOK;
 }
 
 //메인 메뉴 위젯이 열릴 때 메인 메뉴 배경음을 틀도록 연결함

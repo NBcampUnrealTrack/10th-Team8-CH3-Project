@@ -8,3 +8,5 @@ bool UpdateHardCameraAssets(bool bApply);
 bool FixDreamVeilShopAndInventory();
 bool ImportDreamVeilBGM(const FString& SourceDirectory);
 bool WireMainMenuBGM();
+bool SetupDreamVeilBGMMix();
+bool SetMainMenuGameMode();

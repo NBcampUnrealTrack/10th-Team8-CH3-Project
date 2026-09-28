@@ -82,10 +82,6 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "BGM")
 	void PlayBGM(USoundBase* NewBGM);
 
-	//흐르고 있는 배경음 크기를 게임 인스턴스에 저장된 값으로 다시 맞춤
-	//크기를 바꾼 쪽이 부를 것 곡을 다시 틀지 않아서 재생 위치가 그대로 유지됨
-	UFUNCTION(BlueprintCallable, Category = "BGM")
-	void RefreshBGMVolume();
 
 	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
 	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠

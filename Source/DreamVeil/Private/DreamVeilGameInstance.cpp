@@ -12,6 +12,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
 #include "Sound/SoundBase.h"
+#include "Sound/SoundClass.h"
+#include "Sound/SoundMix.h"
 #include "UObject/ConstructorHelpers.h"
 
 //저장 파일 이름 슬롯을 하나만 써서 이름도 하나로 고정함
@@ -451,6 +453,38 @@ UDreamVeilGameInstance::UDreamVeilGameInstance()
     {
         MainMenuBGM = MainMenuBGMFinder.Object;
     }
+
+    //배경음 곡 다섯 개가 전부 이 클래스에 속해 있음 볼륨을 여기에 걸면 컴포넌트를 하나하나 찾을 필요가 없음
+    static ConstructorHelpers::FObjectFinder<USoundClass> BGMSoundClassFinder(TEXT("/Game/Audio/BGM/SC_BGM.SC_BGM"));
+
+    if (BGMSoundClassFinder.Succeeded())
+    {
+        BGMSoundClass = BGMSoundClassFinder.Object;
+    }
+
+    static ConstructorHelpers::FObjectFinder<USoundMix> BGMSoundMixFinder(TEXT("/Game/Audio/BGM/SMix_BGM.SMix_BGM"));
+
+    if (BGMSoundMixFinder.Succeeded())
+    {
+        BGMSoundMix = BGMSoundMixFinder.Object;
+    }
+}
+
+//지금 크기를 배경음 전체에 먹임
+void UDreamVeilGameInstance::ApplyBGMVolume()
+{
+    if (!BGMSoundClass || !BGMSoundMix)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[BGM] 사운드 클래스나 믹스를 못 찾음 /Game/Audio/BGM 확인"));
+
+        return;
+    }
+
+    //같은 믹스면 아무것도 하지 않는 함수라 맵마다 불러도 안전함 맵이 바뀌어도 이 한 줄로 다시 걸림
+    UGameplayStatics::SetBaseSoundMix(this, BGMSoundMix);
+
+    //FadeInTime을 0으로 두는 이유 키를 누른 순간 바로 바뀌어야 지금 크기가 얼마인지 감이 옴
+    UGameplayStatics::SetSoundMixClassOverride(this, BGMSoundMix, BGMSoundClass, GetBGMVolume(), 1.0f, 0.0f, true);
 }
 
 //메인 메뉴 배경음을 틂
@@ -465,7 +499,10 @@ void UDreamVeilGameInstance::PlayMainMenuBGM()
 
     //핸들을 들고 있지 않은 이유 이 곡은 맵을 떠날 때 월드와 같이 정리되면 되고 중간에 갈아 끼울 일이 없음
     //마지막에서 두 번째가 false라 맵이 바뀌면 같이 사라짐 게임 시작을 누르면 로비 곡으로 자연스럽게 넘어감
-    UGameplayStatics::SpawnSound2D(this, MainMenuBGM, GetBGMVolume(), 1.0f, 0.0f, nullptr, false, true);
+    //크기는 1로 틂 실제 크기는 사운드 믹스가 맡음 여기서 곱하면 두 번 줄어듦
+    UGameplayStatics::SpawnSound2D(this, MainMenuBGM, 1.0f, 1.0f, 0.0f, nullptr, false, true);
+
+    ApplyBGMVolume();
 
     UE_LOG(LogTemp, Log, TEXT("[BGM] 메인 메뉴 곡 재생 크기 %.2f"), GetBGMVolume());
 }
@@ -490,12 +527,17 @@ void UDreamVeilGameInstance::AddBGMVolume(float Delta)
 
     //음소거 중에 조절하면 아무 소리도 안 나서 바뀐 걸 알 수 없음 그래서 같이 풀어줌
     bBGMMuted = false;
+
+    ApplyBGMVolume();
 }
 
 //배경음을 껐다 켰다 함
 void UDreamVeilGameInstance::ToggleBGMMute()
 {
     bBGMMuted = !bBGMMuted;
+
+    //곡은 계속 흐르게 두고 크기만 0으로 만듦 그래야 다시 켰을 때 원래 흐르던 지점에서 이어짐
+    ApplyBGMVolume();
 }
 
 //그 레벨에 들어갈 수 있는지

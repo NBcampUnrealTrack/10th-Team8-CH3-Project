@@ -7,7 +7,6 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/TextBlock.h"
 #include "DreamVeilGameInstance.h"
-#include "MainGameModeBase.h"
 #include "Components/InputComponent.h"
 
 //배경음 조절 키를 한 번 누를 때 움직이는 크기
@@ -34,7 +33,17 @@ void AMainPlayerController::BeginPlay()
 
     //게임 오버 화면에서 UI 전용 입력으로 바꾼 채 레벨을 옮기면 입력 모드는 새 레벨에도 그대로 남아서 조작이 안 됨
     //컨트롤러는 레벨마다 새로 만들어지니 시작할 때 게임 입력으로 돌려놓음
-    SetInputMode(FInputModeGameOnly());
+    //메인 메뉴만 예외 게임 전용으로 두면 마우스가 UI로 안 가서 버튼이 안 눌림
+    //Game And UI로 두면 버튼도 눌리고 키 입력도 컨트롤러까지 와서 배경음 조절 키가 살아 있음
+    if (GetGameInstance<UDreamVeilGameInstance>() && GetGameInstance<UDreamVeilGameInstance>()->IsInMainMenu())
+    {
+        SetInputMode(FInputModeGameAndUI());
+        bShowMouseCursor = true;
+    }
+    else
+    {
+        SetInputMode(FInputModeGameOnly());
+    }
 
     if (ULocalPlayer* LocalPlayer = GetLocalPlayer())
     {
@@ -277,9 +286,8 @@ void AMainPlayerController::HandleBGMVolumeKey(FKey PressedKey)
         return;
     }
 
+    //값을 바꾸면 게임 인스턴스가 사운드 믹스까지 알아서 걸어줌 여기서는 부르기만 하면 됨
     DreamVeilGameInstance->AddBGMVolume(PressedKey == EKeys::Up ? BGM_VOLUME_STEP : -BGM_VOLUME_STEP);
-
-    ApplyBGMVolume();
 }
 
 //M 키로 배경음 껐다 켰다
@@ -293,16 +301,4 @@ void AMainPlayerController::ToggleBGMMute()
     }
 
     DreamVeilGameInstance->ToggleBGMMute();
-
-    ApplyBGMVolume();
-}
-
-//바뀐 크기를 지금 흐르는 곡에 반영
-void AMainPlayerController::ApplyBGMVolume()
-{
-    //곡을 들고 있는 건 게임모드라 값만 바꾸고 끝내면 다음 곡부터 적용됨 지금 곡에 바로 먹이려고 부름
-    if (AMainGameModeBase* MainGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr)
-    {
-        MainGameMode->RefreshBGMVolume();
-    }
 }
