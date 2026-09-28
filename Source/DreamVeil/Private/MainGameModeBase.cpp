@@ -17,6 +17,32 @@
 //보스 클래스가 아직 없어서 태그로 구분함 보스 블루프린트의 Class Defaults > Actor > Tags에 Boss를 넣을 것
 const FName BOSS_TAG = TEXT("Boss");
 
+//스폰 밸런스 여기 숫자만 바꾸면 조절됨
+//레벨 순서 L1 L2 L3 L4
+
+//레벨마다 동시에 살아 있을 수 있는 몬스터 수 이 수에 닿으면 잡아서 자리가 날 때까지 새로 내지 않음
+//볼륨을 문마다 놓으면 주기마다 볼륨 수만큼 나와서 5분이면 수백 마리가 됨
+//볼륨이 아니라 게임모드가 세는 이유 볼륨은 자기가 낸 수만 알지 판 전체에 몇 마리가 있는지 모름
+const int32 MAX_ALIVE_MONSTERS_BY_STAGE[] = { 40, 50, 60, 70 };
+
+//Endless에서 동시에 살아 있을 수 있는 몬스터 수
+//레벨보다 높게 둔 이유 끝이 없어서 오래 버틸수록 촘촘해지는데 상한이 낮으면 후반이 오히려 한산해짐
+const int32 ENDLESS_MAX_ALIVE_MONSTERS = 100;
+
+//레벨마다 스폰 볼륨에게 내라고 신호를 보내는 주기 초 뒤 레벨일수록 짧아져서 더 빨리 나옴
+const float SPAWN_INTERVAL_BY_STAGE[] = { 3.0f, 2.5f, 2.0f, 1.5f };
+
+//Endless에서 1분이 지날 때마다 스폰 주기가 줄어드는 초
+//시작 주기는 마지막 레벨 값을 그대로 씀 L4를 깨고 이어지는 곳이라 숫자를 따로 두지 않음
+const float ENDLESS_SPAWN_INTERVAL_DECAY_PER_MINUTE = 0.15f;
+
+//Endless에서 아무리 오래 버텨도 이보다 짧아지지는 않음
+//0에 가까워지면 타이머가 거의 매 프레임 돌면서 스폰이 폭주해 게임이 멈춤
+const float ENDLESS_MIN_SPAWN_INTERVAL = 0.5f;
+
+//두 표의 칸 수가 어긋나면 컴파일에서 바로 걸리게 막음 한쪽만 레벨을 늘리면 다른 쪽이 마지막 값으로 눌림
+static_assert(UE_ARRAY_COUNT(MAX_ALIVE_MONSTERS_BY_STAGE) == UE_ARRAY_COUNT(SPAWN_INTERVAL_BY_STAGE), "spawn tables need one value per level");
+
 //보스 클래스 기본값을 꽂아둠
 //블루프린트에서 채워도 되지만 안 채우면 보스가 아예 안 나와서 레벨이 끝나지 않으므로 코드가 기본값을 들고 있음
 //BedActor ComputerActor가 메시를 찾는 것과 같은 방식 블루프린트에서 다른 보스로 바꾸면 그쪽이 이김
@@ -81,7 +107,7 @@ void AMainGameModeBase::BeginPlay()
 
 	//주기마다 스폰 볼륨에게 내라고 신호 첫 신호도 주기만큼 기다렸다 나감
 	//레벨 시작과 동시에 눈앞에 몬스터가 튀어나오지 않게 하려는 것
-	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, FMath::Max(ContinuousSpawnInterval, 0.1f), true);
+	ScheduleContinuousSpawn();
 
 	//제한 시간과 별개로 잠식도도 차오르기 시작함
 	//제한 시간은 "다 못 깼다" 판정이고 잠식도는 "버티지 못했다" 판정으로 서로 독립임
@@ -142,9 +168,13 @@ void AMainGameModeBase::StartNextWave()
 //맵에 있는 스폰 볼륨 전부에게 이번 웨이브 몬스터를 내라고 시킴
 void AMainGameModeBase::RequestContinuousSpawn()
 {
+	//다음 신호부터 먼저 예약함 아래에서 중간에 돌아가도 스폰이 끊기지 않게
+	//Endless는 시간이 갈수록 주기가 줄어들어서 신호마다 새로 계산해 걸어야 함
+	ScheduleContinuousSpawn();
+
 	//이미 꽉 찼으면 이번 신호는 건너뜀 볼륨을 여러 개 놓아도 총 수는 여기 한 곳에서 막힘
 	//타이머를 멈추지 않는 이유 몇 마리 잡아서 자리가 나면 다음 신호에 바로 다시 나와야 함
-	if (MaxAliveMonsters > 0 && AliveMonsterCount >= MaxAliveMonsters)
+	if (AliveMonsterCount >= GetMaxAliveMonsters())
 	{
 		return;
 	}
@@ -156,6 +186,58 @@ void AMainGameModeBase::RequestContinuousSpawn()
 	{
 		VolumeIterator->SpawnTick();
 	}
+}
+
+//다음 스폰 신호를 예약함
+//반복 타이머를 쓰지 않는 이유 주기가 레벨마다 다르고 Endless에서는 시간이 갈수록 줄어듦
+//반복 타이머는 걸 때 정한 주기를 끝까지 쓰기 때문에 Endless가 처음 주기 그대로 돌아버림
+void AMainGameModeBase::ScheduleContinuousSpawn()
+{
+	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, GetContinuousSpawnInterval(), false);
+}
+
+//지금 레벨의 표 번호
+int32 AMainGameModeBase::GetStageIndex() const
+{
+	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+	const int32 LevelNumber = DreamVeilGameInstance ? DreamVeilGameInstance->GetCurrentLevelNumber() : 0;
+
+	//레벨 맵이 아니면 0이 돌아옴 로비나 테스트 맵에서는 첫 레벨 값을 씀
+	return FMath::Clamp(LevelNumber - 1, 0, static_cast<int32>(UE_ARRAY_COUNT(MAX_ALIVE_MONSTERS_BY_STAGE)) - 1);
+}
+
+//동시에 살아 있을 수 있는 몬스터 수
+int32 AMainGameModeBase::GetMaxAliveMonsters() const
+{
+	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+	if (DreamVeilGameInstance && DreamVeilGameInstance->IsInEndless())
+	{
+		return ENDLESS_MAX_ALIVE_MONSTERS;
+	}
+
+	return MAX_ALIVE_MONSTERS_BY_STAGE[GetStageIndex()];
+}
+
+//스폰 신호를 보내는 주기
+float AMainGameModeBase::GetContinuousSpawnInterval() const
+{
+	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+	if (DreamVeilGameInstance && DreamVeilGameInstance->IsInEndless())
+	{
+		//버틴 시간만큼 촘촘해짐
+		//월드 시간을 쓰는 이유 맵을 연 순간 0에서 시작하고 게임을 멈추면 같이 멈춤
+		//증강을 고르는 동안 스폰이 빨라지지 않게 하려는 것 몬스터 스펙 계산도 같은 기준을 씀
+		const float ElapsedMinutes = GetWorld() ? GetWorld()->GetTimeSeconds() / 60.0f : 0.0f;
+		const float StartInterval = SPAWN_INTERVAL_BY_STAGE[UE_ARRAY_COUNT(SPAWN_INTERVAL_BY_STAGE) - 1];
+
+		return FMath::Max(
+			StartInterval - ENDLESS_SPAWN_INTERVAL_DECAY_PER_MINUTE * ElapsedMinutes,
+			ENDLESS_MIN_SPAWN_INTERVAL);
+	}
+
+	return SPAWN_INTERVAL_BY_STAGE[GetStageIndex()];
 }
 
 //무한 모드 제한 시간도 웨이브도 없음
@@ -172,7 +254,7 @@ void AMainGameModeBase::StartEndlessMode()
 		RegisterMonster(*MonsterIterator);
 	}
 
-	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, FMath::Max(ContinuousSpawnInterval, 0.1f), true);
+	ScheduleContinuousSpawn();
 
 	//첫 보스도 주기만큼 기다렸다 나옴 들어가자마자 보스와 마주치지 않게
 	GetWorldTimerManager().SetTimer(EndlessBossTimerHandle, this, &AMainGameModeBase::SpawnEndlessBoss, FMath::Max(EndlessBossInterval, 1.0f), true);

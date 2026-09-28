@@ -42,6 +42,9 @@ protected:
 	TArray<TSubclassOf<AMonsterBase>> BaseMonsters;
 
 	//낼 수 있는 엘리트 종류 비워두면 확률에 당첨돼도 잡몹이 나옴
+	//목록 순서가 곧 해금 순서임 0번은 L1부터 1번은 L2부터 2번은 L3부터 나옴
+	//L4처럼 목록보다 레벨이 높으면 목록 전체를 씀 Endless도 전체를 씀
+	//레벨마다 배열을 따로 두지 않는 이유 볼륨마다 네 개씩 채우게 되고 한 칸만 비면 그 레벨에 엘리트가 통째로 사라짐
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	TArray<TSubclassOf<AMonsterBase>> EliteMonsters;
 
@@ -101,6 +104,9 @@ private:
 	//BeginPlay 한 번만 찾지 않는 이유 볼륨이 플레이어보다 먼저 시작하면 영영 못 찾은 채로 남음
 	//그러면 엘리트가 한 마리도 안 나오고 최소 거리 검사도 통째로 꺼진 것처럼 굴어서 원인 찾기가 어려움
 	AMainPlayerCharacter* GetPlayerCharacter();
+
+	//이 레벨에서 나올 수 있는 엘리트만 추려서 돌려줌 EliteMonsters의 앞에서부터 레벨 수만큼
+	TArray<TSubclassOf<AMonsterBase>> GetEliteMonstersForCurrentLevel() const;
 
 	//고른 목록에서 하나를 뽑아 땅 위에 냄 목록이 비었거나 스폰에 실패하면 nullptr
 	//잡몹과 엘리트가 같은 절차를 타게 하려고 따로 뺌

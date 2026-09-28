@@ -120,19 +120,6 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
 	int32 WaveCount = 6;
 
-	//스폰 볼륨에게 내라고 신호를 보내는 주기 초
-	//웨이브마다 몰아서 내지 않고 이 주기로 꾸준히 내보냄 몇 마리를 낼지는 볼륨이 정함
-	//웨이브는 몰아내기가 아니라 시간이 얼마나 지났는지 보여주는 눈금으로 남음
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
-	float ContinuousSpawnInterval = 3.0f;
-
-	//살아 있는 몬스터가 이 수에 닿으면 새로 내지 않음 잡으면 그만큼 다시 나옴
-	//볼륨을 문마다 놓으면 3초마다 볼륨 수만큼 나와서 5분이면 수백 마리가 됨
-	//볼륨이 아니라 게임모드가 막는 이유 볼륨은 자기가 낸 수만 알지 판 전체에 몇 마리가 있는지 모름
-	//0 이하로 두면 제한 없음
-	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Wave")
-	int32 MaxAliveMonsters = 40;
-
 	//무한 모드에서 보스가 나오는 주기 초
 	//레벨과 달리 끝이 없어서 웨이브가 아니라 시간으로 보스를 냄
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
@@ -163,7 +150,23 @@ private:
 	void StartNextWave();
 
 	//맵에 있는 스폰 볼륨 전부에게 지금 내라고 신호를 보냄 몇 마리를 낼지는 볼륨이 정함
+	//웨이브마다 몰아서 내지 않고 주기로 꾸준히 내보냄
+	//웨이브는 몰아내기가 아니라 시간이 얼마나 지났는지 보여주는 눈금으로 남음
 	void RequestContinuousSpawn();
+
+	//다음 스폰 신호를 예약함 주기가 상황마다 달라서 반복 타이머 대신 한 번짜리를 매번 다시 검
+	void ScheduleContinuousSpawn();
+
+	//지금 레벨의 표 번호 L1이 0번 레벨 맵이 아니면 0번
+	//상한과 주기가 같은 번호를 쓰게 한 곳에 둠 따로 계산하면 한쪽만 고치고 지나치기 쉬움
+	int32 GetStageIndex() const;
+
+	//지금 상황에서 동시에 살아 있을 수 있는 몬스터 수 레벨마다 다르고 Endless는 따로 둠
+	int32 GetMaxAliveMonsters() const;
+
+	//지금 상황에서 스폰 신호를 보내는 주기 초
+	//뒤 레벨일수록 촘촘하고 Endless는 버틴 시간만큼 더 촘촘해짐
+	float GetContinuousSpawnInterval() const;
 
 	//무한 모드를 시작함 제한 시간과 웨이브가 없고 스폰과 보스만 주기로 돎
 	void StartEndlessMode();

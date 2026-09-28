@@ -43,6 +43,8 @@ AMonsterSpawnVolume::AMonsterSpawnVolume()
 	AddMonsterClass(BaseMonsters, TEXT("/Game/Blueprint/Monsters/BP_MeleeMonster"));
 	AddMonsterClass(BaseMonsters, TEXT("/Game/Blueprint/Monsters/BP_RangedMonster"));
 
+	//엘리트는 넣는 순서가 곧 해금 순서임 L1은 1번만 L2는 1 2번 L3부터 셋 다 나옴
+	//BP_EliteMonster(번호 없는 것)를 넣지 않는 이유 쓰지 않는 블루프린트라 목록에 있으면 순서만 밀림
 	AddMonsterClass(EliteMonsters, TEXT("/Game/Blueprint/Monsters/BP_EliteMonster1"));
 	AddMonsterClass(EliteMonsters, TEXT("/Game/Blueprint/Monsters/BP_EliteMonster2"));
 	AddMonsterClass(EliteMonsters, TEXT("/Game/Blueprint/Monsters/BP_EliteMonster3"));
@@ -61,15 +63,43 @@ void AMonsterSpawnVolume::ExecuteSpawnActor()
 
 	const float EliteSpawnRate = GetEliteRate();
 
-	//엘리트에 당첨됐는데 엘리트 목록이 비어 있으면 잡몹으로 내려감
+	//이 레벨에서 나올 수 있는 엘리트만 추림 L1에서 3번 엘리트가 튀어나오지 않게
+	const TArray<TSubclassOf<AMonsterBase>> AllowedElites = GetEliteMonstersForCurrentLevel();
+
+	//엘리트에 당첨됐는데 낼 엘리트가 없으면 잡몹으로 내려감
 	//여기서 그냥 돌아가면 엘리트를 안 채워둔 볼륨이 아무것도 안 내서 웨이브가 통째로 비어버림
-	if (FMath::FRandRange(0.0f, 100.0f) <= EliteSpawnRate && EliteMonsters.Num() > 0)
+	if (FMath::FRandRange(0.0f, 100.0f) <= EliteSpawnRate && AllowedElites.Num() > 0)
 	{
-		SpawnOneMonster(EliteMonsters, SpawnLocation);
+		SpawnOneMonster(AllowedElites, SpawnLocation);
 		return;
 	}
 
 	SpawnOneMonster(BaseMonsters, SpawnLocation);
+}
+
+//이 레벨에서 나올 수 있는 엘리트만 추려서 돌려줌
+TArray<TSubclassOf<AMonsterBase>> AMonsterSpawnVolume::GetEliteMonstersForCurrentLevel() const
+{
+	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+	//Endless는 끝까지 간 뒤에 열리는 곳이라 전부 나옴
+	if (!DreamVeilGameInstance || DreamVeilGameInstance->IsInEndless())
+	{
+		return EliteMonsters;
+	}
+
+	const int32 LevelNumber = DreamVeilGameInstance->GetCurrentLevelNumber();
+
+	//레벨 맵이 아니면 0이 돌아옴 로비나 테스트 맵에서는 막을 이유가 없어서 전부 씀
+	if (LevelNumber <= 0)
+	{
+		return EliteMonsters;
+	}
+
+	//레벨 번호가 곧 쓸 수 있는 개수 L4처럼 목록보다 레벨이 높으면 목록 전체가 됨
+	const int32 AllowedCount = FMath::Min(LevelNumber, EliteMonsters.Num());
+
+	return TArray<TSubclassOf<AMonsterBase>>(EliteMonsters.GetData(), AllowedCount);
 }
 
 //낼 자리를 찾음
