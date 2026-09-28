@@ -12,7 +12,8 @@ class USoundBase;
 
 //총알이 적을 맞혔을 때 알림 이번 발로 대상이 죽었으면 bKilled가 true
 //무기가 HUD를 직접 모르게 하려고 알리기만 함 모아서 넘기는 일은 들고 있는 캐릭터가 함
-DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnWeaponHitConfirmed, bool, bKilled);
+//헤드샷 여부는 사망 레그돌로 머리가 움직이기 전에 판정해서 함께 전달함
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(FOnWeaponHitConfirmed, bool, bKilled, bool, bHeadshot);
 
 //플레이어 손 소켓에 붙는 무기 컴포넌트 이 클래스 그대로가 기본 무기인 권총
 //다른 무기는 이 클래스를 물려받아 수치만 바꿈 소총은 URifleWeapon

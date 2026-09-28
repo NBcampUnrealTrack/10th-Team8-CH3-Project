@@ -23,6 +23,9 @@ struct FInputActionValue;
 //처치 표식을 따로 띄울 수 있게 죽였는지까지 같이 넘김 몬스터가 몰려 있으면 죽었는지 눈으로 알기 어려움
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHitMarker, bool, bKilled);
 
+//기존 HUD 적중 이벤트의 BP 연결은 유지하고 추가 헤드샷 연출만 별도로 알림
+DECLARE_MULTICAST_DELEGATE(FOnHeadshotConfirmed);
+
 //경험치가 바뀌었을 때 현재 경험치와 다음 레벨까지 필요한 경험치
 DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 	FOnPlayerExperienceChanged,
@@ -109,6 +112,9 @@ public:
 	//무기가 둘이라도 HUD는 여기 하나만 보면 됨 무기 쪽 알림을 캐릭터가 모아서 다시 알림
 	UPROPERTY(BlueprintAssignable, Category = "Weapon")
 	FOnHitMarker OnHitMarker;
+
+	//무기 종류와 관계없이 화면을 담당하는 컨트롤러가 이 신호 하나를 구독함
+	FOnHeadshotConfirmed OnHeadshotConfirmed;
 
 	//무기를 얻음 상점 인벤토리 몬스터 드랍에서 부를 것 얻기만 하고 바로 들지는 않음
 	UFUNCTION(BlueprintCallable, Category = "Weapon")
@@ -354,12 +360,15 @@ protected:
 	void EquipRifleInput(const FInputActionValue& value);
 
 	//1레벨에서 2레벨로 갈 때 필요한 경험치
+	//L1 일반 몬스터는 경험치 6을 주므로 30이면 처음에는 5마리 처치로 레벨업함
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
-	float BaseRequiredExperience = 100.0f;
+	float BaseRequiredExperience = 30.0f;
 
 	//레벨이 하나 오를 때마다 필요한 경험치가 늘어나는 양
+	//레벨당 일반 몬스터 반 마리 분량인 3만 늘려 Lv.1은 5마리, Lv.11은 10마리 정도가 필요하게 함
+	//이후에도 같은 완만한 증가를 유지하며 상위 맵의 경험치 보상 배율은 기존 계산을 따름
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
-	float RequiredExperienceGrowth = 50.0f;
+	float RequiredExperienceGrowth = 3.0f;
 
 private:
 	// Only components hidden by the close camera are restored; material/weapon visibility is untouched.
@@ -433,7 +442,7 @@ private:
 	//무기가 적을 맞혔다고 알려주면 HUD 쪽으로 넘김
 	//무기마다 따로 걸어두고 여기서 하나로 모음 무기를 바꿔도 HUD가 다시 걸 필요가 없음
 	UFUNCTION()
-	void HandleWeaponHitConfirmed(bool bKilled);
+	void HandleWeaponHitConfirmed(bool bKilled, bool bHeadshot);
 
 	//반동으로 올라간 카메라를 조금씩 제자리로 내림 Tick이 부름
 	void UpdateRecoilRecovery(float DeltaTime);

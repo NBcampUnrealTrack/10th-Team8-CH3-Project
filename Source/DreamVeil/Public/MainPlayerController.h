@@ -10,6 +10,8 @@
 class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
+class UHeadshotFeedbackWidget;
+class USoundBase;
 
 UCLASS()
 class DREAMVEIL_API AMainPlayerController : public APlayerController
@@ -17,6 +19,10 @@ class DREAMVEIL_API AMainPlayerController : public APlayerController
 	GENERATED_BODY()
 public:
 	AMainPlayerController();
+
+	//총성과 별개로 플레이어에게 들려주는 짧은 헤드샷 확인음. BP에서 다른 소리로 교체할 수 있음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI|Headshot")
+	TObjectPtr<USoundBase> HeadshotSound;
 	
 
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Input")
@@ -123,8 +129,15 @@ public:
 protected:
 	//조종할 폰이 정해질 때 불림 플레이어 캐릭터면 사망 이벤트를 구독함
 	virtual void OnPossess(APawn* InPawn) override;
+	//다른 폰으로 바뀌면 이전 캐릭터의 헤드샷 알림이 남지 않도록 해제함
+	virtual void OnUnPossess() override;
 
 private:
+	//헤드샷 신호를 화면 표시와 2D 효과음으로 바꿈
+	void ShowHeadshotFeedback();
+	UPROPERTY(Transient)
+	TObjectPtr<UHeadshotFeedbackWidget> HeadshotFeedbackWidget;
+
 	//플레이어가 죽었을 때 게임 오버 화면을 띄우고 마우스로 버튼을 누를 수 있게 함
 	UFUNCTION()
 	void ShowGameOver();
