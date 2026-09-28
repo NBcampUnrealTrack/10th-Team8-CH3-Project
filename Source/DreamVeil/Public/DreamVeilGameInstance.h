@@ -10,6 +10,7 @@ class UDispatchTableComponent;
 class UInventoryComponent;
 class AMainPlayerCharacter;
 class APawn;
+class USoundBase;
 
 //난이도 죽거나 시간 초과로 실패했을 때 증강 파츠 꿈의 조각 소총을 얼마나 잃는지
 //팀에서 상의해서 안 쓸 난이도는 빼도 됨 규칙은 FailCurrentLevel ContinueAfterDeath에만 있음
@@ -35,6 +36,8 @@ class DREAMVEIL_API UDreamVeilGameInstance : public UGameInstance
 	GENERATED_BODY()
 
 public:
+	UDreamVeilGameInstance();
+
 	//플레이어의 증강 기록을 저장 다음 레벨을 열기 직전에 부를 것
 	UFUNCTION(BlueprintCallable, Category = "Augment")
 	void SavePlayerAugments(UDispatchTableComponent* PlayerDispatchTable);
@@ -113,6 +116,32 @@ public:
 	//레벨 맵이 아닌지(IsInLevelMap)로 판단하지 않는 이유 테스트 맵에서도 무기가 사라지면 사격을 시험할 수 없음
 	UFUNCTION(BlueprintPure, Category = "Level")
 	bool IsInLobby() const;
+
+	//지금 맵이 메인 메뉴인지 게임 밖 화면이라 HUD를 띄우면 안 되는 곳을 가릴 때 씀
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsInMainMenu() const;
+
+	// 배경음 크기
+	// 게임모드가 아니라 여기서 들고 있는 이유 게임모드는 맵마다 새로 만들어져서 조절한 값이 맵을 넘기면 사라짐
+
+	//지금 배경음 크기 0~1 음소거 중이면 0 재생 쪽은 이 값만 보면 됨
+	UFUNCTION(BlueprintPure, Category = "BGM")
+	float GetBGMVolume() const;
+
+	//배경음 크기를 더하거나 뺌 0~1을 벗어나면 잘림
+	//조절하면 음소거가 풀리는 이유 화면에 표시가 없어서 소리가 나야 바뀐 걸 알 수 있음
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void AddBGMVolume(float Delta);
+
+	//배경음을 껐다 켰다 함 껐을 때도 크기 값은 그대로 두어서 다시 켜면 원래 크기로 돌아옴
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void ToggleBGMMute();
+
+	//메인 메뉴 배경음을 틂 메인 메뉴 위젯의 Construct가 부름
+	//게임모드가 아니라 여기 있는 이유 메인 메뉴 맵만 엔진 기본 게임모드를 씀
+	//우리 게임모드로 바꾸면 플레이어 컨트롤러까지 따라와서 입력 모드를 게임 전용으로 돌려 버려 버튼이 안 눌림
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void PlayMainMenuBGM();
 
 	//그 레벨에 들어갈 수 있는지 L1은 처음부터 열려 있고 하나 깰 때마다 다음 레벨이 열림 상점 등급 해금에도 씀
 	UFUNCTION(BlueprintPure, Category = "Level")
@@ -196,6 +225,17 @@ private:
 
 	//깬 레벨 수 0이면 아무것도 안 깬 상태 다음에 열 레벨의 인덱스로도 그대로 씀
 	int32 ClearedLevelCount = 0;
+
+	//메인 메뉴 배경음 게임 인스턴스는 블루프린트가 없어서 경로로 직접 찾음
+	//다른 곡들은 게임모드 블루프린트에서 지정함
+	UPROPERTY(Transient)
+	TObjectPtr<USoundBase> MainMenuBGM;
+
+	//배경음 크기 0~1 처음 값을 1이 아니라 낮게 잡은 이유 총성과 피격음이 묻히지 않게 하려는 것
+	float BGMVolume = 0.3f;
+
+	//배경음을 껐는지 크기와 따로 두어야 다시 켤 때 원래 크기로 돌아옴
+	bool bBGMMuted = false;
 
 	//난이도 기본은 보통
 	EGameDifficulty Difficulty = EGameDifficulty::Normal;

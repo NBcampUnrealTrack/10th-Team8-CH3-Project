@@ -116,6 +116,7 @@ static FString DumpBlueprintGraphs(const FString& ObjectPath)
 int32 UDreamVeilUIUpdateCommandlet::Main(const FString& Params)
 {
     if (FParse::Param(*Params, TEXT("FixShop"))) return FixDreamVeilShopAndInventory() ? 0 : 21;
+    if (FParse::Param(*Params, TEXT("WireMenuBGM"))) return WireMainMenuBGM() ? 0 : 23;
 
     FString BGMDirectory;
 

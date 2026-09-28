@@ -16,6 +16,13 @@ void UDreamUIBlueprintLibrary::OpenBedDreamSelect(UUserWidget* Widget)
         Bed->OpenDreamSelect();
 }
 
+void UDreamUIBlueprintLibrary::PlayMainMenuBGM(UUserWidget* Widget)
+{
+    if (!Widget) return;
+    if (auto* GI = Widget->GetGameInstance<UDreamVeilGameInstance>())
+        GI->PlayMainMenuBGM();
+}
+
 void UDreamUIBlueprintLibrary::CloseBedDreamMenu(UUserWidget* Widget)
 {
     if (!Widget) return;

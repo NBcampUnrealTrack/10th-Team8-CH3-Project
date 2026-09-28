@@ -385,12 +385,39 @@ void AMainGameModeBase::PlayBGM(USoundBase* NewBGM)
 
 	if (!NewBGM)
 	{
+		//이 맵에 틀 곡이 없다는 뜻 조용한 게 정상인 맵이 아니면 게임모드 기본값이 비어 있는 것
+		UE_LOG(LogTemp, Warning, TEXT("[BGM] 이 맵에 틀 곡이 없음 BP_MainGameModeBase의 BGM 칸 확인"));
+
 		return;
 	}
 
 	//2D로 재생 배경음은 위치가 없어야 카메라가 어디를 보든 같은 크기로 들림
 	//컴포넌트를 들고 있는 이유 곡을 갈아 끼울 때 멈춰야 하고 PlaySound2D는 핸들을 주지 않음
-	BGMAudio = UGameplayStatics::SpawnSound2D(this, NewBGM, 1.0f, 1.0f, 0.0f, nullptr, true, false);
+	//마지막에서 두 번째가 false인 이유 맵이 바뀔 때 이 소리도 같이 정리되게 하려는 것
+	//true로 두면 월드를 비울 때 살아남는데 게임모드는 맵마다 새로 만들어져서 멈출 사람이 없어짐
+	//그러면 로비 곡 위에 레벨 곡이 겹쳐 흐르고 맵을 옮길수록 계속 쌓임
+	//처음부터 저장된 크기로 틂 1로 틀었다가 줄이면 맵을 넘길 때마다 한순간 크게 터짐
+	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+	const float StartVolume = DreamVeilGameInstance ? DreamVeilGameInstance->GetBGMVolume() : 1.0f;
+
+	BGMAudio = UGameplayStatics::SpawnSound2D(this, NewBGM, StartVolume, 1.0f, 0.0f, nullptr, false, false);
+
+	//안 들릴 때 에셋이 안 꽂힌 건지 재생이 실패한 건지 구분하려고 남김
+	UE_LOG(LogTemp, Log, TEXT("[BGM] %s 재생 %s 크기 %.2f"), *NewBGM->GetName(), BGMAudio ? TEXT("성공") : TEXT("실패"), StartVolume);
+}
+
+//흐르고 있는 배경음 크기를 다시 맞춤
+void AMainGameModeBase::RefreshBGMVolume()
+{
+	//틀어둔 곡이 없으면 맞출 대상도 없음 크기 값 자체는 게임 인스턴스에 이미 들어가 있음
+	if (!BGMAudio)
+	{
+		return;
+	}
+
+	const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+	BGMAudio->SetVolumeMultiplier(DreamVeilGameInstance ? DreamVeilGameInstance->GetBGMVolume() : 1.0f);
 }
 
 //지금 맵에 맞는 기본 배경음
@@ -408,13 +435,9 @@ USoundBase* AMainGameModeBase::GetBaseBGM() const
 		return EndlessBGM;
 	}
 
-	if (DreamVeilGameInstance->IsInLevelMap())
-	{
-		return LevelBGM;
-	}
-
-	//로비가 아닌 나머지는 메인 메뉴로 봄 테스트 맵도 여기로 오는데 싸우지 않는 곳이라 문제 없음
-	return DreamVeilGameInstance->IsInLobby() ? LobbyBGM : MainMenuBGM;
+	//레벨 맵이 아니면 로비 곡 메인 메뉴는 이 게임모드를 쓰지 않아서 여기로 오지 않음
+	//테스트 맵이 여기로 오는데 싸우지 않는 곳이라 로비 곡이면 충분함
+	return DreamVeilGameInstance->IsInLevelMap() ? LevelBGM : LobbyBGM;
 }
 
 //살아 있는 보스가 있으면 보스 곡 없으면 기본 곡

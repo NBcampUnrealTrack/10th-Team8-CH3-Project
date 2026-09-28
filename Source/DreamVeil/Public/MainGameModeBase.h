@@ -59,12 +59,9 @@ public:
 	// 배경음
 	// 맵마다 게임모드가 새로 만들어지므로 여기서 틀면 레벨이 바뀔 때 알아서 갈린다
 
-	//메인 메뉴에서 나오는 배경음
-	//로비와 나눠 둔 이유 둘 다 싸우지 않는 곳이지만 메인 메뉴는 게임 밖 화면이라 분위기가 다름
-	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
-	TObjectPtr<USoundBase> MainMenuBGM;
-
 	//로비에서 나오는 배경음
+	//메인 메뉴 곡이 여기 없는 이유 메인 메뉴 맵은 엔진 기본 게임모드를 써서 이 클래스가 아예 돌지 않음
+	//그쪽은 게임 인스턴스가 직접 틂 UDreamVeilGameInstance::PlayMainMenuBGM
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
 	TObjectPtr<USoundBase> LobbyBGM;
 
@@ -84,6 +81,11 @@ public:
 	//비워서 부르면 배경음이 멈춤
 	UFUNCTION(BlueprintCallable, Category = "BGM")
 	void PlayBGM(USoundBase* NewBGM);
+
+	//흐르고 있는 배경음 크기를 게임 인스턴스에 저장된 값으로 다시 맞춤
+	//크기를 바꾼 쪽이 부를 것 곡을 다시 틀지 않아서 재생 위치가 그대로 유지됨
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void RefreshBGMVolume();
 
 	//보스 몬스터인지 보스 클래스가 아직 없어서 액터 태그 Boss로 구분
 	//레벨 클리어 조건과 인벤토리 드롭이 같은 기준을 쓰도록 판정을 여기 하나만 둠

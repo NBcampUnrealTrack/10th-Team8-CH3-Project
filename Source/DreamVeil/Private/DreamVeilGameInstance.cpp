@@ -11,6 +11,8 @@
 #include "GameFramework/PlayerController.h"
 #include "Kismet/GameplayStatics.h"
 #include "Misc/PackageName.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
 
 //저장 파일 이름 슬롯을 하나만 써서 이름도 하나로 고정함
 //슬롯을 여러 개로 늘리려면 이 값을 함수 인자로 바꾸고 UI가 고르게 하면 됨
@@ -437,6 +439,63 @@ bool UDreamVeilGameInstance::IsInLobby() const
 {
     //레벨 번호를 찾을 때와 같은 방식 PIE 접두사를 뗀 맵 이름과 로비 맵 이름을 비교함
     return UGameplayStatics::GetCurrentLevelName(this, true) == FPackageName::GetShortName(LOBBY_MAP_PATH);
+}
+
+UDreamVeilGameInstance::UDreamVeilGameInstance()
+{
+    //메인 메뉴 곡만 경로로 직접 찾음 게임 인스턴스는 블루프린트가 없어서 에디터에서 지정할 칸이 없음
+    //곡을 바꾸려면 같은 경로에 다시 임포트하거나 여기 경로를 고칠 것
+    static ConstructorHelpers::FObjectFinder<USoundBase> MainMenuBGMFinder(TEXT("/Game/Audio/BGM/BGM_MainMenu.BGM_MainMenu"));
+
+    if (MainMenuBGMFinder.Succeeded())
+    {
+        MainMenuBGM = MainMenuBGMFinder.Object;
+    }
+}
+
+//메인 메뉴 배경음을 틂
+void UDreamVeilGameInstance::PlayMainMenuBGM()
+{
+    if (!MainMenuBGM)
+    {
+        UE_LOG(LogTemp, Warning, TEXT("[BGM] 메인 메뉴 곡을 못 찾음 /Game/Audio/BGM/BGM_MainMenu 확인"));
+
+        return;
+    }
+
+    //핸들을 들고 있지 않은 이유 이 곡은 맵을 떠날 때 월드와 같이 정리되면 되고 중간에 갈아 끼울 일이 없음
+    //마지막에서 두 번째가 false라 맵이 바뀌면 같이 사라짐 게임 시작을 누르면 로비 곡으로 자연스럽게 넘어감
+    UGameplayStatics::SpawnSound2D(this, MainMenuBGM, GetBGMVolume(), 1.0f, 0.0f, nullptr, false, true);
+
+    UE_LOG(LogTemp, Log, TEXT("[BGM] 메인 메뉴 곡 재생 크기 %.2f"), GetBGMVolume());
+}
+
+//지금 맵이 메인 메뉴인지
+bool UDreamVeilGameInstance::IsInMainMenu() const
+{
+    return UGameplayStatics::GetCurrentLevelName(this, true) == FPackageName::GetShortName(MAIN_MENU_MAP_PATH);
+}
+
+//지금 배경음 크기
+float UDreamVeilGameInstance::GetBGMVolume() const
+{
+    //음소거를 0으로 돌려주므로 재생하는 쪽은 껐는지 따로 물어볼 필요가 없음
+    return bBGMMuted ? 0.0f : BGMVolume;
+}
+
+//배경음 크기를 더하거나 뺌
+void UDreamVeilGameInstance::AddBGMVolume(float Delta)
+{
+    BGMVolume = FMath::Clamp(BGMVolume + Delta, 0.0f, 1.0f);
+
+    //음소거 중에 조절하면 아무 소리도 안 나서 바뀐 걸 알 수 없음 그래서 같이 풀어줌
+    bBGMMuted = false;
+}
+
+//배경음을 껐다 켰다 함
+void UDreamVeilGameInstance::ToggleBGMMute()
+{
+    bBGMMuted = !bBGMMuted;
 }
 
 //그 레벨에 들어갈 수 있는지

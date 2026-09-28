@@ -7,6 +7,12 @@
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/TextBlock.h"
 #include "DreamVeilGameInstance.h"
+#include "MainGameModeBase.h"
+#include "Components/InputComponent.h"
+
+//배경음 조절 키를 한 번 누를 때 움직이는 크기
+//0.1이면 기본값 0.3에서 세 번 내리면 무음 일곱 번 올리면 최대라 조작 횟수가 적당함
+const float BGM_VOLUME_STEP = 0.1f;
 
 AMainPlayerController::AMainPlayerController() : 
 InputMappingContext(nullptr),
@@ -43,7 +49,11 @@ void AMainPlayerController::BeginPlay()
 
     //체력 스태미나 꿈의 조각을 보여주는 화면은 레벨이 시작될 때 바로 띄움
     //메뉴와 달리 입력 모드를 바꾸지 않아서 띄운 채로 움직이고 쏠 수 있음
-    if (HUDWidgetClass)
+    //메인 메뉴에서는 띄우지 않음 게임 밖 화면인데 체력 바가 같이 보이면 안 됨
+    //로비는 거르지 않는 이유 HUD 위젯이 스스로 접혀서 이미 안 보임
+    const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+    if (HUDWidgetClass && !(DreamVeilGameInstance && DreamVeilGameInstance->IsInMainMenu()))
     {
         if (UUserWidget* HUDWidget = CreateWidget<UUserWidget>(this, HUDWidgetClass))
         {
@@ -240,4 +250,59 @@ bool AMainPlayerController::IsMenuWidgetOpen() const
 {
     //열고 닫는 쪽이 들고 있는 값을 그대로 돌려줌 상태를 한 군데만 두면 어긋날 일이 없음
     return MenuWidgetInstance != nullptr;
+}
+
+//배경음 조절 키를 묶음
+void AMainPlayerController::SetupInputComponent()
+{
+    Super::SetupInputComponent();
+
+    if (!InputComponent)
+    {
+        return;
+    }
+
+    InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AMainPlayerController::HandleBGMVolumeKey);
+    InputComponent->BindKey(EKeys::Down, IE_Pressed, this, &AMainPlayerController::HandleBGMVolumeKey);
+    InputComponent->BindKey(EKeys::M, IE_Pressed, this, &AMainPlayerController::ToggleBGMMute);
+}
+
+//위아래 키로 배경음 크기 조절
+void AMainPlayerController::HandleBGMVolumeKey(FKey PressedKey)
+{
+    UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+    if (!DreamVeilGameInstance)
+    {
+        return;
+    }
+
+    DreamVeilGameInstance->AddBGMVolume(PressedKey == EKeys::Up ? BGM_VOLUME_STEP : -BGM_VOLUME_STEP);
+
+    ApplyBGMVolume();
+}
+
+//M 키로 배경음 껐다 켰다
+void AMainPlayerController::ToggleBGMMute()
+{
+    UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+    if (!DreamVeilGameInstance)
+    {
+        return;
+    }
+
+    DreamVeilGameInstance->ToggleBGMMute();
+
+    ApplyBGMVolume();
+}
+
+//바뀐 크기를 지금 흐르는 곡에 반영
+void AMainPlayerController::ApplyBGMVolume()
+{
+    //곡을 들고 있는 건 게임모드라 값만 바꾸고 끝내면 다음 곡부터 적용됨 지금 곡에 바로 먹이려고 부름
+    if (AMainGameModeBase* MainGameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr)
+    {
+        MainGameMode->RefreshBGMVolume();
+    }
 }

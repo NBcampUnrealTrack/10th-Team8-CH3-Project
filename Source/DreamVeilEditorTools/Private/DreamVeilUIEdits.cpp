@@ -155,7 +155,21 @@ void AppendToConstruct(UWidgetBlueprint* BP, FName Function)
                     for (auto* Pin : OldLinks) Link(Fn->GetThenPin(), Pin);
                     return;
                 }
-    bOK = false; UE_LOG(LogTemp, Error, TEXT("Missing parent Construct in %s"), *BP->GetName());
+    //Parent 호출 노드가 없는 위젯도 있음 그때는 Event Construct 자체에 이어 붙임
+    for (UEdGraph* Graph : BP->UbergraphPages)
+        for (UEdGraphNode* Node : TArray<TObjectPtr<UEdGraphNode>>(Graph->Nodes))
+            if (auto* Event = Cast<UK2Node_Event>(Node))
+                if (Event->EventReference.GetMemberName() == TEXT("Construct"))
+                {
+                    auto* Fn = Call(Graph, Function);
+                    auto* Out = Event->FindPin(UEdGraphSchema_K2::PN_Then);
+                    const auto OldLinks = Out->LinkedTo; Out->BreakAllPinLinks();
+                    Link(Out, Fn->GetExecPin());
+                    for (auto* Pin : OldLinks) Link(Fn->GetThenPin(), Pin);
+                    return;
+                }
+
+    bOK = false; UE_LOG(LogTemp, Error, TEXT("Missing Construct in %s"), *BP->GetName());
 }
 
 //self가 가진 함수나 커스텀 이벤트를 부르는 노드를 만듦
@@ -199,6 +213,40 @@ UK2Node_CallFunction* FindCall(UEdGraph* Graph, FName FunctionName)
 
     return nullptr;
 }
+}
+
+//메인 메뉴 위젯이 열릴 때 메인 메뉴 배경음을 틀도록 연결함
+//메인 메뉴 맵은 엔진 기본 게임모드를 써서 AMainGameModeBase가 돌지 않기 때문에 위젯이 대신 부름
+bool WireMainMenuBGM()
+{
+    bOK = true;
+
+    UWidgetBlueprint* MainMenu = WidgetBP(TEXT("WBP_MainMenu"));
+
+    if (!MainMenu)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Missing WBP_MainMenu"));
+        return false;
+    }
+
+    //이미 연결돼 있으면 또 붙이지 않음 두 번 붙으면 곡이 두 겹으로 흐름
+    for (UEdGraph* Graph : MainMenu->UbergraphPages)
+    {
+        if (FindCall(Graph, TEXT("PlayMainMenuBGM")))
+        {
+            UE_LOG(LogTemp, Display, TEXT("WBP_MainMenu already plays the main menu BGM"));
+            return true;
+        }
+    }
+
+    AppendToConstruct(MainMenu, TEXT("PlayMainMenuBGM"));
+
+    if (!bOK || !Compile(MainMenu))
+    {
+        return false;
+    }
+
+    return Save(MainMenu);
 }
 
 //BGM wav 다섯 개를 들여오고 반복 재생을 켠 뒤 게임모드 기본값에 꽂음

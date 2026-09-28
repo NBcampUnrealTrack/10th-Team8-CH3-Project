@@ -3,6 +3,8 @@
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
 #include "InputActionValue.h"
+//FKey를 값으로 받는 함수가 있어서 전방 선언으로는 안 됨
+#include "InputCoreTypes.h"
 #include "MainPlayerController.generated.h"
 
 class UInputMappingContext;
@@ -77,6 +79,23 @@ public:
 	//블루프린트 쪽 값은 내려줄 사람이 없어서 한번 켜지면 계속 켜진 채로 남음
 	UFUNCTION(BlueprintPure, Category = "UI")
 	bool IsMenuWidgetOpen() const;
+
+protected:
+	//배경음 조절 키를 묶음 Enhanced Input 에셋을 새로 만들지 않은 이유
+	//배경음은 게임 조작이 아니라 어느 맵에서나 같게 동작해야 해서 매핑 컨텍스트에 넣을 이유가 없음
+	virtual void SetupInputComponent() override;
+
+private:
+	//위아래 키로 배경음 크기 조절 두 키가 하는 일이 같아서 눌린 키로 방향만 가름
+	void HandleBGMVolumeKey(FKey PressedKey);
+
+	//M 키로 배경음 껐다 켰다
+	void ToggleBGMMute();
+
+	//바뀐 크기를 지금 흐르는 곡에 반영 값은 게임 인스턴스가 들고 재생은 게임모드가 함
+	void ApplyBGMVolume();
+
+public:
 
 	//게임을 멈추거나 푼다 월드 시간 타이머 몬스터가 전부 같이 멈춤
 	//SetGamePaused만 부르면 멈추기 직전에 들어온 이동 입력이 그대로 남아서 W를 누르고 있으면 계속 앞으로 감

@@ -25,6 +25,11 @@ class DREAMVEIL_API UDreamUIBlueprintLibrary : public UBlueprintFunctionLibrary
 public:
     UFUNCTION(BlueprintCallable, Category="Dream UI", meta=(DefaultToSelf="Widget"))
     static void OpenBedDreamSelect(UUserWidget* Widget);
+
+    //메인 메뉴 배경음을 틂 WBP_MainMenu의 Construct가 부름
+    //메인 메뉴 맵만 엔진 기본 게임모드를 써서 AMainGameModeBase가 돌지 않기 때문
+    UFUNCTION(BlueprintCallable, Category = "DreamVeil|BGM", meta = (DefaultToSelf = "Widget"))
+    static void PlayMainMenuBGM(UUserWidget* Widget);
     UFUNCTION(BlueprintCallable, Category="Dream UI", meta=(DefaultToSelf="Widget"))
     static void CloseBedDreamMenu(UUserWidget* Widget);
     UFUNCTION(BlueprintCallable, Category="Dream UI", meta=(DefaultToSelf="Widget"))
