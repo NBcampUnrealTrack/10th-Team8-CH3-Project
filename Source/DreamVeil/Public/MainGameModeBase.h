@@ -59,7 +59,12 @@ public:
 	// 배경음
 	// 맵마다 게임모드가 새로 만들어지므로 여기서 틀면 레벨이 바뀔 때 알아서 갈린다
 
-	//로비와 메인 메뉴에서 나오는 배경음 싸우지 않는 곳이라 하나로 씀
+	//메인 메뉴에서 나오는 배경음
+	//로비와 나눠 둔 이유 둘 다 싸우지 않는 곳이지만 메인 메뉴는 게임 밖 화면이라 분위기가 다름
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
+	TObjectPtr<USoundBase> MainMenuBGM;
+
+	//로비에서 나오는 배경음
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "BGM")
 	TObjectPtr<USoundBase> LobbyBGM;
 

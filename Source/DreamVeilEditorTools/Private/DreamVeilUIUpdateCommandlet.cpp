@@ -59,6 +59,20 @@ static FString DumpBlueprintGraphs(const FString& ObjectPath)
         Report += FString::Printf(TEXT("VAR %s : %s\n"), *Variable.VarName.ToString(), *Variable.VarType.PinCategory.ToString());
     }
 
+    //클래스 기본값에 꽂힌 에셋도 같이 찍음 어느 칸에 무엇이 들어갔는지 확인할 방법이 필요함
+    if (UObject* Defaults = BP->GeneratedClass ? BP->GeneratedClass->GetDefaultObject() : nullptr)
+    {
+        for (TFieldIterator<FObjectProperty> PropertyIterator(Defaults->GetClass()); PropertyIterator; ++PropertyIterator)
+        {
+            UObject* Value = PropertyIterator->GetObjectPropertyValue_InContainer(Defaults);
+
+            if (Value)
+            {
+                Report += FString::Printf(TEXT("DEFAULT %s = %s\n"), *PropertyIterator->GetName(), *Value->GetName());
+            }
+        }
+    }
+
     TArray<UEdGraph*> Graphs;
     BP->GetAllGraphs(Graphs);
 
@@ -102,6 +116,13 @@ static FString DumpBlueprintGraphs(const FString& ObjectPath)
 int32 UDreamVeilUIUpdateCommandlet::Main(const FString& Params)
 {
     if (FParse::Param(*Params, TEXT("FixShop"))) return FixDreamVeilShopAndInventory() ? 0 : 21;
+
+    FString BGMDirectory;
+
+    if (FParse::Value(*Params, TEXT("ImportBGM="), BGMDirectory, false))
+    {
+        return ImportDreamVeilBGM(BGMDirectory) ? 0 : 22;
+    }
 
     FString DumpList;
 

@@ -408,8 +408,13 @@ USoundBase* AMainGameModeBase::GetBaseBGM() const
 		return EndlessBGM;
 	}
 
-	//레벨 맵이 아니면 로비나 메인 메뉴 둘 다 싸우지 않는 곳이라 같은 곡을 씀
-	return DreamVeilGameInstance->IsInLevelMap() ? LevelBGM : LobbyBGM;
+	if (DreamVeilGameInstance->IsInLevelMap())
+	{
+		return LevelBGM;
+	}
+
+	//로비가 아닌 나머지는 메인 메뉴로 봄 테스트 맵도 여기로 오는데 싸우지 않는 곳이라 문제 없음
+	return DreamVeilGameInstance->IsInLobby() ? LobbyBGM : MainMenuBGM;
 }
 
 //살아 있는 보스가 있으면 보스 곡 없으면 기본 곡

@@ -24,6 +24,9 @@
 #include "K2Node_IfThenElse.h"
 #include "K2Node_VariableGet.h"
 #include "MainPlayerController.h"
+#include "MainGameModeBase.h"
+#include "Sound/SoundWave.h"
+#include "AutomatedAssetImportData.h"
 #include "EdGraphSchema_K2.h"
 #include "Misc/PackageName.h"
 #include "Misc/Paths.h"
@@ -196,6 +199,98 @@ UK2Node_CallFunction* FindCall(UEdGraph* Graph, FName FunctionName)
 
     return nullptr;
 }
+}
+
+//BGM wav 다섯 개를 들여오고 반복 재생을 켠 뒤 게임모드 기본값에 꽂음
+//Looping을 여기서 켜는 이유 SpawnSound2D는 스스로 반복하지 않아서 이걸 안 켜면 한 번 울리고 조용해짐
+//에디터에서 다섯 번 클릭할 일을 없애려고 임포트부터 배정까지 한 번에 함
+bool ImportDreamVeilBGM(const FString& SourceDirectory)
+{
+    bOK = true;
+
+    //파일 이름 그대로 에셋 이름이 되므로 미리 정해둔 이름으로 맞춰 옮겨둔 폴더를 받음
+    struct FBGMEntry { const TCHAR* AssetName; const TCHAR* PropertyName; };
+
+    const FBGMEntry Entries[] = {
+        { TEXT("BGM_MainMenu"), TEXT("MainMenuBGM") },
+        { TEXT("BGM_Lobby"),    TEXT("LobbyBGM")    },
+        { TEXT("BGM_Level"),    TEXT("LevelBGM")    },
+        { TEXT("BGM_Boss"),     TEXT("BossBGM")     },
+        { TEXT("BGM_Endless"),  TEXT("EndlessBGM")  },
+    };
+
+    UAutomatedAssetImportData* ImportData = NewObject<UAutomatedAssetImportData>();
+    ImportData->bReplaceExisting = true;
+    ImportData->DestinationPath = TEXT("/Game/Audio/BGM");
+
+    for (const FBGMEntry& Entry : Entries)
+    {
+        ImportData->Filenames.Add(SourceDirectory / FString::Printf(TEXT("%s.wav"), Entry.AssetName));
+    }
+
+    IAssetTools& AssetTools = FModuleManager::LoadModuleChecked<FAssetToolsModule>(TEXT("AssetTools")).Get();
+    const TArray<UObject*> Imported = AssetTools.ImportAssetsAutomated(ImportData);
+
+    if (Imported.Num() != UE_ARRAY_COUNT(Entries))
+    {
+        UE_LOG(LogTemp, Error, TEXT("BGM import brought in %d of %d files"), Imported.Num(), (int32)UE_ARRAY_COUNT(Entries));
+        return false;
+    }
+
+    for (UObject* Asset : Imported)
+    {
+        USoundWave* Wave = Cast<USoundWave>(Asset);
+
+        if (!Wave)
+        {
+            bOK = false;
+            continue;
+        }
+
+        //배경음은 끊기면 안 되므로 반복을 켬
+        Wave->bLooping = true;
+
+        if (!Save(Wave))
+        {
+            bOK = false;
+        }
+    }
+
+    //게임모드 기본값에 꽂음 맵마다 게임모드가 새로 만들어져도 이 값은 클래스 기본값이라 그대로 따라감
+    UBlueprint* GameModeBP = LoadObject<UBlueprint>(nullptr, TEXT("/Game/Blueprint/BP_MainGameModeBase.BP_MainGameModeBase"));
+
+    if (!GameModeBP || !GameModeBP->GeneratedClass)
+    {
+        UE_LOG(LogTemp, Error, TEXT("Missing BP_MainGameModeBase"));
+        return false;
+    }
+
+    UObject* GameModeDefaults = GameModeBP->GeneratedClass->GetDefaultObject();
+    GameModeBP->Modify();
+
+    for (const FBGMEntry& Entry : Entries)
+    {
+        USoundWave* Wave = LoadObject<USoundWave>(nullptr, *FString::Printf(TEXT("/Game/Audio/BGM/%s.%s"), Entry.AssetName, Entry.AssetName));
+
+        //protected 멤버라 직접 대입하지 못하므로 리플렉션으로 넣음
+        FObjectProperty* Property = FindFProperty<FObjectProperty>(GameModeDefaults->GetClass(), Entry.PropertyName);
+
+        if (!Wave || !Property)
+        {
+            bOK = false;
+            UE_LOG(LogTemp, Error, TEXT("Could not assign %s"), Entry.PropertyName);
+            continue;
+        }
+
+        Property->SetObjectPropertyValue_InContainer(GameModeDefaults, Wave);
+    }
+
+    if (!bOK)
+    {
+        return false;
+    }
+
+    return Save(GameModeBP);
 }
 
 //상점과 인벤토리 블루프린트의 끊긴 연결을 고침
