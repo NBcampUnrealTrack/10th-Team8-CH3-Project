@@ -14,6 +14,7 @@ DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
 
 //보스가 가지는 페이즈 수 체력을 이 수만큼 나눠서 단계가 올라감
 //4로 둔 이유 기획에서 페이즈 1~4로 정함
+//였는데 기획이 바뀌었구요 3페이즈긴한데... 일단 둠
 const int32 BOSS_PHASE_COUNT = 4;
 
 //레벨마다 하나씩 나오는 보스 Endless에서는 주기적으로 나옴
@@ -46,6 +47,9 @@ public:
 protected:
 	virtual void BeginPlay() override;
 	virtual void MonsterInit() override;
+
+	TObjectPtr<UCapsuleComponent> MonsterCapsuleCollisionComponent;
+	TObjectPtr<USkeletalMeshComponent> MonsterSkeletalMeshComponent;
 
 	//페이즈가 오를 때마다 이동 속도에 곱해지는 값 페이즈 4면 세 번 곱해짐
 	//1.0으로 두면 속도가 안 변하고 페이즈 연출은 스킬로만 드러남

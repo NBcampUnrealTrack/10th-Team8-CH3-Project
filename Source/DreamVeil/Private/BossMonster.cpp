@@ -4,6 +4,9 @@
 #include "DreamVeilGameInstance.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TimerManager.h"
+#include "Components/ShapeComponent.h"
+#include "Components/CapsuleComponent.h"
+#include "MonsterAIController.h"
 
 ABossMonster::ABossMonster()
 {
@@ -20,6 +23,20 @@ ABossMonster::ABossMonster()
 
 	//잡몹과 같은 값 등급 배율 6의 제곱근이 곱해져서 L1 쉬움에서 약 24가 됨
 	MonsterDamage = 10.0f;
+
+	MonsterCapsuleCollisionComponent = CreateDefaultSubobject<UCapsuleComponent>(TEXT("Capsule Collision"));
+	MonsterCollisionComponent = MonsterCapsuleCollisionComponent;
+	MonsterCollisionComponent->SetupAttachment(RootComponent);
+
+	AIControllerClass = AMonsterAIController::StaticClass();
+
+	// SkeletalMeshComponent만의 고유한 기능을 쓸 수도 있으니 이렇게 두 변수로 나눕니다. 둘 다 가리키는 컴포넌트는 동일
+	MonsterSkeletalMeshComponent = GetMesh();
+	MonsterMeshComponent->SetupAttachment(RootComponent);
+
+	MonsterCombatStats->SetMaxHealth(MaxHealth);
+
+	MonsterWalkSpeed = 500.0f;
 }
 
 void ABossMonster::BeginPlay()

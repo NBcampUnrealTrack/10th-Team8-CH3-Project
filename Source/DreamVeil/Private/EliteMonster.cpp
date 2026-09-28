@@ -19,6 +19,8 @@ AEliteMonster::AEliteMonster()
 
 	EliteType = EEliteMonsterType::Elite1; //일단 기본은 Elite1
 
+	AttackType = EMonsterAttackType::Melee;
+
 	// 엘리트 체력 기본값. 바꿀거면 하세용
 	//등급 배율 2.2가 여기에 또 곱해지므로 잡몹의 3배로 두면 실효 6.6배가 되어버림
 	//120~180으로 두면 L1 쉬움 실효 264~396 잡몹의 약 5배로 맞음
@@ -41,24 +43,6 @@ void AEliteMonster::MonsterInit()
 {
 	Super::MonsterInit();
 
-	// 엘리트 몬스터 타입 설정 기본적으로 해주는거인데 공격 타입 제한을 걸어버리는 거랑 다름없어서
-	// 블프에서 엘리트 몬스터 타입 바꿔버리고 싶으면 여기 내용 지우세요
-	switch (EliteType)
-	{
-	case EEliteMonsterType::Elite1:
-	{
-		AttackType = EMonsterAttackType::Melee;
-		break;
-	}
-	case EEliteMonsterType::Elite2:
-	{
-		AttackType = EMonsterAttackType::Ranged;
-	}
-	case EEliteMonsterType::Elite3:
-	{
-		AttackType = EMonsterAttackType::Hybrid;
-	}
-	}
 }
 
 EEliteMonsterType AEliteMonster::GetEliteType() const
