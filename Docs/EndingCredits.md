@@ -11,7 +11,13 @@
 - `FinishEnding` permits completion once and calls the existing `CompleteCurrentLevel` path for rewards, unlocks, saving and lobby travel. The world stays paused until travel.
 - Credits do not auto-dismiss. Progress is committed on exit, as in the project's previous ending hook.
 
-## Editing
+## Safe in-game preview
+
+In a non-Shipping build, press **F8** while playing in the lobby or a level to open the same animated credits without completing a level. **F9** is also bound because Play In Editor normally reserves F8 for eject. Do not change editor keybindings for this test.
+
+The button reads **CLOSE PREVIEW**. Clicking it (or pressing Enter; Escape may be intercepted by PIE) closes the preview, unpauses gameplay and restores game input. Preview does not call completion, save, unlock, reward or map-travel functions and leaves the current BGM untouched. Existing menus/pauses/game-over prevent opening a preview. Shipping builds have no preview shortcut.
+
+## Editing credits
 
 The native UMG layout and copy are in `Source/DreamVeil/Private/EndingCreditsWidget.cpp`.
 Existing Pretendard font assets are hard-referenced for packaging; no new texture or external font is needed.

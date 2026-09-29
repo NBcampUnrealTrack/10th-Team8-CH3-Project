@@ -98,6 +98,11 @@ protected:
 	virtual void SetupInputComponent() override;
 
 private:
+	//Development-only shortcut. Unlike a real ending, closing this never completes or saves a level.
+	void PreviewEndingCredits();
+	bool OpenEndingCredits(bool bPreview);
+	bool bEndingPreview = false;
+
 	//위아래 키로 배경음 크기 조절 두 키가 하는 일이 같아서 눌린 키로 방향만 가름
 	void HandleBGMVolumeKey(FKey PressedKey);
 

@@ -191,7 +191,22 @@ bool AMainPlayerController::ShowEnding()
     if (bEndingOpen) return true;
     const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
     if (bGameOverOpen || !GI || GI->GetCurrentLevelNumber() != 4) return false;
+    return OpenEndingCredits(false);
+}
 
+void AMainPlayerController::PreviewEndingCredits()
+{
+#if !UE_BUILD_SHIPPING
+    const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
+    //Do not displace an inventory, augment choice, existing pause, or terminal screen.
+    if (!IsLocalController() || !GI || GI->IsInMainMenu() || bGameOverOpen || bEndingOpen
+        || IsMenuWidgetOpen() || UGameplayStatics::IsGamePaused(this)) return;
+    OpenEndingCredits(true);
+#endif
+}
+
+bool AMainPlayerController::OpenEndingCredits(bool bPreview)
+{
     //Old Blueprint defaults may explicitly contain None or a placeholder ending class.
     const TSubclassOf<UUserWidget> CreditsClass = EndingWidgetClass
         && EndingWidgetClass->IsChildOf(UEndingCreditsWidget::StaticClass())
@@ -199,8 +214,17 @@ bool AMainPlayerController::ShowEnding()
     UUserWidget* Credits = OpenMenuWidgetPaused(CreditsClass);
     if (!Credits) return false;
     bEndingOpen = true;
+    bEndingPreview = bPreview;
+    bEndingCompletionRequested = false;
+    if (bPreview)
+    {
+        if (auto* Caption = Cast<UTextBlock>(Credits->GetWidgetFromName(TEXT("Credits_ReturnCaption"))))
+            Caption->SetText(FText::FromString(TEXT("CLOSE PREVIEW")));
+    }
     Credits->SetKeyboardFocus();
 
+    //Preview leaves the current audio untouched so closing can resume it without restarting a boss track.
+    if (bPreview) return true;
     //전투 음악을 종료함. 로비 복귀 시 기존 로비 BGM 흐름이 다시 시작됨.
     if (AMainGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr)
     {
@@ -211,6 +235,15 @@ bool AMainPlayerController::ShowEnding()
 
 void AMainPlayerController::FinishEnding()
 {
+    if (bEndingOpen && bEndingPreview)
+    {
+        //Return before obtaining GI or calling completion/save/travel code.
+        bEndingPreview = false;
+        bEndingOpen = false;
+        bEndingCompletionRequested = false;
+        CloseMenuWidget();
+        return;
+    }
     auto* GI = GetGameInstance<UDreamVeilGameInstance>();
     if (!bEndingOpen || bEndingCompletionRequested || !GI || GI->GetCurrentLevelNumber() != 4) return;
     bEndingCompletionRequested = true;
@@ -390,6 +423,11 @@ void AMainPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AMainPlayerController::HandleBGMVolumeKey);
     InputComponent->BindKey(EKeys::Down, IE_Pressed, this, &AMainPlayerController::HandleBGMVolumeKey);
     InputComponent->BindKey(EKeys::M, IE_Pressed, this, &AMainPlayerController::ToggleBGMMute);
+#if !UE_BUILD_SHIPPING
+    InputComponent->BindKey(EKeys::F8, IE_Pressed, this, &AMainPlayerController::PreviewEndingCredits);
+    //PIE reserves F8 for eject; F9 is an alternative without changing the user's editor shortcuts.
+    InputComponent->BindKey(EKeys::F9, IE_Pressed, this, &AMainPlayerController::PreviewEndingCredits);
+#endif
 }
 
 //위아래 키로 배경음 크기 조절

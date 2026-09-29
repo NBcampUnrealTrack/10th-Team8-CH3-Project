@@ -151,7 +151,7 @@ void UEndingCreditsWidget::BuildCredits()
 	Style.Pressed.TintColor = FLinearColor(0.09f, 0.06f, 0.03f, 1);
 	Button->SetStyle(Style);
 	Place(Button, 480, 818, 440, 62);
-	auto* Caption = WidgetTree->ConstructWidget<UTextBlock>();
+	auto* Caption = WidgetTree->ConstructWidget<UTextBlock>(UTextBlock::StaticClass(), TEXT("Credits_ReturnCaption"));
 	Caption->SetText(FText::FromString(TEXT("RETURN TO LOBBY")));
 	Caption->SetFont(BodyFont ? FSlateFontInfo(BodyFont.Get(), 23) : FCoreStyle::GetDefaultFontStyle("Regular", 23));
 	Caption->SetColorAndOpacity(Ivory);
