@@ -1,0 +1,11 @@
+{
+  "FileVersion": 3,
+  "Version": 1,
+  "VersionName": "1.0",
+  "FriendlyName": "DreamVeil Skin Editor",
+  "Description": "Read-only DreamVeil HUD icons and timer with audited staged UI tooling.",
+  "Category": "UI",
+  "CanContainContent": false,
+  "Installed": false,
+  "Modules": [{"Name": "DreamVeilSkinRuntime", "Type":"Runtime", "LoadingPhase":"Default"}, {"Name": "DreamVeilSkinEditor", "Type": "Editor", "LoadingPhase": "Default"}]
+}

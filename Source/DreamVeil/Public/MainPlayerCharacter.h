@@ -1,0 +1,492 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "GameFramework/Character.h"
+#include "MainPlayerCharacter.generated.h"
+
+class USpringArmComponent;
+class UCameraComponent;
+class UCombatStatsComponent;
+class UDispatchTableComponent;
+class UInventoryComponent;
+class UWeaponBase;
+class UAnimMontage;
+class UAnimInstance;
+class UAudioComponent;
+class USoundBase;
+enum class EWeaponSlot : uint8;
+enum class EAugmentID : uint8;
+
+struct FInputActionValue;
+
+//총알이 적을 맞혔을 때 HUD가 히트 마커를 띄우게 알림 이번 발로 죽였으면 bKilled가 true
+//처치 표식을 따로 띄울 수 있게 죽였는지까지 같이 넘김 몬스터가 몰려 있으면 죽었는지 눈으로 알기 어려움
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnHitMarker, bool, bKilled);
+
+//기존 HUD 적중 이벤트의 BP 연결은 유지하고 추가 헤드샷 연출만 별도로 알림
+DECLARE_MULTICAST_DELEGATE(FOnHeadshotConfirmed);
+
+//경험치가 바뀌었을 때 현재 경험치와 다음 레벨까지 필요한 경험치
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FOnPlayerExperienceChanged,
+	float, CurrentExperience,
+	float, RequiredExperience
+);
+
+//레벨이 올랐을 때 새 레벨 한 번에 여러 레벨이 오르면 오른 레벨마다 한 번씩
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+	FOnPlayerLevelUp,
+	int32, NewLevel
+);
+
+//들고 있는 무기가 바뀌었을 때 새 무기 슬롯
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+	FOnWeaponChanged,
+	EWeaponSlot, NewSlot
+);
+
+//플레이어가 죽었을 때 한 번
+DECLARE_DYNAMIC_MULTICAST_DELEGATE(FOnPlayerDied);
+
+//레벨업 보상으로 고를 증강 선택지가 준비됐을 때
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(
+	FOnAugmentChoicesReady,
+	const TArray<EAugmentID>&, Choices
+);
+
+//스태미나가 바뀌었을 때 현재 스태미나와 최대 스태미나 스태미나 게이지 UI용
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_TwoParams(
+	FOnPlayerStaminaChanged,
+	float, CurrentStamina,
+	float, MaxStamina
+);
+
+UCLASS()
+class DREAMVEIL_API AMainPlayerCharacter : public ACharacter
+{
+	GENERATED_BODY()
+
+public:
+
+	AMainPlayerCharacter();
+
+	void ConfigureCameraCollision();
+	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	USpringArmComponent* SpringArmComp;
+
+	UPROPERTY(EditAnywhere, BlueprintReadWrite)
+	UCameraComponent* CameraComp;
+
+	//스탯 컴포넌트 체력 공격력 방어력과 사망 이벤트
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Stats")
+	TObjectPtr<UCombatStatsComponent> CombatStats;
+
+	//증강 컴포넌트 보상 증강 뽑기와 적용
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Augment")
+	TObjectPtr<UDispatchTableComponent> DispatchTable;
+
+	//인벤토리 컴포넌트 무기 파츠와 꿈의 조각 상점 강화 장착
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
+	TObjectPtr<UInventoryComponent> Inventory;
+
+	//1번 무기 권총 처음부터 가지고 있음 붙일 소켓은 블루프린트 Details의 Parent Socket에서 바꿈
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TObjectPtr<UWeaponBase> PistolWeapon;
+
+	//2번 무기 소총 AcquireWeapon으로 얻기 전까지 숨겨져 있고 바꿀 수 없음
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
+	TObjectPtr<UWeaponBase> RifleWeapon;
+
+	//받은 데미지를 증강 라이브러리로 넘김 이게 없으면 체력이 안 깎임
+	virtual float TakeDamage(float DamageAmount, FDamageEvent const& DamageEvent, AController* EventInstigator, AActor* DamageCauser) override;
+
+	// 무기
+
+	//무기가 바뀌었을 때 이벤트 무기 UI 갱신용
+	UPROPERTY(BlueprintAssignable, Category = "Weapon")
+	FOnWeaponChanged OnWeaponChanged;
+
+	//총알이 적을 맞혔을 때 이벤트 HUD가 히트 마커를 띄울 것
+	//무기가 둘이라도 HUD는 여기 하나만 보면 됨 무기 쪽 알림을 캐릭터가 모아서 다시 알림
+	UPROPERTY(BlueprintAssignable, Category = "Weapon")
+	FOnHitMarker OnHitMarker;
+
+	//무기 종류와 관계없이 화면을 담당하는 컨트롤러가 이 신호 하나를 구독함
+	FOnHeadshotConfirmed OnHeadshotConfirmed;
+
+	//무기를 얻음 상점 인벤토리 몬스터 드랍에서 부를 것 얻기만 하고 바로 들지는 않음
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	void AcquireWeapon(EWeaponSlot Slot);
+
+	//가지고 있는 무기인지
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	bool HasWeapon(EWeaponSlot Slot) const;
+
+	//가지고 있는 무기 전부 레벨을 넘길 때 GameInstance가 저장했다가 새 레벨의 플레이어에게 다시 줌
+	const TArray<EWeaponSlot>& GetAcquiredWeaponSlots() const;
+
+	//무기를 바꿔 듦 가지고 있지 않은 무기면 실패
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	bool EquipWeapon(EWeaponSlot Slot);
+
+	//지금 들고 있는 무기 슬롯 로비처럼 싸우지 않는 곳이면 맨손을 뜻하는 Nothing
+	//애님 블루프린트가 이 값으로 자세를 고름 Nothing이면 Blend Poses의 Default Pose(맨손 Idle)가 재생됨
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	EWeaponSlot GetCurrentWeaponSlot() const;
+
+	//지금 들고 있는 무기
+	UFUNCTION(BlueprintPure, Category = "Weapon")
+	UWeaponBase* GetCurrentWeapon() const;
+
+	//조준점을 그릴 화면 좌표 총알이 실제로 닿을 지점을 화면으로 옮긴 값
+	//화면 한가운데에 조준점을 고정하지 않는 이유 벽에 바짝 붙으면 총구가 카메라 정면으로 재조정돼서 실제 탄착점이 가운데가 아님
+	//사격과 똑같은 계산(CalculateFireAim)을 쓰므로 보이는 곳과 맞는 곳이 항상 같음
+	//화면 밖이거나 무기가 없으면 false 이때 UI는 조준점을 숨기면 됨
+	//돌려주는 값은 뷰포트 픽셀 좌표라 UMG에서는 Get Viewport Scale로 나눠서 Position에 넣을 것
+	//Pure가 아닌 이유 안에서 광선을 한 번 쏘므로 Tick에서 한 번만 부르고 결과를 변수에 담아 쓰게 하려는 것
+	UFUNCTION(BlueprintCallable, Category = "Weapon")
+	bool GetCrosshairScreenPosition(FVector2D& OutScreenPosition) const;
+
+	//슬롯에 해당하는 무기 컴포넌트
+	//인벤토리가 파츠를 어느 무기에 넘길지 찾을 때도 써서 private에서 public으로 옮김
+	UWeaponBase* GetWeaponInSlot(EWeaponSlot Slot) const;
+
+	// 사망
+
+	//플레이어가 죽었을 때 이벤트 게임 오버 처리와 UI는 이걸 받는 쪽(GameState)이 함
+	UPROPERTY(BlueprintAssignable, Category = "Stats")
+	FOnPlayerDied OnPlayerDied;
+
+	// 스태미나
+
+	//스태미나 변화 이벤트 스태미나 게이지 UI가 받을 것
+	UPROPERTY(BlueprintAssignable, Category = "Stamina")
+	FOnPlayerStaminaChanged OnStaminaChanged;
+
+	//현재 스태미나 UI를 처음 띄울 때 한 번 읽는 용도
+	UFUNCTION(BlueprintPure, Category = "Stamina")
+	float GetCurrentStamina() const;
+
+	//최대 스태미나 게이지 비율을 계산할 때 씀
+	UFUNCTION(BlueprintPure, Category = "Stamina")
+	float GetMaxStamina() const;
+
+	//최대 스태미나를 늘리고 늘어난 만큼 채움 스태미나 증가 증강(UStaminaUpSkill)이 부름
+	void IncreaseMaxStamina(float Amount);
+
+	// 레벨
+
+	//경험치 변화 이벤트
+	UPROPERTY(BlueprintAssignable, Category = "Level")
+	FOnPlayerExperienceChanged OnExperienceChanged;
+
+	//레벨 업 이벤트
+	UPROPERTY(BlueprintAssignable, Category = "Level")
+	FOnPlayerLevelUp OnLevelUp;
+
+	//현재 플레이어 레벨 1부터 시작
+	//AActor에 월드 레벨을 돌려주는 GetLevel이 이미 있어서 이름을 GetPlayerLevel로 함
+	UFUNCTION(BlueprintPure, Category = "Level")
+	int32 GetPlayerLevel() const;
+
+	//현재 레벨에서 모은 경험치
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetCurrentExperience() const;
+
+	//다음 레벨까지 필요한 경험치
+	UFUNCTION(BlueprintPure, Category = "Level")
+	float GetRequiredExperience() const;
+
+	//경험치를 더함 필요한 만큼 모이면 레벨이 오르고 남은 경험치는 다음 레벨로 넘어감 죽은 상태면 무시
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void AddExperience(float Amount);
+
+	//저장해둔 레벨과 경험치를 되돌림 GameInstance가 새 레벨의 플레이어에게 부름
+	//맵을 넘기면 캐릭터가 새로 만들어져 레벨이 1로 돌아가는데 이걸로 이어붙임
+	//증강 복원과 달리 레벨업 보상을 다시 주지 않음 보상은 이미 증강 기록으로 복원되기 때문
+	void RestoreLevelProgress(int32 SavedLevel, float SavedExperience);
+
+	//지금 레벨과 경험치와 무기 칸을 UI에 다시 알림 HUD 위젯의 Event Construct에서 부를 것
+	//필요한 이유 HUD가 만들어지는 시점과 캐릭터가 저장된 레벨을 되돌리는 시점의 순서가 맵마다 달라짐
+	//HUD가 늦게 만들어지면 레벨 알림을 놓쳐서 실제로는 5레벨인데 화면에는 1로 남음 그래서 UI가 직접 한 번 당겨오게 함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void RefreshProgressUI();
+
+	// 레벨업 보상 증강 선택 UI가 씀
+
+	//놓친 증강 선택지를 다시 띄움 위젯이 바인딩한 직후에 한 번 부를 것
+	//컨트롤러나 HUD가 바인딩하기 전에 레벨업이 일어나면 방송을 놓침
+	//레벨을 넘어오면서 캐릭터가 새로 만들어지는 구조라 누가 먼저 준비되는지가 판마다 다름
+	//이걸 부르면 떠 있던 선택지는 다시 알리고 밀린 보상이 있으면 새로 뽑아서 띄움
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	void RefreshAugmentChoices();
+
+	//고를 증강 선택지가 준비됐을 때 이벤트 UI는 이걸 받아서 선택 창을 띄울 것
+	UPROPERTY(BlueprintAssignable, Category = "Augment")
+	FOnAugmentChoicesReady OnAugmentChoicesReady;
+
+	//지금 떠 있는 선택지 UI를 늦게 열었을 때 다시 읽는 용도 없으면 빈 배열
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	TArray<EAugmentID> GetCurrentAugmentChoices() const;
+
+	//지금 고를 선택지가 있는지
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	bool HasAugmentChoices() const;
+
+	//지금 떠 있는 선택지 말고 뒤에 더 기다리는 보상 수 UI에 남은 횟수를 띄울 때 씀
+	UFUNCTION(BlueprintPure, Category = "Augment")
+	int32 GetPendingAugmentChoiceCount() const;
+
+	//UI에서 고른 증강을 적용 지금 선택지에 없는 번호면 실패
+	//한 번에 여러 레벨이 올랐으면 적용 뒤 다음 선택지 이벤트가 이어서 나감
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	bool SelectAugmentChoice(EAugmentID AugmentID);
+
+	//증강 선택 보상을 하나 줌 레벨업 한 번과 같은 효과
+	//몬스터가 떨군 증강 아이템을 주웠을 때 아이템 쪽에서 부를 것 죽은 상태면 무시
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	void GrantAugmentReward();
+
+	// 테스트용 치트 콘솔(~)을 열고 함수 이름과 값을 입력해서 부름
+	// 몬스터 보상 상점 UI가 아직 없어서 레벨업 무기 사망 흐름을 확인하는 용도
+
+	//경험치를 넣어 레벨업과 증강 선택지를 확인 예) CheatAddExp 150
+	UFUNCTION(Exec)
+	void CheatAddExp(float Amount);
+
+	//소총을 얻고 바로 들게 함 1 2번 입력 에셋이 없어도 연사 테스트 가능 예) CheatAcquireRifle
+	UFUNCTION(Exec)
+	void CheatAcquireRifle();
+
+	//떠 있는 증강 선택지 중 하나를 고름 번호는 0부터 예) CheatPickAugment 0
+	UFUNCTION(Exec)
+	void CheatPickAugment(int32 ChoiceIndex);
+
+	//뽑기를 거치지 않고 원하는 증강을 바로 얻음 이펙트 확인용 예) CheatGiveAugment 10
+	//0 공격력 1 방어력 2 체력 3 스태미나 4 광전사 5 가시갑옷 6 흡혈 7 재생력 8 최후의요새
+	//9 감속탄 10 폭발탄 11 화염탄
+	UFUNCTION(Exec)
+	void CheatGiveAugment(int32 AugmentID);
+
+	//증강을 전부 한 번에 얻음 액티브 셋(감속탄 폭발탄 화염탄)을 같이 확인할 때 씀
+	//하나씩 주려면 CheatGiveAugment를 쓰면 됨 겹쳐 놓으면 어느 연출인지 구분이 안 될 때가 있음
+	UFUNCTION(Exec)
+	void CheatGiveAllAugments();
+
+	//꿈의 조각을 넣음 상점 구매와 강화를 확인할 때 씀 예) CheatAddShards 5000
+	UFUNCTION(Exec)
+	void CheatAddShards(int32 Amount);
+
+	//깬 레벨 수를 바꿔 상점 해금을 열음 상점은 등급 번호만큼 레벨이 열려야 그 등급을 팔고 소총은 L3가 열려야 팖
+	//꿈의 조각만 넣으면 처음 로비에서는 Level1 파츠밖에 안 보임 4를 넣으면 전부 열림 예) CheatUnlockShop 4
+	UFUNCTION(Exec)
+	void CheatUnlockShop(int32 ClearedCount);
+
+	//파츠를 바로 하나 줌 상점에서 팔지 않는 보스 등급은 보스를 잡거나 이걸로만 얻을 수 있음
+	//무기 0 권총 1 소총 / 칸 0 총구 1 탄창 2 조준기 3 개머리판 4 앞손잡이 / 등급 0 L1 ~ 3 L4 4 보스
+	//예) CheatGivePart 1 3 4 는 소총 개머리판 보스 등급
+	UFUNCTION(Exec)
+	void CheatGivePart(int32 Weapon, int32 Slot, int32 Tier);
+
+	//가진 총의 모든 칸에 그 등급 파츠를 하나씩 줌 소켓 UI를 한 번에 채울 때 씀 예) CheatGiveAllParts 0
+	//아직 안 산 소총의 파츠는 주지 않음 못 끼우는 파츠만 목록에 쌓이면 UI 확인이 오히려 헷갈림
+	UFUNCTION(Exec)
+	void CheatGiveAllParts(int32 Tier);
+
+	//자기 자신에게 데미지 사망 흐름 확인용 예) CheatDamageMe 9999
+	UFUNCTION(Exec)
+	void CheatDamageMe(float Amount);
+
+	//지금 상태를 로그로 출력 레벨 경험치 체력 공방 무기 선택지 예) CheatShowStatus
+	UFUNCTION(Exec)
+	void CheatShowStatus();
+
+protected:
+	//무기별 발사 몽타주 기존 애님 블루프린트의 발사 슬롯으로 재생
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
+	TObjectPtr<UAnimMontage> PistolFireMontage;
+
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
+	TObjectPtr<UAnimMontage> RifleFireMontage;
+
+	//로비에서만 쓸 애님 블루프린트 비워두면 평소 애님을 그대로 씀
+	//로비용 캐릭터 블루프린트를 따로 만들지 않으려고 여기서 갈아끼움
+	//BeginPlay에서 로비일 때만 SetAnimInstanceClass로 바꾸므로 레벨에서는 건드리지 않음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Weapon|Animation")
+	TSubclassOf<UAnimInstance> LobbyAnimClass;
+
+	//체력이 위험할 때 반복 재생할 심장 소리 비워두면 소리 없이 넘어감
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Sound")
+	TObjectPtr<USoundBase> HeartbeatSound;
+
+	//맞았을 때 나는 소리 비워두면 소리 없이 데미지만 들어감
+	//방어력으로 다 막혀 0이 되면 안 나옴 실제로 체력이 깎였을 때만 울림
+	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
+	TObjectPtr<USoundBase> HitSound;
+
+	float SprintSpeed;
+	float NoramalSpeed;
+	float SprintSpeedMultiplier;
+
+	//달리기 입력을 누르고 있는지 달리는 동안에는 총을 쏘지 않음
+	bool bIsSprinting = false;
+
+	virtual void BeginPlay() override;
+	virtual void Tick(float DeltaTime) override;
+	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
+
+	//컨트롤러가 붙을 때 카메라 위아래 각도 제한을 검
+	virtual void NotifyControllerChanged() override;
+
+	void MovePlayer(const FInputActionValue& value);
+	void StartJump(const FInputActionValue& value);
+	void StopJump(const FInputActionValue& value);
+	void Look(const FInputActionValue& value);
+	void StartSprint(const FInputActionValue& value);
+	void StopSprint(const FInputActionValue& value);
+
+	//사격 입력을 누른 순간 단발 연사 상관없이 한 발
+	void FireWeapon(const FInputActionValue& value);
+
+	//사격 입력을 누르고 있는 동안 연사 무기만 계속 쏨
+	void FireWeaponHeld(const FInputActionValue& value);
+
+	//숫자 1 권총으로 바꿈
+	void EquipPistolInput(const FInputActionValue& value);
+
+	//숫자 2 소총으로 바꿈
+	void EquipRifleInput(const FInputActionValue& value);
+
+	//1레벨에서 2레벨로 갈 때 필요한 경험치
+	//L1 일반 몬스터는 경험치 6을 주므로 30이면 처음에는 5마리 처치로 레벨업함
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
+	float BaseRequiredExperience = 30.0f;
+
+	//레벨이 하나 오를 때마다 필요한 경험치가 늘어나는 양
+	//레벨당 일반 몬스터 반 마리 분량인 3만 늘려 Lv.1은 5마리, Lv.11은 10마리 정도가 필요하게 함
+	//이후에도 같은 완만한 증가를 유지하며 상위 맵의 경험치 보상 배율은 기존 계산을 따름
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
+	float RequiredExperienceGrowth = 3.0f;
+
+private:
+	// Only components hidden by the close camera are restored; material/weapon visibility is untouched.
+	TArray<TWeakObjectPtr<UPrimitiveComponent>> CameraHiddenComponents;
+	bool bCameraInsideCharacter = false;
+	//지금 들고 있는 무기 슬롯 생성자에서 권총으로 시작하고 로비면 BeginPlay에서 Nothing이 됨
+	EWeaponSlot CurrentWeaponSlot;
+
+	//가지고 있는 무기 슬롯 권총은 BeginPlay에서 넣음
+	UPROPERTY(Transient)
+	TArray<EWeaponSlot> AcquiredWeaponSlots;
+
+	//현재 레벨
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level", meta = (AllowPrivateAccess = "true"))
+	int32 PlayerLevel = 1;
+
+	//현재 레벨에서 모은 경험치
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Level", meta = (AllowPrivateAccess = "true"))
+	float CurrentExperience = 0.0f;
+
+	//지금 떠 있는 증강 선택지
+	UPROPERTY(Transient)
+	TArray<EAugmentID> CurrentAugmentChoices;
+
+	// 상호작용 가능한 최대 거리
+	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true")
+)
+	float InteractionRadius = 250.0f;
+
+	// 캐릭터 주변의 가장 가까운 액터와 상호작용
+	void TryInteract(const FInputActionValue& Value);
+
+	//아직 띄우지 못한 레벨업 보상 수 선택지를 고르는 동안 또 레벨이 오르면 쌓임
+	int32 PendingAugmentChoiceCount = 0;
+
+	//현재 스태미나 뛰는 동안 줄고 멈추면 잠깐 쉬었다가 다시 참
+	float CurrentStamina;
+
+	//최대 스태미나 기본값에서 시작해 스태미나 증가 증강을 얻을 때마다 늘어남
+	float MaxStamina;
+
+	//마지막으로 스태미나를 쓴 시각 이 뒤로 회복 대기 시간이 지나야 다시 차기 시작함
+	//-100은 아직 한 번도 안 뛰었다는 안전값 회복 대기에 절대 걸리지 않게 넉넉히 옛날 시각으로 둠
+	//지금은 안 뛰었으면 스태미나가 가득 차 있어서 차이가 없고 첫 달리기부터 실제 시각으로 덮어씀
+	float LastStaminaUseTime = -100.0f;
+
+	//스태미나를 줄이거나 채우는 반복 타이머 스태미나가 변하는 동안만 돌고 가득 차면 멈춤
+	FTimerHandle StaminaTimerHandle;
+
+	//이동 속도를 목표치까지 서서히 옮기는 타이머 속도가 목표에 닿으면 스스로 멈춤
+	//바로 바꾸면 애니메이션 블렌드 스페이스가 뚝뚝 끊겨서 천천히 옮김
+	FTimerHandle SpeedBlendTimerHandle;
+
+	//지금 향해 가는 이동 속도 달리기를 켜고 끌 때마다 바뀜
+	float TargetWalkSpeed;
+
+	//심장 소리를 재생 중인 컴포넌트 재생 중이 아니면 nullptr
+	UPROPERTY(Transient)
+	TObjectPtr<UAudioComponent> HeartbeatAudio;
+
+	//들고 있는 무기만 보이고 나머지는 숨김
+	void UpdateWeaponVisibility();
+
+	//조준점을 계산해서 들고 있는 무기로 한 발 쏨 FireWeapon과 FireWeaponHeld가 같이 씀
+	void FireCurrentWeapon();
+
+	//총알이 나갈 총구 위치와 방향을 구함 무기가 없으면 false
+	//사격과 조준점 UI가 같은 계산을 쓰게 하려고 따로 뺌 둘이 따로 계산하면 조준점과 탄착점이 어긋남
+	bool CalculateFireAim(FVector& OutMuzzleLocation, FVector& OutFireDirection) const;
+
+	//무기가 적을 맞혔다고 알려주면 HUD 쪽으로 넘김
+	//무기마다 따로 걸어두고 여기서 하나로 모음 무기를 바꿔도 HUD가 다시 걸 필요가 없음
+	UFUNCTION()
+	void HandleWeaponHitConfirmed(bool bKilled, bool bHeadshot);
+
+	//반동으로 올라간 카메라를 조금씩 제자리로 내림 Tick이 부름
+	void UpdateRecoilRecovery(float DeltaTime);
+
+	//반동으로 위로 올린 양 중 아직 되돌리지 않은 것 0이면 되돌릴 게 없음
+	//각도가 아니라 입력값 단위 올릴 때와 내릴 때 같은 함수를 써서 정확히 제자리로 돌아옴
+	float RecoilToRecover = 0.0f;
+
+	//마지막으로 반동을 준 시각 연사 중에는 되돌리지 않으려고 잼
+	float LastRecoilTime = -100.0f;
+
+	//증강 선택 때문에 게임을 멈춘 상태인지 두 번 멈추거나 두 번 푸는 것을 막음
+	bool bAugmentChoicePaused = false;
+
+	//증강을 고르는 동안 게임을 멈추거나 푼다
+	//UI가 블루프린트로 어떻게 짜였든 상관없이 동작하도록 여기(C++)에서 처리함
+	void SetAugmentChoicePaused(bool bPaused);
+
+	//쌓인 레벨업 보상이 있으면 다음 선택지를 뽑아 이벤트로 알림
+	void DrawNextAugmentChoices();
+
+	//달리기 상태를 바꾸고 이동 속도를 맞춤 달리기 입력과 스태미나 소진이 같이 씀
+	void SetSprinting(bool bNewSprinting);
+
+	//스태미나 타이머가 돌 때마다 불림 달리면 줄이고 쉬면 채움
+	void UpdateStamina();
+
+	//스태미나 값을 0과 최대치 사이로 바꾸고 UI에 알림
+	void SetCurrentStamina(float NewStamina);
+
+	//달리기 키를 누른 채 실제로 움직이고 있는지 스태미나 소모와 발사 금지가 같이 씀
+	bool IsSprintMoving() const;
+
+	//이동 속도를 목표치 쪽으로 한 칸 옮김 목표에 닿으면 타이머를 멈춤
+	void UpdateWalkSpeedBlend();
+
+	//목표 속도를 정하고 보간 타이머를 깨움 달리기를 켜고 끌 때 부름
+	void SetTargetWalkSpeed(float NewTargetSpeed);
+
+	//체력 비율을 보고 심장 소리를 켜거나 끔 체력이 바뀔 때마다 불림
+	UFUNCTION()
+	void UpdateHeartbeat(float OldValue, float NewValue);
+
+	//스탯 컴포넌트의 사망 이벤트를 받음
+	UFUNCTION()
+	void HandleDead();
+};

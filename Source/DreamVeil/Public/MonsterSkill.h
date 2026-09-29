@@ -1,0 +1,244 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Components/ActorComponent.h"
+#include "Components/SkeletalMeshComponent.h"
+#include "SingleAnimationPlayData.h"
+#include "TimerManager.h"
+#include "MonsterSkill.generated.h"
+
+class UAnimSequence;
+class UDecalComponent;
+class AMonsterProjectile;
+class ABlackHoleZone;
+
+// 새 패턴은 여기에 추가하고 컴포넌트의 실행 분기에 구현한다.
+UENUM(BlueprintType)
+enum class EMonsterSkillType : uint8
+{
+    Charge,
+    // 부채꼴로 투사체 여러 발을 동시에 발사한다.
+    FanShot,
+    // 플레이어 발밑에 블랙홀 장판을 깔아 도트 피해와 끌어당김을 준다.
+    BlackHole
+};
+
+USTRUCT(BlueprintType)
+struct FMonsterSkillSettings
+{
+    GENERATED_BODY()
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite)
+    EMonsterSkillType Skill = EMonsterSkillType::Charge;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "0"))
+    float Cooldown = 5.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "1"))
+    int32 RequiredPhase = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, meta = (ClampMin = "1"))
+    int32 RequiredLevel = 1;
+
+};
+
+UCLASS(ClassGroup = (Monster), meta = (BlueprintSpawnableComponent))
+class DREAMVEIL_API UMonsterSkill : public UActorComponent
+{
+    GENERATED_BODY()
+
+public:
+    UMonsterSkill();
+
+    // 빈 목록이면 특수공격 없음. 엘리트는 하나, 보스는 전체 패턴을 등록한다.
+    // 중복 Skill은 등록하지 않는다. 패턴 선택과 실제 공격 동작은 추후 연결한다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill")
+    TArray<FMonsterSkillSettings> Skills;
+
+    UFUNCTION(BlueprintCallable, Category = "Monster|Skill")
+    //기존 호출은 페이즈 조건을 유지하고, 맵 레벨만 쓰는 보스는 마지막 인자로 false를 전달함
+    void SetProgression(int32 Phase, int32 Level, bool bCheckPhase = true);
+
+    UFUNCTION(BlueprintPure, Category = "Monster|Skill")
+    bool CanUseSkill(EMonsterSkillType Skill) const;
+
+    UFUNCTION(BlueprintPure, Category = "Monster|Skill")
+    float GetCooldownRemaining(EMonsterSkillType Skill) const;
+
+    // 사용 가능 여부를 검사하고 실행 중 상태만 설정한다. 실제 공격은 아직 구현하지 않는다.
+    UFUNCTION(BlueprintCallable, Category = "Monster|Skill")
+    bool BeginSkill(EMonsterSkillType Skill);
+
+    // 공격 종료 시 호출. 종료/취소 시점부터 해당 스킬의 쿨타임을 시작한다.
+    UFUNCTION(BlueprintCallable, Category = "Monster|Skill")
+    void FinishSkill();
+
+    UFUNCTION(BlueprintCallable, Category = "Monster|Skill")
+    void CancelSkill();
+
+    UFUNCTION(BlueprintPure, Category = "Monster|Skill")
+    bool IsUsingSkill() const { return bIsUsingSkill; }
+
+    //기존 BeginSkill은 상태만 설정한다. 실제 패턴 실행은 이 진입점에서 연결한다.
+    UFUNCTION(BlueprintCallable, Category = "Monster|Skill")
+    bool TryUseSkill(EMonsterSkillType Skill);
+
+    //쉬움 L1 기준 피해량. 실제 피해는 여기에 몬스터의 스킬 피해 배율(AMonsterBase::GetSkillDamageScale)이 곱해진다.
+    //방어력 등은 기존 피해 처리에서 반영된다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "0"))
+    float ChargeDamage = 30.0f;
+
+    //플레이어가 이 거리(cm) 안에 있을 때만 돌진을 준비한다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "0"))
+    float ChargeTriggerDistance = 800.0f;
+
+    //돌진으로 이동하는 거리(cm). 경고 데칼 길이도 이 값을 따른다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "100"))
+    float ChargeDistance = 1200.0f;
+
+    //돌진 속도(cm/s). 돌진 시간 = 거리 / 속도
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "100"))
+    float ChargeSpeed = 5000.0f;
+
+    //경고 표시 후 실제로 달려나가기까지의 준비 시간(초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "0"))
+    float ChargeReadySeconds = 1.0f;
+
+    //경고와 공격 판정의 전체 가로 폭(cm). 500이면 좌우 합쳐 5m
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|Charge", meta = (ClampMin = "10"))
+    float ChargeWidth = 500.0f;
+
+    //아직 모션이 없으면 비워 둔다. 준비 중에는 이 제자리 걷기를 반복 재생한다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|Charge")
+    TObjectPtr<UAnimSequence> ChargeReadyAnimation;
+
+    //돌진 중 반복 재생할 달리기 모션. 이동 거리는 애니메이션이 아니라 코드가 결정한다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|Charge")
+    TObjectPtr<UAnimSequence> ChargeRunAnimation;
+
+    // ---------------- 부채꼴 투사체 (FanShot) ----------------
+
+    //발사할 투사체. 비워두면 몬스터에 설정된 RangedProjectile을 사용한다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot")
+    TSubclassOf<AMonsterProjectile> FanShotProjectile;
+
+    //쉬움 L1 기준 투사체 한 발당 피해량. 실제 피해는 스킬 피해 배율이 곱해지고 방어력 등은 기존 피해 처리에서 반영된다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotDamage = 15.0f;
+
+    //한 번에 발사하는 투사체 수
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "1", ClampMax = "32"))
+    int32 FanShotCount = 5;
+
+    //부채꼴 전체 각도(도). 60이면 정면 기준 좌우 30도씩 퍼진다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0", ClampMax = "360"))
+    float FanShotAngle = 60.0f;
+
+    //플레이어가 이 거리 안에 있을 때만 발동한다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotTriggerDistance = 1500.0f;
+
+    //경고 표시 후 실제 발사까지의 준비 시간(초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotReadySeconds = 0.8f;
+
+    //발사 후 다시 움직이기까지의 경직 시간(초)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotRecoverySeconds = 0.3f;
+
+    //경고 표시 길이와 폭(cm). 투사체 경로마다 한 줄씩 그린다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotWarningLength = 1500.0f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|FanShot", meta = (ClampMin = "0"))
+    float FanShotWarningWidth = 60.0f;
+
+    //준비 동작과 발사 동작. 비워두면 원래 AnimBP를 그대로 쓴다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|FanShot")
+    TObjectPtr<UAnimSequence> FanShotReadyAnimation;
+
+    // ---------------- 블랙홀 장판 (BlackHole) ----------------
+
+    //깔 장판 BP. 피해 범위 지속시간 머티리얼 사운드는 장판 BP에서 설정한다. 비워두면 기본 클래스(이미지 없음)
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|BlackHole")
+    TSubclassOf<ABlackHoleZone> BlackHoleZoneClass;
+
+    //플레이어가 이 거리 안에 있을 때만 발동한다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|BlackHole", meta = (ClampMin = "0"))
+    float BlackHoleTriggerDistance = 1500.0f;
+
+    //시전 동작 시간(초). 이 동안 몬스터는 멈춰 있고, 끝나면 쿨타임이 시작된다. 장판은 따로 유지된다.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster|Skill|BlackHole", meta = (ClampMin = "0"))
+    float BlackHoleCastSeconds = 0.6f;
+
+    //시전 중 재생할 동작. 비워두면 원래 AnimBP를 그대로 쓴다.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill|BlackHole")
+    TObjectPtr<UAnimSequence> BlackHoleCastAnimation;
+
+protected:
+    virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type EndPlayReason) override;
+    virtual void TickComponent(float DeltaTime, ELevelTick TickType, FActorComponentTickFunction* ThisTickFunction) override;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill", meta = (ClampMin = "1"))
+    int32 CurrentPhase = 1;
+
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Monster|Skill", meta = (ClampMin = "1"))
+    int32 CurrentLevel = 1;
+
+private:
+    //진행 방식을 전달받아 저장함. 기존 엘리트와 BP 호출은 원래의 페이즈 조건을 유지함
+    bool bCheckRequiredPhase = true;
+
+    //엘리트는 짧은 간격으로 거리와 쿨타임을 확인하고, 보스는 기존 선택 타이머를 사용한다.
+    void CheckSkillRange();
+    bool TryUseCharge();
+    void StartCharge();
+    void CheckChargeHits(const FVector& Start, const FVector& End);
+    void CleanupCharge();
+    void PlayChargeAnimation(UAnimSequence* Animation);
+
+    //부채꼴 투사체
+    bool TryUseFanShot();
+    void FireFanShot();
+    void CleanupFanShot();
+    void ShowFanShotWarning(const FVector& Origin);
+    void HideFanShotWarning();
+    TArray<FVector> GetFanShotDirections() const;
+
+    //블랙홀 장판
+    bool TryUseBlackHole();
+    void CleanupBlackHole();
+    FTimerHandle BlackHoleCastTimer;
+    bool bBlackHolePrepared = false;
+
+    FTimerHandle FanShotReadyTimer;
+    FTimerHandle FanShotRecoveryTimer;
+    FVector FanShotDirection = FVector::ZeroVector;
+    bool bFanShotPrepared = false;
+    //경로마다 하나씩 만드는 임시 경고 데칼
+    UPROPERTY(Transient)
+    TArray<TObjectPtr<UDecalComponent>> FanShotWarningDecals;
+
+    FTimerHandle ChargeCheckTimer;
+    FTimerHandle ChargeReadyTimer;
+    FVector ChargeDirection = FVector::ZeroVector;
+    FVector ChargeStart = FVector::ZeroVector;
+    FVector PreviousChargeLocation = FVector::ZeroVector;
+    double ChargeEndTime = 0.0;
+    bool bChargePrepared = false;
+    bool bCharging = false;
+    bool bSavedAvoidance = false;
+    //액터가 파괴돼도 참조를 붙잡지 않으면서 한 번의 돌진에 중복 적중을 막는다.
+    TSet<TWeakObjectPtr<AActor>> ChargeHitActors;
+    FCollisionResponseContainer SavedCapsuleResponses;
+    bool bAnimationOverridden = false;
+    EAnimationMode::Type SavedAnimationMode = EAnimationMode::AnimationBlueprint;
+    UPROPERTY(Transient)
+    FSingleAnimationPlayData SavedAnimationData;
+
+    const FMonsterSkillSettings* FindSettings(EMonsterSkillType Skill) const;
+    TMap<EMonsterSkillType, double> NextUseTimes;
+    bool bIsUsingSkill = false;
+    EMonsterSkillType ActiveSkill = EMonsterSkillType::Charge;
+    float ActiveCooldown = 0.0f;
+};

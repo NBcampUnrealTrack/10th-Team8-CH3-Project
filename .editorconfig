@@ -1,0 +1,19 @@
+; 소스 파일 인코딩을 UTF-8로 고정한다
+; Windows 기본(CP949)으로 저장되면 다른 사람 에디터에서 한글 주석이 깨지고,
+; 언리얼은 컴파일러에 /utf-8을 넘기기 때문에 CP949 파일은 컴파일러도 잘못 읽는다.
+; Visual Studio / Rider / VS Code가 이 파일을 읽어서 저장 인코딩을 맞춰준다.
+
+root = true
+
+[*]
+charset = utf-8
+end_of_line = crlf
+insert_final_newline = true
+trim_trailing_whitespace = false
+
+[*.{h,cpp,cs}]
+indent_style = tab
+
+[*.{md,yml,yaml,json}]
+indent_style = space
+indent_size = 2

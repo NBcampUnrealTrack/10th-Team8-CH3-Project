@@ -1,0 +1,293 @@
+#pragma once
+
+#include "CoreMinimal.h"
+#include "Engine/GameInstance.h"
+#include "AugmentTypes.h"
+#include "WeaponTypes.h"
+#include "DreamVeilGameInstance.generated.h"
+
+class UDispatchTableComponent;
+class UInventoryComponent;
+class AMainPlayerCharacter;
+class APawn;
+class USoundBase;
+class USoundClass;
+class USoundMix;
+
+//난이도 죽거나 시간 초과로 실패했을 때 증강 파츠 꿈의 조각 소총을 얼마나 잃는지
+//팀에서 상의해서 안 쓸 난이도는 빼도 됨 규칙은 FailCurrentLevel ContinueAfterDeath에만 있음
+UENUM(BlueprintType)
+enum class EGameDifficulty : uint8
+{
+	//죽거나 실패해도 그 레벨에서 얻은 것까지 전부 유지하고 로비로 메인 메뉴에서 새 게임을 시작할 때만 초기화
+	Easy,
+	//죽거나 실패하면 그 레벨에서 얻은 것만 잃고 레벨에 들어가기 전 상태로 로비로
+	Normal,
+	//사망 또는 시간 초과 게임 오버 시 저장/진행도 초기화 후 로비 복귀
+	Hard
+};
+
+//레벨이 바뀌어도 남는 게임 전체 정보
+//플레이어가 얻은 증강 기록을 레벨을 넘기기 전에 저장하고 새 레벨의 플레이어에게 복원함
+//레벨을 다시 로드해도 사라지지 않음 실패하거나 죽었을 때 무엇을 남길지는 FailCurrentLevel이 난이도로 정함
+//깬 레벨 수도 여기서 들고 있어서 로비가 다음에 열 레벨과 Endless 개방 여부를 알 수 있음
+//파츠와 꿈의 조각이 든 인벤토리도 증강과 같은 방식으로 저장하고 복원함 실패했을 때 얼마나 잃을지는 난이도가 정함
+UCLASS()
+class DREAMVEIL_API UDreamVeilGameInstance : public UGameInstance
+{
+	GENERATED_BODY()
+
+public:
+	UDreamVeilGameInstance();
+
+	//플레이어의 증강 기록을 저장 다음 레벨을 열기 직전에 부를 것
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	void SavePlayerAugments(UDispatchTableComponent* PlayerDispatchTable);
+
+	//저장한 증강 기록을 새 레벨의 플레이어에게 다시 적용 플레이어 BeginPlay에서 부를 것
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	bool RestorePlayerAugments(UDispatchTableComponent* PlayerDispatchTable);
+
+	//저장한 증강 기록을 비움 새 게임을 시작할 때 부름 안 비우면 새 판에 이전 판 증강이 남음
+	UFUNCTION(BlueprintCallable, Category = "Augment")
+	void ClearPlayerAugments();
+
+	//메인 메뉴에서 새 게임 시작 진행도와 증강 기록을 비우고 로비로 이동
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void StartNewGame();
+
+	//메인 메뉴로 나감 하던 판은 끝난 것이라 진행도와 얻은 것을 전부 비움
+	//로비의 나가기 버튼이 호출함. Hard 게임 오버는 별도로 로비에 복귀함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void OpenMainMenu();
+
+	//로비에서 게임 시작 아직 안 깬 다음 레벨로 이동 L4까지 다 깼으면 열 레벨이 없어서 false
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	bool OpenNextLevel();
+
+	//고른 레벨로 들어감 침대의 레벨 선택 UI가 버튼마다 이걸 부를 것
+	//아직 안 열린 레벨(IsLevelUnlocked가 false)이면 아무것도 하지 않고 false라서 UI가 버튼을 막지 못해도 안전함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	bool OpenLevelByNumber(int32 LevelNumber);
+
+	//지금 레벨을 깼을 때 진행도를 올리고 로비로 돌아감 게임모드가 제한 시간 안에 다 잡았거나 보스를 잡았을 때 부름
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void CompleteCurrentLevel();
+
+	//제한 시간 안에 못 깼거나 쉬움 보통에서 죽었을 때 진행도는 그대로 두고 로비로 돌아감 쉬움만 이번 판에 얻은 증강과 인벤토리를 저장함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void FailCurrentLevel();
+
+	//플레이어가 죽은 뒤 이어서 진행 게임 오버 UI의 확인 버튼이 부를 것
+	//쉬움 보통은 FailCurrentLevel, 어려움은 저장/진행도를 초기화하고 자동 저장 없이 로비로
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void ContinueAfterDeath();
+
+	// Hard game over is terminal immediately, even if the player quits before pressing Continue.
+	void HandleHardGameOver();
+
+	//L4까지 다 깨서 Endless가 열렸는지 로비 UI가 Endless 버튼을 켤지 정할 때 씀
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	bool IsEndlessUnlocked() const;
+
+	//지금 깬 레벨이 마지막 레벨이고 그걸 처음 깬 것인지 게임모드가 엔딩을 띄울지 정할 때 씀
+	//진행도를 올리기 전에 물어봐야 함 CompleteCurrentLevel이 진행도를 올리고 나면 항상 false가 됨
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsFinalLevelFirstClear() const;
+
+	//무한 모드로 들어감 로비의 Endless 버튼과 침대의 꿈 선택 UI가 부를 것
+	//아직 안 열렸으면 아무것도 하지 않고 false라서 UI가 버튼을 막지 못해도 안전함
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	bool OpenEndless();
+
+	//지금 맵이 무한 모드인지
+	//레벨 맵과 규칙이 완전히 달라서 따로 둠 제한 시간이 없고 몬스터가 시간에 따라 계속 세지며 보스가 주기적으로 나옴
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsInEndless() const;
+
+	//지금 맵이 L1~L4 중 하나인지 로비나 메인 메뉴면 false 게임모드가 레벨 제한 시간을 걸지 정할 때 씀
+	//무한 모드는 여기서 false 레벨 번호를 가진 곳이 아님
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsInLevelMap() const;
+
+	//지금 맵의 레벨 번호 L1이면 1 로비나 메인 메뉴면 0 몬스터 드롭 등급을 정할 때 씀
+	UFUNCTION(BlueprintPure, Category = "Level")
+	int32 GetCurrentLevelNumber() const;
+
+	//레벨이 총 몇 개인지 마지막 레벨(보스 레벨)인지 판단할 때 씀
+	//맵을 추가해도 LEVEL_MAP_PATHS만 늘리면 되도록 개수를 여기서 돌려줌
+	UFUNCTION(BlueprintPure, Category = "Level")
+	int32 GetLevelCount() const;
+
+	//지금 맵이 로비인지 싸우지 않는 곳이라 플레이어가 무기를 숨길지 정할 때 씀
+	//레벨 맵이 아닌지(IsInLevelMap)로 판단하지 않는 이유 테스트 맵에서도 무기가 사라지면 사격을 시험할 수 없음
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsInLobby() const;
+
+	//지금 맵이 메인 메뉴인지 게임 밖 화면이라 HUD를 띄우면 안 되는 곳을 가릴 때 씀
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsInMainMenu() const;
+
+	// 배경음 크기
+	// 게임모드가 아니라 여기서 들고 있는 이유 게임모드는 맵마다 새로 만들어져서 조절한 값이 맵을 넘기면 사라짐
+
+	//지금 배경음 크기 0~1 음소거 중이면 0 재생 쪽은 이 값만 보면 됨
+	UFUNCTION(BlueprintPure, Category = "BGM")
+	float GetBGMVolume() const;
+
+	//배경음 크기를 더하거나 뺌 0~1을 벗어나면 잘림
+	//조절하면 음소거가 풀리는 이유 화면에 표시가 없어서 소리가 나야 바뀐 걸 알 수 있음
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void AddBGMVolume(float Delta);
+
+	//배경음을 껐다 켰다 함 소리만 0으로 줄이고 곡은 계속 흐름
+	//곡을 멈추지 않는 이유 멈췄다 다시 틀면 처음으로 돌아가서 껐다 켜면 노래가 처음부터 다시 나옴
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void ToggleBGMMute();
+
+	//지금 크기를 배경음 전체에 먹임 사운드 믹스를 쓰므로 어느 맵의 어느 컴포넌트가 틀고 있든 한 번에 걸림
+	//곡을 틀기 시작할 때와 크기를 바꿀 때 부름 크기를 바꾼다고 곡이 다시 시작되지 않음
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void ApplyBGMVolume();
+
+	//메인 메뉴 배경음을 틂 메인 메뉴 위젯의 Construct가 부름
+	//게임모드가 아니라 여기 있는 이유 메인 메뉴 맵만 엔진 기본 게임모드를 씀
+	//우리 게임모드로 바꾸면 플레이어 컨트롤러까지 따라와서 입력 모드를 게임 전용으로 돌려 버려 버튼이 안 눌림
+	UFUNCTION(BlueprintCallable, Category = "BGM")
+	void PlayMainMenuBGM();
+
+	//그 레벨에 들어갈 수 있는지 L1은 처음부터 열려 있고 하나 깰 때마다 다음 레벨이 열림 상점 등급 해금에도 씀
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsLevelUnlocked(int32 LevelNumber) const;
+
+	//그 레벨을 이미 깼는지 침대의 꿈 선택 UI가 깬 꿈에 표시를 달 때 씀
+	//IsLevelUnlocked만으로는 "열렸지만 아직 안 깬 꿈"과 "이미 깬 꿈"을 구분할 수 없어서 따로 둠
+	//깬 레벨 수를 그대로 열어주지 않는 이유 UI가 진행도 숫자를 직접 다루기 시작하면 해금 규칙이 두 군데로 갈라짐
+	UFUNCTION(BlueprintPure, Category = "Level")
+	bool IsLevelCleared(int32 LevelNumber) const;
+
+	//테스트용 깬 레벨 수를 그대로 바꿈 상점의 등급 해금과 소총 판매 조건이 이 값만 보므로 이 하나로 상점을 전부 열 수 있음
+	//BlueprintCallable을 달지 않은 이유 UI가 진행도를 직접 바꾸기 시작하면 해금 규칙이 두 군데로 갈라짐
+	void CheatSetClearedLevelCount(int32 NewClearedCount);
+
+	// 난이도
+
+	//난이도를 정함 메인 메뉴에서 새 게임을 시작하기 전에 부를 것
+	UFUNCTION(BlueprintCallable, Category = "Difficulty")
+	void SetDifficulty(EGameDifficulty NewDifficulty);
+
+	//지금 난이도
+	UFUNCTION(BlueprintPure, Category = "Difficulty")
+	EGameDifficulty GetDifficulty() const;
+
+	//난이도가 몬스터 스폰 곡선 경사에 거는 배율 쉬움은 1보다 크고 어려움은 1보다 작음
+	//스폰 볼륨의 DifficultyCurve에 곱해져서 엘리트 몬스터가 언제부터 많아지는지를 난이도가 정함
+	//스폰율의 최소 최대는 건드리지 않아서 스폰 볼륨에 잡아둔 값의 뜻이 그대로 유지됨
+	UFUNCTION(BlueprintPure, Category = "Difficulty")
+	float GetSpawnCurveScale() const;
+
+	// 세이브 파일 게임을 껐다 켜도 남는 저장
+
+	//지금 진행 상황을 저장 파일에 씀 로비에 도착할 때마다 자동으로 불려서 따로 부를 일은 거의 없음
+	UFUNCTION(BlueprintCallable, Category = "Save")
+	bool SaveGameToSlot();
+
+	//저장 파일을 읽어 진행 상황을 되돌리고 로비로 이동 메인 메뉴의 이어하기 버튼이 부를 것
+	//저장이 없으면 아무것도 하지 않고 false
+	UFUNCTION(BlueprintCallable, Category = "Save")
+	bool LoadGameFromSlot();
+
+	//저장 파일이 있는지 메인 메뉴가 이어하기 버튼을 켤지 정할 때 씀
+	UFUNCTION(BlueprintPure, Category = "Save")
+	bool HasSavedGame() const;
+
+	//저장 파일 요약 예) L3 / 보통 / 09-21 02:14 이어하기 버튼 아래에 띄울 것
+	//저장이 없으면 빈 글자
+	UFUNCTION(BlueprintPure, Category = "Save")
+	FText GetSavedGameSummary() const;
+
+	//저장 파일을 지움 어려움에서 죽었을 때 불림 죽으면 끝이라는 규칙을 저장이 무르지 못하게 하려는 것
+	UFUNCTION(BlueprintCallable, Category = "Save")
+	void DeleteSavedGame();
+
+	// 인벤토리 저장
+
+	//플레이어 인벤토리를 저장 다음 레벨을 열기 직전에 부름 인벤토리 주인이 가진 무기(소총)도 같이 저장
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void SavePlayerInventory(UInventoryComponent* PlayerInventory);
+
+	//저장한 인벤토리를 새 레벨의 플레이어에게 복원 플레이어 BeginPlay에서 부름 무기를 먼저 돌려준 뒤 파츠를 복원
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void RestorePlayerInventory(UInventoryComponent* PlayerInventory);
+
+	//저장한 플레이어 레벨과 경험치를 새 레벨의 플레이어에게 복원 플레이어 BeginPlay에서 부름
+	//이게 없으면 맵을 넘길 때마다 캐릭터가 새로 만들어져서 레벨이 1로 돌아감
+	UFUNCTION(BlueprintCallable, Category = "Level")
+	void RestorePlayerLevel(AMainPlayerCharacter* PlayerCharacter);
+
+	//저장한 인벤토리와 무기를 비움 새 게임을 시작할 때
+	UFUNCTION(BlueprintCallable, Category = "Inventory")
+	void ClearPlayerInventory();
+
+private:
+	// Do not recreate the deleted save when the defeated Hard run returns to the lobby.
+	bool bHardRunEnded = false;
+	//저장한 플레이어 증강 번호 얻은 순서대로 같은 번호가 여러 번이면 그만큼 중첩
+	UPROPERTY(Transient)
+	TArray<EAugmentID> SavedPlayerAugmentHistory;
+
+	//깬 레벨 수 0이면 아무것도 안 깬 상태 다음에 열 레벨의 인덱스로도 그대로 씀
+	int32 ClearedLevelCount = 0;
+
+	//메인 메뉴 배경음 게임 인스턴스는 블루프린트가 없어서 경로로 직접 찾음
+	//다른 곡들은 게임모드 블루프린트에서 지정함
+	UPROPERTY(Transient)
+	TObjectPtr<USoundBase> MainMenuBGM;
+
+	//배경음 다섯 곡이 모두 속한 사운드 클래스 볼륨을 여기에 걸면 전체에 걸림
+	UPROPERTY(Transient)
+	TObjectPtr<USoundClass> BGMSoundClass;
+
+	//위 클래스의 볼륨을 덮어쓸 때 쓰는 믹스 내용은 비어 있고 값은 게임에서 넣음
+	UPROPERTY(Transient)
+	TObjectPtr<USoundMix> BGMSoundMix;
+
+	//배경음 크기 0~1 처음 값을 1이 아니라 낮게 잡은 이유 총성과 피격음이 묻히지 않게 하려는 것
+	float BGMVolume = 0.3f;
+
+	//배경음을 껐는지 크기와 따로 두어야 다시 켤 때 원래 크기로 돌아옴
+	bool bBGMMuted = false;
+
+	//난이도 기본은 보통
+	EGameDifficulty Difficulty = EGameDifficulty::Normal;
+
+	//저장한 파츠 목록 끼운 상태도 같이 들어 있음
+	UPROPERTY(Transient)
+	TArray<FWeaponPart> SavedParts;
+
+	//저장한 꿈의 조각
+	int32 SavedDreamShards = 0;
+
+	//저장한 보유 무기 파츠와 같은 규칙으로 저장하고 비움 권총은 플레이어가 항상 가지고 시작해서 사실상 소총 기록
+	UPROPERTY(Transient)
+	TArray<EWeaponSlot> SavedWeaponSlots;
+
+	//저장한 플레이어 레벨 맵을 넘겨도 유지되게 여기서 들고 있음 정예 몬스터 확률이 이 값을 봄
+	int32 SavedPlayerLevel = 1;
+
+	//저장한 경험치 레벨과 같은 이유로 같이 들고 있음
+	float SavedPlayerExperience = 0.0f;
+
+	//한 판의 진행도와 얻은 것을 전부 비움 새 게임과 어려움 사망이 같이 씀
+	void ClearRunProgress();
+
+	//지금 상태를 저장하고 로비를 엶 로비에 들어갈 때가 곧 자동 저장 시점이라 둘을 묶음
+	//새 게임 레벨 클리어 레벨 실패가 전부 이걸 씀 한 군데만 고치면 저장 시점이 바뀜
+	void OpenLobbyWithAutoSave();
+
+	//지금 조종 중인 플레이어의 증강 기록과 인벤토리를 저장 맵을 떠나기 직전에 부름
+	void SaveCurrentPlayerProgress();
+
+	//지금 조종 중인 플레이어 폰 없으면 nullptr
+	APawn* FindCurrentPlayerPawn() const;
+};

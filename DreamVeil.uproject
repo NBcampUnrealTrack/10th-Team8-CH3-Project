@@ -7,6 +7,15 @@
 		{
 			"Name": "DreamVeil",
 			"Type": "Runtime",
+			"LoadingPhase": "Default",
+			"AdditionalDependencies": [
+				"Engine",
+				"AIModule"
+			]
+		},
+		{
+			"Name": "DreamVeilEditorTools",
+			"Type": "Editor",
 			"LoadingPhase": "Default"
 		}
 	],
