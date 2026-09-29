@@ -10,11 +10,9 @@
 
 AEliteMonsterAIController::AEliteMonsterAIController()
 {
-	static ConstructorHelpers::FObjectFinder<UBehaviorTree> BTObject(TEXT("/Game/Managers/AI/BT_EliteMonster.BT_EliteMonster"));
-	if (BTObject.Succeeded())
-	{
-		BehaviorTreeAsset = BTObject.Object;
-	}
+	//엘리트 전용 BT(BT_EliteMonster) 에셋이 아직 없어서 부모(AMonsterAIController)가 넣어둔 BT_Monster를 그대로 씀
+	//없는 에셋을 FObjectFinder로 찾으면 패키징 쿠킹에서 CDO Constructor 에러가 나서 제거함
+	//나중에 엘리트 전용 BT를 만들면 BP_EliteMonsterAIController 같은 BP의 Behavior Tree Asset 칸에 넣으면 됨
 
 	// AI 감각 관련 컴포넌트들 추가하고 Set시켜주기
 	AIPerception = CreateDefaultSubobject<UAIPerceptionComponent>(TEXT("AI Perception"));
