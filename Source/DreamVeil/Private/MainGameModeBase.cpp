@@ -509,11 +509,9 @@ void AMainGameModeBase::ClearLevel()
 		return;
 	}
 
-	//마지막 레벨을 처음 깼으면 로비로 보내기 전에 엔딩을 띄움 2탄을 예고하는 화면
-	//진행도를 올리기 전에 물어봐야 함 CompleteCurrentLevel이 올리고 나면 처음 깬 것인지 알 수 없음
-	//진행도 올리기와 로비 이동은 엔딩 위젯의 버튼이 CompleteCurrentLevel을 불러서 함
-	//위젯을 안 꽂아뒀으면 ShowEnding이 false라서 아래 예전 흐름으로 그대로 내려감
-	if (DreamVeilGameInstance->IsFinalLevelFirstClear())
+	//LV4는 재클리어도 제작진 화면을 표시함. 보상/해금/로비 저장은 종료 버튼에서 기존 흐름을 사용함.
+	//Endless는 레벨 번호가 0이므로 보스를 잡아도 엔딩이 뜨지 않음.
+	if (DreamVeilGameInstance->GetCurrentLevelNumber() == 4)
 	{
 		if (AMainPlayerController* PlayerController = Cast<AMainPlayerController>(UGameplayStatics::GetPlayerController(this, 0)))
 		{

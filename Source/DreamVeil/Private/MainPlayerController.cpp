@@ -12,6 +12,7 @@
 #include "MainGameModeBase.h"
 #include "Components/InputComponent.h"
 #include "HeadshotFeedbackWidget.h"
+#include "EndingCreditsWidget.h"
 #include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 #include "TimerManager.h"
@@ -32,6 +33,7 @@ EquipRifleAction(nullptr),
 InteractAction(nullptr)
 {
 	//기본 확인음을 제공하면서 BP에서는 원하는 헤드샷 효과음으로 교체할 수 있게 함
+	EndingWidgetClass = UEndingCreditsWidget::StaticClass();
 	static ConstructorHelpers::FObjectFinder<USoundBase> DefaultHeadshotSound(TEXT("/Game/Audio/SFX/S_HeadshotConfirm.S_HeadshotConfirm"));
 	if (DefaultHeadshotSound.Succeeded()) HeadshotSound = DefaultHeadshotSound.Object;
 }
@@ -149,7 +151,7 @@ void AMainPlayerController::ShowHeadshotFeedback()
 //플레이어가 죽었을 때
 void AMainPlayerController::ShowGameOver()
 {
-    if (bGameOverOpen) return;
+    if (bGameOverOpen || bEndingOpen) return;
 
     //게임 오버 곡으로 갈아 끼움 어떤 곡인지는 배경음을 들고 있는 게임모드가 정함
     if (AMainGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr)
@@ -186,25 +188,40 @@ void AMainPlayerController::ShowGameOver()
 //엔딩 화면을 띄움
 bool AMainPlayerController::ShowEnding()
 {
-    //게임 오버가 먼저 떠 있으면 그 위에 덮지 않음 죽은 것과 깬 것이 같이 뜨면 어느 쪽인지 알 수 없음
-    if (bGameOverOpen || !EndingWidgetClass)
-    {
-        return false;
-    }
+    if (bEndingOpen) return true;
+    const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
+    if (bGameOverOpen || !GI || GI->GetCurrentLevelNumber() != 4) return false;
 
-    //레벨 곡을 먼저 멈춤 엔딩 영상에 소리가 들어 있어서 겹치면 둘 다 안 들림
-    //로비로 가면 로비 곡이 알아서 시작되고 제자리에서 닫을 때는 위젯이 PlayBaseBGM을 부르면 됨
+    //Old Blueprint defaults may explicitly contain None or a placeholder ending class.
+    const TSubclassOf<UUserWidget> CreditsClass = EndingWidgetClass
+        && EndingWidgetClass->IsChildOf(UEndingCreditsWidget::StaticClass())
+        ? EndingWidgetClass : TSubclassOf<UUserWidget>(UEndingCreditsWidget::StaticClass());
+    UUserWidget* Credits = OpenMenuWidgetPaused(CreditsClass);
+    if (!Credits) return false;
+    bEndingOpen = true;
+    Credits->SetKeyboardFocus();
+
+    //전투 음악을 종료함. 로비 복귀 시 기존 로비 BGM 흐름이 다시 시작됨.
     if (AMainGameModeBase* GameMode = GetWorld() ? GetWorld()->GetAuthGameMode<AMainGameModeBase>() : nullptr)
     {
         GameMode->PlayBGM(nullptr);
     }
+    return true;
+}
 
-    //게임을 멈추고 띄움 뒤에서 몬스터가 계속 움직이면 엔딩이 아니라 전투 화면이 됨
-    return OpenMenuWidgetPaused(EndingWidgetClass) != nullptr;
+void AMainPlayerController::FinishEnding()
+{
+    auto* GI = GetGameInstance<UDreamVeilGameInstance>();
+    if (!bEndingOpen || bEndingCompletionRequested || !GI || GI->GetCurrentLevelNumber() != 4) return;
+    bEndingCompletionRequested = true;
+    //Keep the terminal-screen guard and pause until travel. Repeated clicks cannot grant progress twice.
+    if (MenuWidgetInstance) MenuWidgetInstance->SetIsEnabled(false);
+    GI->CompleteCurrentLevel();
 }
 
 bool AMainPlayerController::ShowCorruptionGameOver()
 {
+    if (bEndingOpen) return false;
     if (bGameOverOpen) return true;
 
     //맞아 죽었을 때와 같은 곡을 씀 끝났다는 신호라 원인에 따라 다를 이유가 없음
@@ -238,7 +255,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
 	//일시정지하면 위젯 틱도 멈추므로 메뉴를 열 때 남아 있는 X 표시를 바로 숨김
 	if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->SetVisibility(ESlateVisibility::Hidden);
     // Do not let pending augment/interaction events replace the terminal screen.
-    if (bGameOverOpen) return nullptr;
+    if (bGameOverOpen || bEndingOpen) return nullptr;
     //위젯을 안 넣었으면 띄울 게 없음
     if (!MenuWidgetClass)
     {
@@ -255,7 +272,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
         return nullptr;
     }
 
-    MenuWidgetInstance->AddToViewport();
+    MenuWidgetInstance->AddToViewport(MenuWidgetInstance->IsA<UEndingCreditsWidget>() ? 10000 : 0);
 
     //입력 모드를 UI로 바꾸기 전에 눌린 키를 버림
     //순서가 중요함 UI로 바꾼 뒤에 버리면 이미 캐릭터가 이동 입력을 들고 있어서 늦음
@@ -331,6 +348,8 @@ void AMainPlayerController::SetGameSuspended(bool bSuspended)
 //열려 있는 메뉴 위젯을 닫음
 void AMainPlayerController::CloseMenuWidget()
 {
+	//Only FinishEnding may leave the terminal screen; inventory/augment callbacks cannot resume combat.
+	if (bEndingOpen) return;
 	//내가 멈춘 것만 풀어줌
 	//무조건 풀면 증강 선택처럼 다른 쪽이 멈춰둔 게임까지 같이 풀려서 고르는 동안 몬스터가 움직임
 	if (bMenuPaused)

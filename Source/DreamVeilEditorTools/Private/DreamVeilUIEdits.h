@@ -3,6 +3,7 @@
 bool ApplyDreamVeilUIEdits(const FString& IconDirectory);
 bool VerifyDreamVeilUIEdits(bool bFinalize);
 bool RenderDreamVeilUI();
+bool RenderEndingCredits();
 bool TestDreamVeilCamera();
 bool UpdateHardCameraAssets(bool bApply);
 bool FixDreamVeilShopAndInventory();

@@ -8,7 +8,7 @@ public class DreamVeilEditorTools : ModuleRules
         PrivateDependencyModuleNames.AddRange(new[] {
             "Core", "CoreUObject", "Engine", "DreamVeil", "UnrealEd", "UMG", "UMGEditor",
             "Slate", "SlateCore", "BlueprintGraph", "Kismet", "KismetCompiler", "AssetRegistry", "AssetTools",
-            "RenderCore", "RHI"
+            "RenderCore", "RHI", "SlateRHIRenderer"
         });
     }
 }
