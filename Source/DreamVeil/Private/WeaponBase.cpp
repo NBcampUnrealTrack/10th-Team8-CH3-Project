@@ -146,10 +146,10 @@ void UWeaponBase::PlayMuzzleEffects(const FVector& MuzzleLocation)
 		);
 	}
 
-	if (FireSound)
+	if (FireSound && FireSoundVolume > 0.0f)
 	{
 		//총소리는 짧아서 붙이지 않고 쏜 자리에서 한 번 재생
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, MuzzleLocation);
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, MuzzleLocation, FireSoundVolume);
 	}
 }
 

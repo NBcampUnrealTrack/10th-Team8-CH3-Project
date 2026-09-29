@@ -181,6 +181,10 @@ public:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
 	TObjectPtr<USoundBase> PartDestroySound;
 
+	//파츠를 실제로 획득했을 때 울리는 확인음. 기본 제공음을 BP에서 교체할 수 있음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Inventory")
+	TObjectPtr<USoundBase> PartPickupSound;
+
 	// 저장과 복원 GameInstance가 씀
 
 	//저장해둔 내용으로 되돌림 플레이어 BeginPlay에서 GameInstance가 부름

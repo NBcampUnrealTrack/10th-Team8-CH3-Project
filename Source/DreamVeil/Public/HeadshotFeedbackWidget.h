@@ -12,7 +12,7 @@ class DREAMVEIL_API UHeadshotFeedbackWidget : public UUserWidget
 
 public:
 	//연속 적중 시 남은 시간을 초기화해서 새 헤드샷도 선명하게 보이게 함
-	void ShowHit();
+	void ShowHit(UWidget* InCrosshairWidget);
 
 protected:
 	virtual void NativeOnInitialized() override;
@@ -22,6 +22,8 @@ protected:
 		int32 LayerId, const FWidgetStyle& InWidgetStyle, bool bParentEnabled) const override;
 
 private:
+	//HUD가 소유한 실제 조준점을 약하게 참조해 창 크기와 UI 배율 변경을 그대로 따라감
+	TWeakObjectPtr<UWidget> CrosshairWidget;
 	//표시할 때만 틱을 사용하고 연출이 끝나면 위젯을 숨김
 	float RemainingTime = 0.0f;
 };

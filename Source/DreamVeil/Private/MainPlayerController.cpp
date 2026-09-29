@@ -6,6 +6,8 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "Components/TextBlock.h"
+#include "Components/CanvasPanel.h"
+#include "Components/CanvasPanelSlot.h"
 #include "DreamVeilGameInstance.h"
 #include "MainGameModeBase.h"
 #include "Components/InputComponent.h"
@@ -74,6 +76,24 @@ void AMainPlayerController::BeginPlay()
         if (UUserWidget* HUDWidget = CreateWidget<UUserWidget>(this, HUDWidgetClass))
         {
             HUDWidget->AddToViewport();
+			//탄착점을 다시 계산하지 않고 화면에 표시 중인 Crosshair 위젯을 기준으로 X를 맞춤
+			CrosshairWidget = HUDWidget->GetWidgetFromName(TEXT("Crosshair"));
+			//별도 뷰포트 대신 조준점과 같은 캔버스에 넣어 창 크기와 부모 UI 배율을 함께 적용받음
+			if (UWidget* Crosshair = CrosshairWidget.Get())
+			{
+				if (UCanvasPanel* Canvas = Cast<UCanvasPanel>(Crosshair->GetParent()))
+				{
+					HeadshotFeedbackWidget = CreateWidget<UHeadshotFeedbackWidget>(this);
+					if (HeadshotFeedbackWidget)
+					{
+						UCanvasPanelSlot* FeedbackSlot = Canvas->AddChildToCanvas(HeadshotFeedbackWidget);
+						FeedbackSlot->SetAnchors(FAnchors(0.0f, 0.0f, 1.0f, 1.0f));
+						FeedbackSlot->SetOffsets(FMargin(0.0f));
+						const UCanvasPanelSlot* CrosshairSlot = CastChecked<UCanvasPanelSlot>(Crosshair->Slot);
+						FeedbackSlot->SetZOrder(CrosshairSlot->GetZOrder() + 1);
+					}
+				}
+			}
         }
     }
 }
@@ -109,12 +129,7 @@ void AMainPlayerController::ShowHeadshotFeedback()
 {
 	//실제로 조종 중인 로컬 플레이어에게만 표시해서 다른 화면이나 게임 오버 메뉴에 겹치지 않음
 	if (!IsLocalController() || bGameOverOpen || IsMenuWidgetOpen()) return;
-	if (!HeadshotFeedbackWidget)
-	{
-		HeadshotFeedbackWidget = CreateWidget<UHeadshotFeedbackWidget>(this);
-		if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->AddToViewport(10);
-	}
-	if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->ShowHit();
+	if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->ShowHit(CrosshairWidget.Get());
 	if (HeadshotSound)
 	{
 		//X 표시는 즉시 보여주고 효과음만 0.1초 늦춰 총성과 동시에 겹쳐 들리는 것을 줄임

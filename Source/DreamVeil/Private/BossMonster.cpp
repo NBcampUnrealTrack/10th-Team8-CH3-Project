@@ -19,8 +19,8 @@ ABossMonster::ABossMonster()
 	//보스 체력은 판마다 달라지면 안 되므로 위아래를 같은 값으로 둠
 	//부모는 이 둘 사이에서 무작위로 뽑는데 보스가 어떤 판은 약하고 어떤 판은 센 것은 말이 안 됨
 	//등급 배율 6이 곱해져서 L1 쉬움 실효 3600 플레이어가 페이즈 4개를 도는 데 약 40초 걸림
-	MinHealthRadius = 600.0f;
-	MaxHealthRadius = 600.0f;
+	MinHealthRadius = 500.0f;
+	MaxHealthRadius = 500.0f;
 
 	//잡몹과 같은 값 등급 배율 6의 제곱근이 곱해져서 L1 쉬움에서 약 24가 됨
 	MonsterDamage = 10.0f;

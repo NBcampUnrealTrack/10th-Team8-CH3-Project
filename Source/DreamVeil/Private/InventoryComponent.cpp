@@ -7,6 +7,8 @@
 #include "WeaponBase.h"
 #include "Components/AudioComponent.h"
 #include "Kismet/GameplayStatics.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
 
 //상점 강화 드롭 수치 여기 숫자만 바꾸면 밸런스 조절
 //등급 순서 Level1 Level2 Level3 Level4 Boss
@@ -111,6 +113,9 @@ UInventoryComponent::UInventoryComponent()
 {
 	//시간에 따라 할 일이 없어서 Tick을 끔
 	PrimaryComponentTick.bCanEverTick = false;
+	//직접 만든 짧은 코인 획득음을 기본값으로 연결해 BP에서 별도로 지정하지 않아도 들리게 함
+	static ConstructorHelpers::FObjectFinder<USoundBase> DefaultPickupSound(TEXT("/Game/Audio/SFX/S_PartPickup.S_PartPickup"));
+	if (DefaultPickupSound.Succeeded()) PartPickupSound = DefaultPickupSound.Object;
 }
 
 //가진 파츠 전부
@@ -133,6 +138,18 @@ void UInventoryComponent::AddPart(const FWeaponPart& Part)
 	NewPart.bEquipped = false;
 
 	Parts.Add(NewPart);
+
+	//드롭과 구매 모두 실제 추가가 끝난 이곳에서 한 번만 재생함. 저장 복원은 AddPart를 거치지 않아 울리지 않음
+	const AMainPlayerCharacter* OwnerPlayer = Cast<AMainPlayerCharacter>(GetOwner());
+	if (PartPickupSound && OwnerPlayer && OwnerPlayer->IsLocallyControlled())
+	{
+		//일시정지된 상점에서도 들리도록 재생 전에 UI 소리로 설정하고 종료 시 오디오 컴포넌트는 자동 정리함
+		if (UAudioComponent* PickupAudio = UGameplayStatics::CreateSound2D(this, PartPickupSound, 1.0f, 1.0f, 0.0f, nullptr, false, true))
+		{
+			PickupAudio->bIsUISound = true;
+			PickupAudio->Play();
+		}
+	}
 
 	//배열 안의 참조 대신 복사본을 넘김 알림을 받은 쪽이 그 자리에서 파츠를 또 넣어도 참조가 깨지지 않게
 	OnPartAcquired.Broadcast(NewPart);

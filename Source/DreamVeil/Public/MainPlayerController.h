@@ -10,6 +10,7 @@
 class UInputMappingContext;
 class UInputAction;
 class UUserWidget;
+class UWidget;
 class UHeadshotFeedbackWidget;
 class USoundBase;
 
@@ -137,6 +138,8 @@ private:
 	void ShowHeadshotFeedback();
 	UPROPERTY(Transient)
 	TObjectPtr<UHeadshotFeedbackWidget> HeadshotFeedbackWidget;
+	//HUD의 조준점 위치를 헤드샷 표시에 전달함. HUD가 없어지면 참조도 자동으로 무효가 됨
+	TWeakObjectPtr<UWidget> CrosshairWidget;
 
 	//플레이어가 죽었을 때 게임 오버 화면을 띄우고 마우스로 버튼을 누를 수 있게 함
 	UFUNCTION()

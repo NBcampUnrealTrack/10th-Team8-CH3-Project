@@ -17,6 +17,10 @@ URifleWeapon::URifleWeapon()
 	//대신 발수가 많아서 쌓이는 양은 권총보다 큼
 	RecoilPitch = 0.5f;
 	RecoilYaw = 0.5f;
+
+	//연사라 권총보다 훨씬 자주 울려서 원본의 절반으로 낮춤
+	// 더낮춤 진짜 엄청 시끄러워서 죽는줄알았네
+	FireSoundVolume = 0.2f;
 }
 
 //소총이 끼울 수 있는 칸
