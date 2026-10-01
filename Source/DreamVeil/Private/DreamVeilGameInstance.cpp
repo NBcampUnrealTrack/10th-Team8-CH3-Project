@@ -46,7 +46,7 @@ const int32 LEVEL_COUNT = static_cast<int32>(UE_ARRAY_COUNT(LEVEL_MAP_PATHS));
 //무한 모드 맵 L4까지 다 깨야 열림
 //LEVEL_MAP_PATHS에 넣지 않은 이유 거기 넣으면 레벨 개수가 5가 되어서 L4를 깨도 Endless가 안 열리고
 //레벨 번호 5번 파츠 등급을 찾다가 표 밖으로 나감 끝이 없는 곳이라 진행도에서 빼는 것이 맞음
-const TCHAR* const ENDLESS_MAP_PATH = TEXT("/Game/Maps/Level/EndlessLV");
+const TCHAR* const ENDLESS_MAP_PATH = TEXT("/Game/Endless/Endless");
 
 //난이도가 몬스터 스폰 곡선 경사(AMonsterSpawnVolume::DifficultyCurve)에 거는 배율 순서는 쉬움 보통 어려움
 //그 값은 작을수록 초반부터 가파르게 어려워지므로 쉬움은 1보다 크게 어려움은 1보다 작게 둠
