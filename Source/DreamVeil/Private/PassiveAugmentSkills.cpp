@@ -138,10 +138,21 @@ void ULastFortressSkill::UpdateState()
     }
 }
 
-//가시 갑옷 받은 데미지의 일정 비율을 반사
+//가시 갑옷 방어력에 비례한 양을 공격자에게 반사
+//FinalDamage를 안 쓰는 이유 얼마를 맞았는지와 상관없이 방어력만 보기로 함
+//기반 클래스가 정한 인자라 지우지 않고 그대로 받되 계산에는 쓰지 않음
 float UThornArmorSkill::CalculateReflectDamage(float FinalDamage)
 {
-    return FinalDamage * THORN_ARMOR_REFLECT_RATIO;
+    UCombatStatsComponent* Stats = GetStats();
+
+    //스탯 컴포넌트가 없으면 방어력을 알 수 없으므로 반사하지 않음
+    if (!Stats)
+    {
+        return 0.0f;
+    }
+
+    //증강으로 더해진 방어력과 최후의 요새 배율까지 반영된 최종 방어력을 씀
+    return Stats->GetDefencePower() * THORN_ARMOR_DEFENCE_RATIO;
 }
 
 //흡혈 입힌 데미지의 일정 비율만큼 회복 죽은 상태면 Heal 안에서 무시됨
@@ -194,7 +205,7 @@ void URegenerationSkill::Deactivate()
     World->GetTimerManager().ClearTimer(RegenerationTimerHandle);
 }
 
-//재생력 일정 간격마다 체력 회복 죽은 상태면 Heal 안에서 무시됨
+//재생력 일정 간격마다 잃은 체력의 일부를 회복 죽은 상태면 Heal 안에서 무시됨
 void URegenerationSkill::ProcessRegenerationTick()
 {
     UCombatStatsComponent* Stats = GetStats();
@@ -204,5 +215,8 @@ void URegenerationSkill::ProcessRegenerationTick()
         return;
     }
 
-    Stats->Heal(REGENERATION_HEAL_AMOUNT);
+    //체력이 꽉 차 있으면 잃은 체력이 0이라 회복량도 0이 됨 Heal이 알아서 아무것도 안 함
+    const float LostHealth = Stats->GetMaxHealth() - Stats->GetCurrentHealth();
+
+    Stats->Heal(LostHealth * REGENERATION_LOST_HEALTH_RATIO);
 }

@@ -210,9 +210,10 @@ void UWeaponBase::SpawnExplosionEffect(const FVector& Location, const FRotator& 
 	//이펙트의 원래 크기를 0으로 두면 나눌 수 없으므로 막음
 	const float SafeBaseRadius = FMath::Max(ExplosionEffectBaseRadius, KINDA_SMALL_NUMBER);
 
-	//피격 반경에 맞춰 키우거나 줄임 불덩이 크기와 데미지 범위가 항상 같아짐
-	//반경만 고치면 이펙트가 따라오므로 밸런스를 바꿀 때 에셋을 다시 만들 필요가 없음
-	const float EffectScale = AREA_ATTACK_RADIUS / SafeBaseRadius;
+	//피격 반경에 맞춰 키우거나 줄임 반경만 고치면 이펙트가 따라오므로 밸런스를 바꿀 때 에셋을 다시 만들 필요가 없음
+	//AREA_ATTACK_EFFECT_SCALE을 한 번 더 곱해 보이는 불덩이만 작게 그림 피해가 들어가는 반경은 그대로임
+	//일부러 어긋나게 둔 것임 불덩이가 화면을 덮으면 폭발 직후에 적이 어디 있는지 안 보여서 그게 더 손해라고 봄
+	const float EffectScale = AREA_ATTACK_RADIUS * AREA_ATTACK_EFFECT_SCALE / SafeBaseRadius;
 
 	UGameplayStatics::SpawnEmitterAtLocation(
 		GetWorld(),

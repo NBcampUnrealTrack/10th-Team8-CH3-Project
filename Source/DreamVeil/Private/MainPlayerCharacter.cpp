@@ -26,6 +26,8 @@
 #include "Components/SkeletalMeshComponent.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/AudioComponent.h"
+#include "Components/PostProcessComponent.h"
+#include "Materials/MaterialInterface.h"
 #include "Kismet/GameplayStatics.h"
 
 //카메라가 위아래로 돌 수 있는 최대 각도
@@ -72,6 +74,11 @@ const float MAX_AIM_ANGLE_DEGREES = 35.0f;
 //바로 내려가면 연사 중에 반동이 눈에 안 보여서 총이 가만히 있는 것처럼 느껴짐
 const float RECOIL_RECOVERY_DELAY = 0.12f;
 
+//반동 회복을 몇 초마다 계산할지 스태미나와 같은 방식으로 타이머가 이 간격으로 돎
+//Tick을 쓰지 않는 이유 이 캐릭터는 bCanEverTick이 false고 반동은 쏜 뒤 잠깐만 내려가면 되는 일이라
+//매 프레임 도는 대신 필요한 동안에만 타이머를 돌리는 쪽이 이 파일의 다른 처리(스태미나 속도 보간)와도 맞음
+const float RECOIL_RECOVERY_INTERVAL = 0.016f;
+
 //카메라가 1초에 되돌리는 양 반동 값과 같은 단위 크면 빨리 내려옴
 const float RECOIL_RECOVERY_SPEED = 8.0f;
 
@@ -100,6 +107,12 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 	CameraComp = CreateDefaultSubobject<UCameraComponent>(TEXT("Camera"));
 	CameraComp->SetupAttachment(SpringArmComp, USpringArmComponent::SocketName);
 	CameraComp->bUsePawnControlRotation = false;
+
+	//몬스터 외곽선을 그릴 포스트 프로세스 머티리얼은 BeginPlay에서 꽂음
+	//bUnbound를 켜는 이유 범위를 두면 플레이어 주변에서만 선이 보여서 멀리 있는 적을 못 찾음
+	OutlinePostProcess = CreateDefaultSubobject<UPostProcessComponent>(TEXT("OutlinePostProcess"));
+	OutlinePostProcess->SetupAttachment(RootComponent);
+	OutlinePostProcess->bUnbound = true;
 
 	CombatStats = CreateDefaultSubobject<UCombatStatsComponent>(TEXT("CombatStats"));
 	DispatchTable = CreateDefaultSubobject<UDispatchTableComponent>(TEXT("DispatchTable"));
@@ -183,6 +196,13 @@ void AMainPlayerCharacter::BeginPlay()
 	Super::BeginPlay();
 
 	ConfigureCameraCollision();
+
+	//몬스터 외곽선 머티리얼을 화면에 검 안 꽂아뒀으면 아무 일도 하지 않음
+	//생성자가 아니라 여기서 하는 이유 머티리얼은 블루프린트 기본값이라 생성자 시점에는 아직 안 들어와 있음
+	if (OutlinePostProcess && MonsterOutlineMaterial)
+	{
+		OutlinePostProcess->AddOrUpdateBlendable(MonsterOutlineMaterial.Get(), 1.0f);
+	}
 
 	UCapsuleComponent* Capsule = GetCapsuleComponent();
 	Capsule->SetCollisionObjectType(ECC_Pawn);
@@ -286,7 +306,8 @@ float AMainPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 	const float AppliedDamage = UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
 
 	//실제로 체력이 깎였을 때만 소리를 냄
-	//방어력으로 전부 막혔거나 이미 죽어 있으면 0이 돌아와서 헛소리가 안 남
+	//이미 죽어 있으면 0이 돌아와서 헛소리가 안 남
+	//방어력이 아무리 높아도 0은 안 됨 비율로 깎는 방식이라 최소 MIN_DAMAGE는 들어감
 	if (AppliedDamage > 0.0f && HitSound)
 	{
 		//몸에서 나는 소리라 위치를 줌 화면 밖에서 맞아도 어느 쪽인지 들림
@@ -515,7 +536,7 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 	}
 
 	//반동 사격 뒤 카메라를 위로 올림 좌우로도 조금 틀어서 탄착이 세로 일직선이 되지 않게 함
-	//올린 양을 기억해뒀다가 사격이 멈추면 Tick이 제자리로 내림
+	//올린 양을 기억해뒀다가 사격이 멈추면 회복 타이머가 제자리로 내림
 	const float ShotRecoilPitch = CurrentWeapon->GetRecoilPitch();
 	const float ShotRecoilYaw = CurrentWeapon->GetRecoilYaw();
 
@@ -525,6 +546,12 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 	//좌우 반동은 되돌리지 않음 매번 방향이 무작위라 한쪽으로 쌓이지 않고 되돌리면 오히려 부자연스러움
 	RecoilToRecover = FMath::Min(RecoilToRecover + ShotRecoilPitch, MAX_RECOIL_TO_RECOVER);
 	LastRecoilTime = GetWorld()->GetTimeSeconds();
+
+	//회복 타이머를 켬 이미 돌고 있으면 그대로 두어서 연사 중에 타이머가 새로 걸리지 않게 함
+	if (!GetWorldTimerManager().IsTimerActive(RecoilRecoveryTimerHandle))
+	{
+		GetWorldTimerManager().SetTimer(RecoilRecoveryTimerHandle, this, &AMainPlayerCharacter::UpdateRecoilRecovery, RECOIL_RECOVERY_INTERVAL, true);
+	}
 }
 
 //총알이 나갈 총구 위치와 방향을 구함
@@ -629,10 +656,17 @@ float AMainPlayerCharacter::GetCurrentExperience() const
 	return CurrentExperience;
 }
 
-//다음 레벨까지 필요한 경험치 레벨이 오를수록 늘어남
+//다음 레벨까지 필요한 경험치 정해진 레벨 수마다 두 배가 됨
 float AMainPlayerCharacter::GetRequiredExperience() const
 {
-	return FMath::Max(BaseRequiredExperience + RequiredExperienceGrowth * (PlayerLevel - 1), 1.0f);
+	//디테일 패널에서 0이나 음수가 들어와도 0으로 나누지 않게 막음
+	const float LevelsPerDouble = FMath::Max(static_cast<float>(LevelsPerExperienceDouble), 1.0f);
+
+	//구간이 바뀔 때 뚝 끊기지 않게 지수로 계산함 레벨마다 조금씩 늘고 10레벨이 지나면 정확히 두 배가 됨
+	const float RequiredExperience = BaseRequiredExperience * FMath::Pow(2.0f, (PlayerLevel - 1) / LevelsPerDouble);
+
+	//소수점을 남기면 UI에 39.6 같은 값이 떠서 정수로 맞춤
+	return FMath::Max(FMath::RoundToFloat(RequiredExperience), 1.0f);
 }
 
 //경험치를 더하고 필요한 만큼 모이면 레벨을 올림
@@ -651,6 +685,24 @@ void AMainPlayerCharacter::AddExperience(float Amount)
 
 	CurrentExperience += Amount;
 
+	NormalizeLevelProgress();
+
+	OnExperienceChanged.Broadcast(CurrentExperience, GetRequiredExperience());
+
+	//이미 선택 창이 떠 있으면 그걸 고른 뒤에 다음 선택지가 나감
+	if (CurrentAugmentChoices.Num() == 0)
+	{
+		DrawNextAugmentChoices();
+	}
+}
+
+//모아둔 경험치가 요구치를 넘었으면 넘긴 만큼 레벨을 올림
+//경험치를 더하는 쪽과 저장값을 되돌리는 쪽이 같은 판정을 쓰게 하려고 따로 뺌
+//되돌릴 때도 돌려야 하는 이유 저장된 값은 그때의 요구치 기준이라
+//요구 경험치 공식을 바꾸면 예전 저장이 "이미 레벨업 조건을 넘긴" 상태로 들어올 수 있음
+//그대로 두면 경험치 막대가 100%를 넘은 채로 멈추고 다음 경험치를 먹기 전까지 레벨이 안 오름
+void AMainPlayerCharacter::NormalizeLevelProgress()
+{
 	//한 번에 많이 받으면 여러 레벨이 오를 수 있음 남은 경험치는 다음 레벨로 넘어감
 	while (CurrentExperience >= GetRequiredExperience())
 	{
@@ -662,14 +714,6 @@ void AMainPlayerCharacter::AddExperience(float Amount)
 
 		OnLevelUp.Broadcast(PlayerLevel);
 	}
-
-	OnExperienceChanged.Broadcast(CurrentExperience, GetRequiredExperience());
-
-	//이미 선택 창이 떠 있으면 그걸 고른 뒤에 다음 선택지가 나감
-	if (CurrentAugmentChoices.Num() == 0)
-	{
-		DrawNextAugmentChoices();
-	}
 }
 
 //저장해둔 레벨과 경험치를 되돌림
@@ -679,9 +723,18 @@ void AMainPlayerCharacter::RestoreLevelProgress(int32 SavedLevel, float SavedExp
 	PlayerLevel = FMath::Max(SavedLevel, 1);
 	CurrentExperience = FMath::Max(SavedExperience, 0.0f);
 
+	//되돌린 값이 이미 요구치를 넘었으면 여기서 레벨을 올려줌 보통은 아무 일도 안 일어남
+	NormalizeLevelProgress();
+
 	//UI가 처음 뜰 때 옛 값을 보지 않게 바로 알림
 	//레벨도 같이 알려야 함 예전에는 경험치만 알려서 맵을 넘길 때마다 화면의 레벨이 1로 굳어 있었음
 	RefreshProgressUI();
+
+	//위에서 레벨이 올랐으면 밀린 증강 선택을 띄움 AddExperience와 같은 처리
+	if (CurrentAugmentChoices.Num() == 0)
+	{
+		DrawNextAugmentChoices();
+	}
 }
 
 //지금 레벨과 경험치와 무기 칸을 UI에 다시 알림
@@ -849,34 +902,44 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 	SetAugmentChoicePaused(false);
 }
 
-void AMainPlayerCharacter::Tick(float DeltaTime)
-{
-	Super::Tick(DeltaTime);
-
-	UpdateRecoilRecovery(DeltaTime);
-}
-
 //반동으로 올라간 카메라를 조금씩 제자리로 내림
-void AMainPlayerCharacter::UpdateRecoilRecovery(float DeltaTime)
+void AMainPlayerCharacter::UpdateRecoilRecovery()
 {
+	//되돌릴 것이 없으면 타이머를 멈춤 플레이어가 직접 카메라를 내려 다 상쇄한 경우도 여기로 들어옴
 	if (RecoilToRecover <= 0.0f)
 	{
+		StopRecoilRecovery();
 		return;
 	}
 
 	//마지막 발사 직후에는 되돌리지 않음 연사 중에 바로 내려가면 반동이 아예 안 보임
+	//타이머는 계속 돌려둠 손을 떼는 순간 바로 이어서 내려가야 하기 때문
 	if (GetWorld()->GetTimeSeconds() - LastRecoilTime < RECOIL_RECOVERY_DELAY)
 	{
 		return;
 	}
 
 	//남은 양보다 더 내리지 않음 더 내리면 쏘기 전보다 아래를 보게 됨
-	const float RecoverAmount = FMath::Min(RecoilToRecover, RECOIL_RECOVERY_SPEED * DeltaTime);
+	const float RecoverAmount = FMath::Min(RecoilToRecover, RECOIL_RECOVERY_SPEED * RECOIL_RECOVERY_INTERVAL);
 
 	//올릴 때 음수를 줬으니 되돌릴 때는 양수 같은 함수를 써야 감도까지 똑같이 계산돼서 정확히 제자리로 돌아옴
 	AddControllerPitchInput(RecoverAmount);
 
 	RecoilToRecover -= RecoverAmount;
+
+	//다 내려왔으면 바로 멈춤 다음 사격 때 다시 걸림
+	if (RecoilToRecover <= 0.0f)
+	{
+		StopRecoilRecovery();
+	}
+}
+
+//반동 회복 타이머를 멈춤 쏘지 않는 동안에는 아무것도 돌지 않게 함
+void AMainPlayerCharacter::StopRecoilRecovery()
+{
+	RecoilToRecover = 0.0f;
+
+	GetWorldTimerManager().ClearTimer(RecoilRecoveryTimerHandle);
 }
 
 //무기가 적을 맞혔다고 알려주면 HUD 쪽으로 넘김

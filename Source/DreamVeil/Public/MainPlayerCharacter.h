@@ -14,6 +14,8 @@ class UAnimMontage;
 class UAnimInstance;
 class UAudioComponent;
 class USoundBase;
+class UPostProcessComponent;
+class UMaterialInterface;
 enum class EWeaponSlot : uint8;
 enum class EAugmentID : uint8;
 
@@ -90,6 +92,19 @@ public:
 	//인벤토리 컴포넌트 무기 파츠와 꿈의 조각 상점 강화 장착
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Inventory")
 	TObjectPtr<UInventoryComponent> Inventory;
+
+	//몬스터 외곽선을 그리는 포스트 프로세스 머티리얼 BP_MainPlayerCharacter의 Class Defaults에 넣을 것
+	//비워두면 선이 안 그려지고 그 외에는 아무 일도 일어나지 않음 에셋이 없어도 게임이 돌아가게 하려는 것
+	//머티리얼은 Material Domain을 Post Process로 만들고 SceneTexture의 CustomDepth를 읽어 가장자리를 찾으면 됨
+	//몬스터만 커스텀 깊이에 그려지므로(AMonsterBase::BeginPlay) 머티리얼에서 적을 따로 거를 필요가 없음
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UMaterialInterface> MonsterOutlineMaterial;
+
+	//위 머티리얼을 화면에 거는 포스트 프로세스
+	//레벨마다 포스트 프로세스 볼륨을 놓지 않고 플레이어에 붙인 이유 맵이 여러 개라 전부 고쳐야 하고
+	//맵 파일은 바이너리라 여러 사람이 같은 맵을 건드리면 합칠 수가 없음 여기 붙이면 한 곳만 고쳐도 모든 맵에서 됨
+	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "UI")
+	TObjectPtr<UPostProcessComponent> OutlinePostProcess;
 
 	//1번 무기 권총 처음부터 가지고 있음 붙일 소켓은 블루프린트 Details의 Parent Socket에서 바꿈
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Weapon")
@@ -208,6 +223,9 @@ public:
 	//증강 복원과 달리 레벨업 보상을 다시 주지 않음 보상은 이미 증강 기록으로 복원되기 때문
 	void RestoreLevelProgress(int32 SavedLevel, float SavedExperience);
 
+	//모아둔 경험치가 요구치를 넘었으면 레벨을 올림 경험치 획득과 저장값 복원이 같이 씀
+	void NormalizeLevelProgress();
+
 	//지금 레벨과 경험치와 무기 칸을 UI에 다시 알림 HUD 위젯의 Event Construct에서 부를 것
 	//필요한 이유 HUD가 만들어지는 시점과 캐릭터가 저장된 레벨을 되돌리는 시점의 순서가 맵마다 달라짐
 	//HUD가 늦게 만들어지면 레벨 알림을 놓쳐서 실제로는 5레벨인데 화면에는 1로 남음 그래서 UI가 직접 한 번 당겨오게 함
@@ -322,7 +340,8 @@ protected:
 	TObjectPtr<USoundBase> HeartbeatSound;
 
 	//맞았을 때 나는 소리 비워두면 소리 없이 데미지만 들어감
-	//방어력으로 다 막혀 0이 되면 안 나옴 실제로 체력이 깎였을 때만 울림
+	//실제로 체력이 깎였을 때만 울림 이미 죽어 있으면 0이 돌아와서 안 나옴
+	//방어력으로는 0까지 막히지 않음 비율로 깎는 방식이라 최소 MIN_DAMAGE는 들어감
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Sound")
 	TObjectPtr<USoundBase> HitSound;
 
@@ -334,7 +353,6 @@ protected:
 	bool bIsSprinting = false;
 
 	virtual void BeginPlay() override;
-	virtual void Tick(float DeltaTime) override;
 	virtual void SetupPlayerInputComponent(class UInputComponent* PlayerInputComponent) override;
 
 	//컨트롤러가 붙을 때 카메라 위아래 각도 제한을 검
@@ -364,11 +382,14 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
 	float BaseRequiredExperience = 30.0f;
 
-	//레벨이 하나 오를 때마다 필요한 경험치가 늘어나는 양
-	//레벨당 일반 몬스터 반 마리 분량인 3만 늘려 Lv.1은 5마리, Lv.11은 10마리 정도가 필요하게 함
-	//이후에도 같은 완만한 증가를 유지하며 상위 맵의 경험치 보상 배율은 기존 계산을 따름
+	//필요 경험치가 두 배가 되기까지 걸리는 레벨 수
+	//더하기(레벨당 +3)에서 곱하기로 바꾼 이유 Endless는 끝이 없는데 더하기로 늘리면
+	//레벨이 올라가도 한 레벨에 드는 시간이 거의 그대로라 레벨이 한없이 올라가 버림
+	//10으로 둔 이유 첫 10레벨 구간은 예전 계산과 거의 같아서(Lv.10 기준 56 대 57) 초반 감각이 안 바뀜
+	//Lv.1은 30 Lv.11은 60 Lv.21은 120 Lv.31은 240처럼 10레벨마다 두 배가 됨
+	//디테일 패널에서 0 이하가 들어오면 0으로 나누게 되므로 GetRequiredExperience가 최소 1로 막음
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
-	float RequiredExperienceGrowth = 3.0f;
+	int32 LevelsPerExperienceDouble = 10;
 
 private:
 	// Only components hidden by the close camera are restored; material/weapon visibility is untouched.
@@ -444,8 +465,14 @@ private:
 	UFUNCTION()
 	void HandleWeaponHitConfirmed(bool bKilled, bool bHeadshot);
 
-	//반동으로 올라간 카메라를 조금씩 제자리로 내림 Tick이 부름
-	void UpdateRecoilRecovery(float DeltaTime);
+	//반동으로 올라간 카메라를 조금씩 제자리로 내림 쏜 뒤에 걸리는 회복 타이머가 부름
+	void UpdateRecoilRecovery();
+
+	//반동 회복 타이머를 멈추고 남은 양을 0으로 되돌림
+	void StopRecoilRecovery();
+
+	//반동 회복 타이머 쏠 때 걸리고 다 내려오면 꺼짐 쏘지 않는 동안에는 돌지 않음
+	FTimerHandle RecoilRecoveryTimerHandle;
 
 	//반동으로 위로 올린 양 중 아직 되돌리지 않은 것 0이면 되돌릴 게 없음
 	//각도가 아니라 입력값 단위 올릴 때와 내릴 때 같은 함수를 써서 정확히 제자리로 돌아옴

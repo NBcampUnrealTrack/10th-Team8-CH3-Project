@@ -47,14 +47,16 @@ void FAugmentPool::BuildBossDefault()
     Augments.Add(FAugmentData(EAugmentID::HealthUp, EAugmentCategory::Passive, 20.0f, true));
 
     //두 번째로 뽑혀도 효과가 없는 증강은 반복 획득 금지 한 번 뽑히면 풀에서 빠짐
-    //보스에게 붙어도 말이 되는 것만 넣음 맞으면 반사하고 때리면 회복하고 몰리면 세지는 것들
+    //보스에게 붙어도 말이 되는 것만 넣음 때리면 회복하고 몰리면 세지는 것들
     Augments.Add(FAugmentData(EAugmentID::Berserker, EAugmentCategory::Passive, 8.0f, false));
     Augments.Add(FAugmentData(EAugmentID::LastFortress, EAugmentCategory::Passive, 8.0f, false));
-    Augments.Add(FAugmentData(EAugmentID::ThornArmor, EAugmentCategory::Passive, 8.0f, false));
     Augments.Add(FAugmentData(EAugmentID::Vampire, EAugmentCategory::Passive, 8.0f, false));
     Augments.Add(FAugmentData(EAugmentID::Regeneration, EAugmentCategory::Passive, 8.0f, false));
 
     //스태미나 넉백 범위공격 지속공격은 일부러 뺌 보스가 뽑으면 아무 일도 안 일어나는 빈 칸이 됨
+    //가시 갑옷도 뺌 가시 연출 에셋이 플레이어 블루프린트에만 있어서 보스가 뽑으면 보이지도 않는 빈 칸이 됨
+    //보스 기본 방어력이 1이라 반사량도 거의 0임 위 방어력 증가를 여러 번 뽑으면 올라가긴 하지만
+    //그걸 노리고 넣기에는 뽑기 운에 너무 기대게 되어서 뺌
 
     FillDisplayTexts();
 }

@@ -86,7 +86,8 @@ private:
 	void UpdateState();
 };
 
-//가시 갑옷 받은 데미지의 일정 비율을 공격자에게 반사
+//가시 갑옷 자기 방어력에 비례한 피해를 공격자에게 반사
+//받은 피해 크기와 무관해서 약한 공격을 여러 번 맞을수록 돌려주는 총량이 커짐
 UCLASS()
 class DREAMVEIL_API UThornArmorSkill : public UAugmentSkillBase
 {

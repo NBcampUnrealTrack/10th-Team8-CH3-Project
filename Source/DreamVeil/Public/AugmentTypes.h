@@ -41,7 +41,8 @@ enum class EAugmentCategory : uint8
 const int32 AUGMENT_CHOICE_COUNT = 3;
 
 //공격력 증가량
-const float ATTACK_POWER_UP_AMOUNT = 5.0f;
+//5에서 3으로 내림 반복 획득이 되는 증강이라 한 번에 주는 양이 크면 공격력만 쌓는 것이 늘 정답이 됨
+const float ATTACK_POWER_UP_AMOUNT = 3.0f;
 
 //방어력 증가량
 const float DEFENCE_POWER_UP_AMOUNT = 3.0f;
@@ -49,27 +50,39 @@ const float DEFENCE_POWER_UP_AMOUNT = 3.0f;
 //최대 체력 증가량
 const float HEALTH_UP_AMOUNT = 20.0f;
 
-//최대 스태미나 증가량 기본 최대치 100 기준 한 번에 약 1초 더 뛸 수 있음
-const float STAMINA_UP_AMOUNT = 25.0f;
+//최대 스태미나 증가량 달리기가 초당 25를 먹으므로 한 번에 약 0.4초 더 뛸 수 있음
+//25에서 10으로 내림 달리기 보조 증강이 공방체 증가와 같은 급으로 체감되면 안 됨
+const float STAMINA_UP_AMOUNT = 10.0f;
 
-//재생력 회복량
-const float REGENERATION_HEAL_AMOUNT = 5.0f;
+//재생력 회복 비율 회복량 = (최대 체력 - 현재 체력) * 이 값
+//고정 수치가 아니라 잃은 체력을 보는 이유 체력 증가 증강으로 최대 체력이 커지면 회복량도 같이 커져야 하고
+//체력이 꽉 찬 상태에서는 회복량이 0이 되어 전투 중에만 뜻이 생기게 하려는 것
+//최대 체력까지 완전히 채우지는 못함 남은 양에 비례해서 줄기 때문에 끝에 가면 거의 0이 됨
+const float REGENERATION_LOST_HEALTH_RATIO = 0.01f;
 
 //재생력 회복 간격
 const float REGENERATION_INTERVAL = 2.0f;
 
-//흡혈 회복 비율
-const float VAMPIRE_HEAL_RATIO = 0.1f;
+//흡혈 회복 비율 회복량 = 입힌 피해 * 이 값
+//0.1에서 0.005로 내림 연사 무기에 폭발탄까지 붙으면 한 번 쏠 때 들어가는 타격 수가 많아서
+//비율이 조금만 높아도 맞으면서 계속 차오름
+const float VAMPIRE_HEAL_RATIO = 0.005f;
 
-//가시 갑옷 반사 비율
-const float THORN_ARMOR_REFLECT_RATIO = 0.2f;
+//가시 갑옷 반사량 계수 반사 데미지 = 방어력 * 이 값
+//받은 데미지 비율이 아니라 방어력을 보는 이유 약한 공격을 여러 번 맞을 때도 반사가 일정하고
+//방어력 증강과 최후의 요새가 가시 갑옷과 같이 세지는 조합이 생김
+//방어력이 0이면 반사도 0 플레이어 기본 방어력이 0이라 방어력 증강을 먼저 먹어야 뜻이 생김
+//최소 반사량을 따로 두지 않은 이유 가시 갑옷을 방어 빌드 전용 증강으로 두기로 함
+//방어력 증가와 최후의 요새를 같이 모으면 세지고 공격 빌드에서는 안 고르는 것이 맞는 선택이 되게 함
+const float THORN_ARMOR_DEFENCE_RATIO = 1.0f;
 
 //가시 갑옷이 어디서 멈췄는지 로그로 남김 반사가 계산됐는지 연출까지 갔는지 한눈에 보임
 //AREA_ATTACK_DRAW_DEBUG와 같은 용도 문제가 생겼을 때만 켤 것
 const bool THORN_ARMOR_DRAW_DEBUG = false;
 
 //광전사 발동 체력 비율
-const float BERSERKER_THRESHOLD = 0.3f;
+//0.3에서 0.4로 올림 최후의 요새(0.3)보다 먼저 켜져서 둘을 같이 모으면 단계가 생김
+const float BERSERKER_THRESHOLD = 0.4f;
 
 //광전사 공격력 배율
 const float BERSERKER_MULTIPLIER = 1.5f;
@@ -80,7 +93,17 @@ const float LAST_FORTRESS_THRESHOLD = 0.3f;
 //최후의 요새 방어력 배율
 const float LAST_FORTRESS_MULTIPLIER = 1.5f;
 
+//방어력 피해 감소 상수 받는 피해 = 피해 * 이 값 / (이 값 + 방어력)
+//빼기가 아니라 나누기로 바꾼 이유 빼기는 방어력이 피해량을 넘는 순간 모든 공격이 최소 피해로 똑같아져서
+//그 뒤로는 방어력을 더 올릴 이유가 사라지고 반대로 아주 큰 공격에는 거의 효과가 없음
+//나누기는 방어력 1당 늘어나는 실질 체력이 늘 같아서(1 나누기 이 값) 얼마까지 올려도 값이 붙음
+//30으로 잡은 이유 방어력이 이 값과 같아질 때 받는 피해가 정확히 절반이 됨
+//방어력 증강 한 개가 3이니 10개를 모으면 절반 거기에 최후의 요새까지 켜지면 60% 감소
+//몬스터 방어력 1은 3% 감소라 예전(피해 빼기 1)과 거의 같고 플레이어 기본 방어력 0은 감소가 없어 전과 완전히 같음
+const float DEFENCE_REDUCTION_CONSTANT = 30.0f;
+
 //데미지 최소 보장치
+//나누기 방식은 결과가 0이 되지 않지만 아주 약한 공격이 소수점 피해로 묻히는 것은 막아야 함
 const float MIN_DAMAGE = 1.0f;
 
 //넉백 세기 총에 맞은 적이 뒤로 밀리는 속도 cm/s
@@ -91,9 +114,16 @@ const float MIN_DAMAGE = 1.0f;
 const float KNOCKBACK_IMPULSE = 800.0f;
 
 //범위 공격 반경 총알이 맞은 지점 기준
-//눈에 보이는 폭발 크기와 같아야 함 불덩이 밖의 적이 죽거나 안에 있는 적이 멀쩡하면 규칙이 안 읽힘
 //무기의 ExplosionEffectBaseRadius와 짝으로 맞춰야 함 이 값을 바꾸면 이펙트도 같이 커지고 줄어듦
+//보이는 불덩이는 아래 AREA_ATTACK_EFFECT_SCALE만큼 더 작게 그림 피해가 들어가는 범위는 여기 적힌 값 그대로임
 const float AREA_ATTACK_RADIUS = 200.0f;
+
+//보이는 폭발 이펙트를 피해 반경보다 작게 그리는 비율 1이면 피해 반경과 똑같은 크기
+//피해 범위와 일부러 어긋나게 둔 이유 불덩이가 화면을 덮으면 폭발 직후에 적이 어디 있는지가 안 보임
+//전투 중에 앞이 안 보이는 쪽이 범위를 눈으로 못 재는 쪽보다 훨씬 손해라서 보이는 크기만 줄임
+//너무 낮추면 어디까지 맞는지 못 읽으니 피해가 센 한가운데만 보여주는 정도로 둠
+//디버그 구체(AREA_ATTACK_DRAW_DEBUG)는 이 값을 안 쓰고 진짜 피해 반경을 그대로 그림
+const float AREA_ATTACK_EFFECT_SCALE = 0.7f;
 
 //범위 공격이 터진 자리를 잠깐 그려서 반경과 걸린 대상 수를 눈으로 확인
 //켜면 빨간 구체와 적중 인원 로그가 같이 나옴 수치를 다시 만질 때만 켤 것

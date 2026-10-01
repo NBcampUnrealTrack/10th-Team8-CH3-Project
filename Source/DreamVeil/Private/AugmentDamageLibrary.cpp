@@ -79,8 +79,12 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         return 0.0f;
     }
 
-    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴 화염 데미지는 방어력을 무시함
-    const float FinalDamage = DamagedStats->ApplyIncomingDamage(Damage, IsFireDamage(DamageTypeClass));
+    //화염 데미지에는 두 가지 규칙이 걸림 방어력을 무시하고 흡혈과 가시 갑옷 반사도 일으키지 않음
+    //두 규칙이 같은 판정을 쓰므로 한 번만 물어보고 아래에서 같이 씀
+    const bool bIsFireDamage = IsFireDamage(DamageTypeClass);
+
+    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴
+    const float FinalDamage = DamagedStats->ApplyIncomingDamage(Damage, bIsFireDamage);
 
     if (FinalDamage <= 0.0f)
     {
@@ -120,7 +124,7 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
     }
 
     //화염 데미지는 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않게 여기서 끝냄
-    if (IsFireDamage(DamageTypeClass))
+    if (bIsFireDamage)
     {
         return FinalDamage;
     }
@@ -147,7 +151,7 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         AttackerTable->ProcessOnDamageDealt(FinalDamage);
     }
 
-    //가시 갑옷 반사 가시 갑옷이 없으면 0이라 ApplyThornReflectDamage 안에서 걸러짐
+    //가시 갑옷 반사 가시 갑옷이 없거나 방어력이 0이면 0이라 ApplyThornReflectDamage 안에서 걸러짐
     UDispatchTableComponent* DamagedTable = DamagedActor->FindComponentByClass<UDispatchTableComponent>();
 
     if (DamagedTable)
@@ -200,7 +204,8 @@ void UAugmentDamageLibrary::ApplyAugmentDamage(AActor* DamageCauser, const TArra
 //가시 갑옷 반사 데미지를 보냄 반사 표식이 붙어서 되받아치기가 일어나지 않음
 float UAugmentDamageLibrary::ApplyThornReflectDamage(AActor* ThornOwner, AActor* Target, float Damage)
 {
-    //조기 반환보다 먼저 찍음 반사량이 0이면 가시 갑옷을 아예 안 가진 것이라 여기서 갈림
+    //조기 반환보다 먼저 찍음 반사량이 0인 채로 끝나는 경우를 봐야 해서
+    //반사량 0은 가시 갑옷이 없거나 가시 갑옷은 있는데 방어력이 0이라는 뜻 둘을 구분하려면 방어력도 같이 확인할 것
     if (THORN_ARMOR_DRAW_DEBUG)
     {
         UE_LOG(LogTemp, Warning, TEXT("[ThornArmor] 주인 %s -> 대상 %s 반사량 %.1f"),
@@ -331,8 +336,9 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
     AActor* Shooter = FindAttacker(FindEventInstigator(DamageCauser), DamageCauser);
 
     //아군이나 자기 자신을 맞혔으면 데미지도 적중 증강(범위 공격 감속 지속 공격)도 없음
-    //벽이나 바닥처럼 스탯 컴포넌트가 없는 액터는 팀 구분 대상이 아니라서 그대로 진행
-    if (Shooter && HitActor && HitActor->FindComponentByClass<UCombatStatsComponent>() && !IsEnemy(Shooter, HitActor))
+    //팀 판정을 먼저 하고 스탯 컴포넌트는 나중에 찾음 적을 맞혔을 때 컴포넌트 검색을 건너뛰려는 것
+    //벽이나 바닥은 둘 다 몬스터가 아니라 팀 판정에서 아군으로 나오지만 스탯 컴포넌트가 없어서 그대로 진행됨
+    if (Shooter && HitActor && !IsEnemy(Shooter, HitActor) && HitActor->FindComponentByClass<UCombatStatsComponent>())
     {
         return 0.0f;
     }

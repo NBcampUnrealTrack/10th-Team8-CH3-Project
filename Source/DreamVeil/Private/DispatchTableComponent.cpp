@@ -158,7 +158,7 @@ FText UDispatchTableComponent::GetAugmentDisplayName(EAugmentID AugmentID)
     case EAugmentID::Regeneration:
         return NSLOCTEXT("Augment", "RegenerationName", "재생력");
     case EAugmentID::Knockback:
-        return NSLOCTEXT("Augment", "KnockbackName", "충격탄");
+        return NSLOCTEXT("Augment", "KnockbackName", "정상수");
     case EAugmentID::AreaAttack:
         return NSLOCTEXT("Augment", "AreaAttackName", "폭발탄");
     case EAugmentID::ContinuousAttack:
@@ -166,6 +166,20 @@ FText UDispatchTableComponent::GetAugmentDisplayName(EAugmentID AugmentID)
     default:
         return NSLOCTEXT("Augment", "UnknownName", "알 수 없는 증강");
     }
+}
+
+//비율(0~1)을 백분율 글자로 바꿈 소수점은 필요한 만큼만 남김
+//FMath::RoundToInt를 안 쓰는 이유 흡혈 0.5%처럼 1%보다 작은 값이 반올림되면 설명이 없는 수치를 말하게 됨
+//설명마다 같은 식을 쓰던 것을 한곳으로 모은 것이라 아래 설명들은 전부 이 함수를 지나감
+static FText FormatPercentText(float Ratio)
+{
+    FNumberFormattingOptions FormatOptions;
+
+    //정수로 떨어지면 소수점을 안 붙이고 0.5처럼 남는 값만 소수점을 보여줌
+    FormatOptions.MinimumFractionalDigits = 0;
+    FormatOptions.MaximumFractionalDigits = 2;
+
+    return FText::AsNumber(Ratio * 100.0f, &FormatOptions);
 }
 
 //증강 설명 수치는 AugmentTypes.h 값을 넣어서 밸런스를 바꾸면 설명도 같이 바뀜
@@ -192,39 +206,39 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
     case EAugmentID::Berserker:
         return FText::Format(
             NSLOCTEXT("Augment", "BerserkerDesc", "체력이 {0}% 이하일 때 공격력이 {1}배가 됩니다."),
-            FText::AsNumber(FMath::RoundToInt(BERSERKER_THRESHOLD * 100.0f)),
+            FormatPercentText(BERSERKER_THRESHOLD),
             FText::AsNumber(BERSERKER_MULTIPLIER));
     case EAugmentID::LastFortress:
         return FText::Format(
             NSLOCTEXT("Augment", "LastFortressDesc", "체력이 {0}% 이하일 때 방어력이 {1}배가 됩니다."),
-            FText::AsNumber(FMath::RoundToInt(LAST_FORTRESS_THRESHOLD * 100.0f)),
+            FormatPercentText(LAST_FORTRESS_THRESHOLD),
             FText::AsNumber(LAST_FORTRESS_MULTIPLIER));
     case EAugmentID::ThornArmor:
         return FText::Format(
-            NSLOCTEXT("Augment", "ThornArmorDesc", "받은 피해의 {0}%를 공격자에게 되돌려줍니다."),
-            FText::AsNumber(FMath::RoundToInt(THORN_ARMOR_REFLECT_RATIO * 100.0f)));
+            NSLOCTEXT("Augment", "ThornArmorDesc", "공격받으면 방어력의 {0}%만큼 공격자에게 피해를 돌려줍니다."),
+            FormatPercentText(THORN_ARMOR_DEFENCE_RATIO));
     case EAugmentID::Vampire:
         return FText::Format(
             NSLOCTEXT("Augment", "VampireDesc", "입힌 피해의 {0}%만큼 체력을 회복합니다."),
-            FText::AsNumber(FMath::RoundToInt(VAMPIRE_HEAL_RATIO * 100.0f)));
+            FormatPercentText(VAMPIRE_HEAL_RATIO));
     case EAugmentID::Regeneration:
         return FText::Format(
-            NSLOCTEXT("Augment", "RegenerationDesc", "{0}초마다 체력을 {1} 회복합니다."),
+            NSLOCTEXT("Augment", "RegenerationDesc", "{0}초마다 잃은 체력의 {1}%를 회복합니다."),
             FText::AsNumber(REGENERATION_INTERVAL),
-            FText::AsNumber(REGENERATION_HEAL_AMOUNT));
+            FormatPercentText(REGENERATION_LOST_HEALTH_RATIO));
     case EAugmentID::Knockback:
         return NSLOCTEXT("Augment", "KnockbackDesc", "총에 맞은 적이 뒤로 밀려납니다.");
     case EAugmentID::AreaAttack:
         return FText::Format(
             NSLOCTEXT("Augment", "AreaAttackDesc", "총알이 맞은 지점 주변 {0}m 안의 적에게 피해의 {1}%가 함께 들어갑니다. 멀수록 약해집니다."),
             FText::AsNumber(AREA_ATTACK_RADIUS / 100.0f),
-            FText::AsNumber(FMath::RoundToInt(AREA_ATTACK_DAMAGE_RATIO * 100.0f)));
+            FormatPercentText(AREA_ATTACK_DAMAGE_RATIO));
     case EAugmentID::ContinuousAttack:
         return FText::Format(
             NSLOCTEXT("Augment", "ContinuousAttackDesc", "총에 맞은 적이 {0}초 동안 불타며 {1}초마다 피해의 {2}%를 입습니다. 방어력을 무시합니다."),
             FText::AsNumber(CONTINUOUS_ATTACK_DURATION),
             FText::AsNumber(CONTINUOUS_ATTACK_INTERVAL),
-            FText::AsNumber(FMath::RoundToInt(CONTINUOUS_ATTACK_DAMAGE_RATIO * 100.0f)));
+            FormatPercentText(CONTINUOUS_ATTACK_DAMAGE_RATIO));
     default:
         return FText::GetEmpty();
     }
@@ -277,7 +291,8 @@ bool UDispatchTableComponent::RestoreAugments(const TArray<EAugmentID>& History)
     return true;
 }
 
-//받은 데미지로 공격자에게 돌려줄 반사 데미지
+//공격자에게 돌려줄 반사 데미지 보유한 반사 증강의 값을 전부 더함
+//지금 가시 갑옷은 FinalDamage를 쓰지 않고 방어력만 보지만 훅 자체는 받은 피해를 계속 넘겨줌
 float UDispatchTableComponent::CalculateThornReflectDamage(float FinalDamage)
 {
     float ReflectDamage = 0.0f;
@@ -348,9 +363,9 @@ void UDispatchTableComponent::HandleCurrentHealthChanged(float OldValue, float N
 }
 
 //얻은 스킬 목록을 배열로 복사 스킬 객체 자체가 아니라 포인터만 복사함
-TArray<TObjectPtr<UAugmentSkillBase>> UDispatchTableComponent::GetAcquiredSkillsSnapshot() const
+TArray<TObjectPtr<UAugmentSkillBase>, TInlineAllocator<12>> UDispatchTableComponent::GetAcquiredSkillsSnapshot() const
 {
-    TArray<TObjectPtr<UAugmentSkillBase>> Skills;
+    TArray<TObjectPtr<UAugmentSkillBase>, TInlineAllocator<12>> Skills;
 
     AcquiredSkills.GenerateValueArray(Skills);
 

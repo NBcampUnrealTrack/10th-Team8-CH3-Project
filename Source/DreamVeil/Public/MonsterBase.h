@@ -137,6 +137,27 @@ protected:
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Death")
 	TObjectPtr<UParticleSystem> DeathParticle;
 
+	//사망 모션 넣어두면 물리로 풀썩 쓰러지는 대신 이 몽타주로 쓰러짐
+	//비워두면 예전처럼 바로 레그돌로 쓰러짐 모션이 없는 몬스터를 깨뜨리지 않으려는 것
+	//이미 레그돌로 날아가고 있거나 공중에 떠 있는 중에 죽으면 그때도 레그돌 그대로 감
+	//넣을 때 꼭 볼 것 1 몽타주의 슬롯 이름이 이 몬스터 애님 블루프린트의 Slot 노드 이름과 같아야 함
+	//다르면 Montage_Play가 길이까지 멀쩡히 돌려주는데 화면에는 아무것도 안 나와서 시체가 선 채로 굳었다 사라짐
+	//(지금 Stickman TwinBlast는 DefaultSlot, Sevarog는 FullBody, Rampage는 UpperBody밖에 없어 아직 못 씀)
+	//넣을 때 꼭 볼 것 2 몽타주의 Enable Auto Blend Out을 꺼야 함 켜두면 다 쓰러진 뒤 선 자세로 돌아갔다가 사라짐
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Death")
+	TObjectPtr<UAnimMontage> DeathMontage;
+
+	//아웃라인(외곽선) 표시 여부 끄면 이 몬스터만 선이 안 그려짐
+	//선을 실제로 그리는 것은 플레이어에 붙은 포스트 프로세스 머티리얼이고 여기서는 대상만 표시함
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Outline")
+	bool bRenderOutline = true;
+
+	//아웃라인 번호 0~255 등급이나 종류별로 선 색을 나누고 싶을 때 쓰라고 남겨둠
+	//프로젝트 설정의 Custom Depth-Stencil Pass를 Enabled with Stencil로 켜야 머티리얼이 이 값을 읽음
+	//안 켜도 외곽선 자체는 나옴 몬스터만 커스텀 깊이에 그려지기 때문
+	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Monster|Outline")
+	int32 OutlineStencilValue = 1;
+
 	//공격 애니메이션이 있는 몬스터는 노티파이를 쓰고, 없는 몬스터는 기존 공격 타이머로 발사와 종료를 처리함
 	bool bUseAttackMontage = true;
 
@@ -237,6 +258,10 @@ protected:
 private:
 	//피격과 사망에서 같은 물리 전환을 사용하되, 기상 예약은 살아 있을 때만 따로 처리함
 	void ActivateRagdoll(const FVector& LaunchVelocity);
+
+	//사망 모션을 재생하고 그 길이를 초로 돌려줌 모션이 없거나 못 틀었으면 0
+	//길이를 돌려주는 이유 시체를 치우는 타이머가 모션이 끝날 때까지 기다려야 함
+	float PlayDeathMontage();
 	//사망 연출 대기가 끝나면 파티클을 생성하고 몬스터를 제거함
 	void FinishDeath();
 	FTimerHandle DeathTimer;

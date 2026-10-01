@@ -87,7 +87,8 @@ public:
 
 	// 스킬 알림 AugmentDamageLibrary가 부름
 
-	//받은 데미지로 공격자에게 돌려줄 반사 데미지 가시 갑옷이 없으면 0
+	//공격자에게 돌려줄 반사 데미지 가시 갑옷이 없거나 방어력이 0이면 0
+	//FinalDamage를 계속 받는 이유 가시 갑옷은 안 쓰지만 받은 피해에 비례하는 반사 증강이 나중에 생길 수 있어서 훅은 그대로 둠
 	UFUNCTION(BlueprintCallable, Category = "Combat")
 	float CalculateThornReflectDamage(float FinalDamage);
 
@@ -150,7 +151,9 @@ private:
 	UAugmentSkillBase* FindOrCreateSkill(EAugmentID AugmentID);
 
 	//얻은 스킬 목록을 배열로 복사 스킬을 부르는 도중 증강을 얻거나 컴포넌트가 정리돼 맵이 바뀌어도 안전하게 돌기 위함
-	TArray<TObjectPtr<UAugmentSkillBase>> GetAcquiredSkillsSnapshot() const;
+	//증강 번호가 EAugmentID 개수를 넘을 수 없어서 12칸을 스택에 미리 잡아둠 호출마다 하던 힙 할당이 사라짐
+	//증강이 없는 액터는 원래도 할당이 없었고 이건 증강을 가진 쪽(플레이어 보스)에만 해당됨
+	TArray<TObjectPtr<UAugmentSkillBase>, TInlineAllocator<12>> GetAcquiredSkillsSnapshot() const;
 
 	//스탯 컴포넌트의 체력 변화를 받아 스킬에게 전달 광전사 최후의 요새
 	UFUNCTION()

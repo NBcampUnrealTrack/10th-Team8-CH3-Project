@@ -2,9 +2,18 @@
 #include "Components/StaticMeshComponent.h"
 #include "Components/SphereComponent.h"
 
+// 화면에서 사라진 뒤 이 시간이 지나면 갱신을 멈춤
+// 0으로 두지 않는 이유 카메라를 홱 돌릴 때 한 프레임만 안 보여도 바로 멈추면 움직임이 끊겨 보임
+static const float RENDER_IDLE_TOLERANCE = 0.5f;
+
+// 갱신 간격 초당 20번 장식용이라 매 프레임까지 갱신할 이유가 없음
+// 이동과 회전이 DeltaTime을 곱해서 계산하므로 간격을 늘려도 속도는 그대로임
+static const float FLOATING_TICK_INTERVAL = 0.05f;
+
 AFloatingObject::AFloatingObject()
 {
     PrimaryActorTick.bCanEverTick = true;
+    PrimaryActorTick.TickInterval = FLOATING_TICK_INTERVAL;
     // 이동 경로를 검사할 구형 루트, 반경은 BP에서 메시 크기에 맞게 조절
     CollisionSphere = CreateDefaultSubobject<USphereComponent>(TEXT("CollisionSphere"));
     SetRootComponent(CollisionSphere);
@@ -100,6 +109,14 @@ void AFloatingObject::BeginPlay()
 void AFloatingObject::Tick(float DeltaTime)
 {
     Super::Tick(DeltaTime);
+    // 화면에 안 보이는 동안은 갱신하지 않음
+    // 이동할 때마다 SetActorLocation의 경로 검사(구체 스윕)가 들어가는데 장식이 맵에 수십 개 깔리면
+    // 보이지도 않는 충돌 검사가 그 수만큼 계속 돌게 됨 몬스터가 많은 판에서는 이게 그대로 쌓임
+    // 멈췄다가 다시 보일 때 그 자리에서 이어서 움직이므로 느리게 떠다니는 장식에서는 티가 나지 않음
+    if (!WasRecentlyRendered(RENDER_IDLE_TOLERANCE))
+    {
+        return;
+    }
     MoveToTarget(DeltaTime);
     RotateObject(DeltaTime);
 }

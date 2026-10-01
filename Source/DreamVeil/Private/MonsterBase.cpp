@@ -26,6 +26,10 @@
 #include "Particles/ParticleSystem.h"
 #include "Misc/AssertionMacros.h"
 
+//사망 모션이 끝난 뒤 시체가 남아 있는 시간 쓰러진 자세를 잠깐 보여주고 치움
+//모션이 없을 때 쓰던 1초와 같은 값으로 둬서 사라지는 박자가 달라지지 않게 함
+const float DEATH_CORPSE_LINGER_TIME = 1.0f;
+
 AMonsterBase::AMonsterBase()
 {
 	PrimaryActorTick.bCanEverTick = false;
@@ -181,6 +185,14 @@ void AMonsterBase::BeginPlay()
 	// 레그돌에서 일어날 때 메시를 캡슐의 원래 자리에 다시 붙이기 위해 기억해둠
 	CachedMeshRelativeTransform = GetMesh()->GetRelativeTransform();
 	GetMesh()->SetCanEverAffectNavigation(false);
+
+	//몬스터 외곽선 준비 메시를 커스텀 깊이 버퍼에 한 번 더 그려 둠
+	//여기서는 "이 메시를 표시해 둔다"까지만 하고 선을 그리는 것은 플레이어에 붙은 포스트 프로세스 머티리얼임
+	//몬스터만 이 버퍼에 쓰기 때문에 머티리얼은 커스텀 깊이가 있는 자리만 찾으면 되고 적을 따로 거를 필요가 없음
+	//적이 여럿 몰리거나 배경이 복잡할 때 살아 있는 적이 어디 있는지 바로 보이게 하려는 것
+	GetMesh()->SetRenderCustomDepth(bRenderOutline);
+	GetMesh()->SetCustomDepthStencilValue(OutlineStencilValue);
+
 	//서로 피해 가기(RVO)를 켬 끄면 몬스터들이 플레이어까지 최단 경로 하나에 전부 몰려서
 	//한 줄로 줄지어 오거나 한 지점에서 서로 밀며 겹쳐 보임 캡슐끼리 막기만으로는 이게 안 풀림
 	//막기는 이미 서로 통과하지 못하게만 해주고 길을 비켜주지는 않기 때문
@@ -805,8 +817,22 @@ void AMonsterBase::OnDeath()
 		AnimInstance->StopAllMontages(0.0f);
 	}
 
+	//시체에는 외곽선을 그리지 않음 아직 싸워야 하는 적을 찾으라고 넣은 것이라
+	//쓰러진 몬스터까지 빛나면 오히려 살아 있는 적을 고르기 더 어려워짐
+	GetMesh()->SetRenderCustomDepth(false);
+
+	//사망 모션이 있고 땅에 서 있으면 물리로 쓰러뜨리지 않고 모션으로 쓰러짐
+	//이미 레그돌로 날아가는 중이면 모션을 끼워 넣어 봐야 물리와 싸우기만 하므로 그대로 둠
+	//공중에서 죽었을 때도 모션을 안 트는 이유 바로 아래에서 DisableMovement로 이동을 끄는데
+	//레그돌을 안 켜면 중력까지 같이 멈춰서 시체가 공중에 선 채로 멈췄다가 그 자리에서 사라짐
+	//넉백으로 밀려 떨어지는 중에 죽는 경우가 실제로 있어서 그때는 물리로 떨어지는 쪽이 맞음
+	//StopAllMontages 뒤에서 트는 이유 위에서 몽타주를 전부 끊어놔서 여기보다 먼저 틀면 바로 멈춰버림
+	const bool bCanPlayDeathMontage = !bIsRagdoll && !GetCharacterMovement()->IsFalling();
+	const float DeathMontageLength = bCanPlayDeathMontage ? PlayDeathMontage() : 0.0f;
+
+	//모션을 못 틀었으면 예전 그대로
 	//이미 쓰러져 있다면 현재 물리 속도를 유지하고, 서 있었다면 추가 충격 없이 쓰러뜨림
-	if (!bIsRagdoll) ActivateRagdoll(FVector::ZeroVector);
+	if (DeathMontageLength <= 0.0f && !bIsRagdoll) ActivateRagdoll(FVector::ZeroVector);
 	//물리 에셋이 없는 몬스터도 사망 후 공격하거나 이동하지 않도록 처리함
 	bIsRagdoll = true;
 	DetachFromControllerPendingDestroy();
@@ -819,7 +845,13 @@ void AMonsterBase::OnDeath()
 	}
 	//시체가 플레이어나 무기 광선을 막지 않게 하고 바닥과의 물리 충돌은 유지함
 	GetMesh()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
-	GetWorldTimerManager().SetTimer(DeathTimer, this, &AMonsterBase::FinishDeath, 1.0f, false);
+	//모션으로 쓰러질 때는 모션이 끝날 때까지 기다림 1초로 두면 쓰러지다 만 채로 사라짐
+	//모션이 없으면 예전처럼 1초 뒤에 치움
+	const float DeathWaitTime = DeathMontageLength > 0.0f
+		? DeathMontageLength + DEATH_CORPSE_LINGER_TIME
+		: DEATH_CORPSE_LINGER_TIME;
+
+	GetWorldTimerManager().SetTimer(DeathTimer, this, &AMonsterBase::FinishDeath, DeathWaitTime, false);
 
 	if (ActorHasTag(TEXT("Boss")))
 	{
@@ -865,7 +897,25 @@ float AMonsterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEve
 
 	return UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
 }
-void Death(APawn* Pawn)
-{
 
+//사망 모션을 재생하고 그 길이를 돌려줌 못 틀었으면 0
+float AMonsterBase::PlayDeathMontage()
+{
+	//모션을 안 넣어둔 몬스터는 예전처럼 물리로 쓰러짐
+	if (!DeathMontage)
+	{
+		return 0.0f;
+	}
+
+	UAnimInstance* AnimInstance = GetMesh()->GetAnimInstance();
+
+	//애님 블루프린트가 없는 메시는 몽타주를 틀 수 없음
+	if (!AnimInstance)
+	{
+		return 0.0f;
+	}
+
+	//Montage_Play는 재생 길이를 돌려주고 실패하면 0 이하를 돌려줌
+	//재생 속도를 1로 두므로 돌려받은 길이가 그대로 기다릴 시간이 됨
+	return AnimInstance->Montage_Play(DeathMontage);
 }

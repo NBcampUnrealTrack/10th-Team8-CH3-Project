@@ -94,12 +94,15 @@ void AExplosiveMonsterProjectile::ApplySplashDamage(AActor* Shooter, const FVect
 }
 
 //UWeaponBase::SpawnExplosionEffect와 같은 방식 반경에 맞춰 이펙트를 키우거나 줄임
+//보이는 크기를 줄이는 AREA_ATTACK_EFFECT_SCALE도 똑같이 곱함
+//플레이어 폭발탄만 줄이면 안 되는 이유 이 폭발은 플레이어 발밑에서 터져서 시야를 더 많이 가림
+//피해 반경(ExplosionRadius)은 그대로라 불덩이 바깥에 서 있어도 맞는 것은 플레이어 폭발탄과 같음
 void AExplosiveMonsterProjectile::SpawnExplosionEffect(const FVector& Location, const FRotator& Rotation) const
 {
 	if (!ExplosionEffect) return;
 
 	const float SafeBaseRadius = FMath::Max(ExplosionEffectBaseRadius, UE_KINDA_SMALL_NUMBER);
-	const float EffectScale = ExplosionRadius / SafeBaseRadius;
+	const float EffectScale = ExplosionRadius * AREA_ATTACK_EFFECT_SCALE / SafeBaseRadius;
 
 	UGameplayStatics::SpawnEmitterAtLocation(
 		GetWorld(),

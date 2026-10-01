@@ -176,7 +176,9 @@ protected:
 
 	//위 폭발 이펙트가 원래 크기(스케일 1)로 터졌을 때의 반경
 	//폭발탄 반경에 맞춰 이펙트를 키우거나 줄이는 기준으로 씀
-	//빨간 디버그 구체와 불덩이 크기가 어긋나면 이 값을 실제 크기로 고치면 됨
+	//파티클 에셋을 바꿨을 때만 고칠 것 뜻이 "에셋의 진짜 반경"이라 그것 말고는 바뀔 이유가 없음
+	//빨간 디버그 구체(진짜 피해 반경)보다 불덩이가 작게 보이는 것은 맞춰야 할 오차가 아니라 일부러 그런 것임
+	//AREA_ATTACK_EFFECT_SCALE이 보이는 크기만 줄이고 있음 여기를 고쳐서 크기를 맞추면 그 설정이 지워짐
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")
 	float ExplosionEffectBaseRadius = 400.0f;
 

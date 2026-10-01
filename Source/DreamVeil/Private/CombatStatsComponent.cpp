@@ -177,8 +177,12 @@ float UCombatStatsComponent::ApplyIncomingDamage(float IncomingDamage, bool bIgn
 
     const float DefencePower = bIgnoreDefence ? 0.0f : Stats.GetDefencePower();
 
-    //방어력으로 깎되 최소 보장치는 남김 남은 체력보다 커도 자르지 않음(오버킬 허용)
-    const float FinalDamage = FMath::Max(IncomingDamage - DefencePower, MIN_DAMAGE);
+    //방어력이 높을수록 받는 피해가 비율로 줄어듦 방어력이 0이면 1이 되어 들어온 피해가 그대로 들어감
+    //DEFENCE_REDUCTION_CONSTANT가 30이고 음수 방어력은 GetDefencePower가 막으므로 0으로 나눌 일은 없음
+    const float DamageMultiplier = DEFENCE_REDUCTION_CONSTANT / (DEFENCE_REDUCTION_CONSTANT + DefencePower);
+
+    //비율로 깎되 최소 보장치는 남김 남은 체력보다 커도 자르지 않음(오버킬 허용)
+    const float FinalDamage = FMath::Max(IncomingDamage * DamageMultiplier, MIN_DAMAGE);
 
     SetCurrentHealth(Stats.CurrentHealth - FinalDamage);
 
