@@ -178,7 +178,7 @@ void AMainPlayerController::ShowGameOver()
     if (auto* Info = Cast<UTextBlock>(MenuWidgetInstance->GetWidgetFromName(TEXT("Text_Info"))))
     {
         Info->SetText(GI->GetDifficulty() == EGameDifficulty::Hard
-            ? NSLOCTEXT("DreamUI", "DeathHard", "체력이 모두 소진되었습니다.\n저장 파일과 진행도가 초기화되고 로비로 돌아갑니다.")
+            ? NSLOCTEXT("DreamUI", "DeathHard", "체력이 모두 소진되었습니다.\n저장 파일과 진행도가 초기화되고 메인메뉴로 돌아갑니다.")
             : GI->GetDifficulty() == EGameDifficulty::Easy
             ? NSLOCTEXT("DreamUI", "DeathEasy", "체력이 모두 소진되었습니다.\n이번 꿈에서 얻은 보상은 유지하고 로비로 돌아갑니다.")
             : NSLOCTEXT("DreamUI", "DeathNormal", "체력이 모두 소진되었습니다.\n이번 꿈에서 얻은 보상은 잃고, 입장 전 상태로 로비에 돌아갑니다."));
@@ -274,7 +274,7 @@ bool AMainPlayerController::ShowCorruptionGameOver()
     {
         const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
         Info->SetText(GI && GI->GetDifficulty() == EGameDifficulty::Hard
-            ? NSLOCTEXT("DreamUI", "CorruptionHard", "잠식도가 100%에 닿았습니다.\n꿈이 당신을 놓아주지 않습니다.\n저장 파일과 진행도가 초기화되고 로비로 돌아갑니다.")
+            ? NSLOCTEXT("DreamUI", "CorruptionHard", "잠식도가 100%에 닿았습니다.\n꿈이 당신을 놓아주지 않습니다.\n저장 파일과 진행도가 초기화되고 메인메뉴로 돌아갑니다.")
             : GI && GI->GetDifficulty() == EGameDifficulty::Easy
             ? NSLOCTEXT("DreamUI", "CorruptionEasy", "잠식도가 100%에 닿았습니다.\n꿈이 당신을 놓아주지 않습니다.\n이번 꿈에서 얻은 보상은 유지하고 로비로 돌아갑니다.")
             : NSLOCTEXT("DreamUI", "CorruptionNormal", "잠식도가 100%에 닿았습니다.\n꿈이 당신을 놓아주지 않습니다.\n이번 꿈에서 얻은 보상은 잃고, 입장 전 상태로 로비에 돌아갑니다."));

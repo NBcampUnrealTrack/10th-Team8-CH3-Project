@@ -656,16 +656,24 @@ float AMainPlayerCharacter::GetCurrentExperience() const
 	return CurrentExperience;
 }
 
-//다음 레벨까지 필요한 경험치 정해진 레벨 수마다 두 배가 됨
 float AMainPlayerCharacter::GetRequiredExperience() const
 {
-	//디테일 패널에서 0이나 음수가 들어와도 0으로 나누지 않게 막음
-	const float LevelsPerDouble = FMath::Max(static_cast<float>(LevelsPerExperienceDouble), 1.0f);
+	float RequiredExperience = FMath::Max(BaseRequiredExperience, 1.0f);
+	const float Growth = FMath::Max(RequiredExperienceGrowth, 0.0f);
 
-	//구간이 바뀔 때 뚝 끊기지 않게 지수로 계산함 레벨마다 조금씩 늘고 10레벨이 지나면 정확히 두 배가 됨
-	const float RequiredExperience = BaseRequiredExperience * FMath::Pow(2.0f, (PlayerLevel - 1) / LevelsPerDouble);
-
-	//소수점을 남기면 UI에 39.6 같은 값이 떠서 정수로 맞춤
+	for (int32 Level = 2; Level <= PlayerLevel; ++Level)
+	{
+		if (Level % 10 == 0)
+		{
+			// 10·20·30레벨: 직전 요구량의 두 배
+			RequiredExperience *= 2.0f;
+		}
+		else
+		{
+			// 나머지 레벨: 고정량 증가
+			RequiredExperience += Growth;
+		}
+	}
 	return FMath::Max(FMath::RoundToFloat(RequiredExperience), 1.0f);
 }
 

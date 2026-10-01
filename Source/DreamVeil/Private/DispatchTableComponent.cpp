@@ -227,7 +227,7 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
             FText::AsNumber(REGENERATION_INTERVAL),
             FormatPercentText(REGENERATION_LOST_HEALTH_RATIO));
     case EAugmentID::Knockback:
-        return NSLOCTEXT("Augment", "KnockbackDesc", "총에 맞은 적이 뒤로 밀려납니다.");
+        return NSLOCTEXT("Augment", "KnockbackDesc", "여분의 열쇠를 두었으니까ㅏㅏㅏ!!!(적을 경직시킵니다.)");
     case EAugmentID::AreaAttack:
         return FText::Format(
             NSLOCTEXT("Augment", "AreaAttackDesc", "총알이 맞은 지점 주변 {0}m 안의 적에게 피해의 {1}%가 함께 들어갑니다. 멀수록 약해집니다."),

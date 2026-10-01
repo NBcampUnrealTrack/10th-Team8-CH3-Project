@@ -382,14 +382,9 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
 	float BaseRequiredExperience = 30.0f;
 
-	//필요 경험치가 두 배가 되기까지 걸리는 레벨 수
-	//더하기(레벨당 +3)에서 곱하기로 바꾼 이유 Endless는 끝이 없는데 더하기로 늘리면
-	//레벨이 올라가도 한 레벨에 드는 시간이 거의 그대로라 레벨이 한없이 올라가 버림
-	//10으로 둔 이유 첫 10레벨 구간은 예전 계산과 거의 같아서(Lv.10 기준 56 대 57) 초반 감각이 안 바뀜
-	//Lv.1은 30 Lv.11은 60 Lv.21은 120 Lv.31은 240처럼 10레벨마다 두 배가 됨
-	//디테일 패널에서 0 이하가 들어오면 0으로 나누게 되므로 GetRequiredExperience가 최소 1로 막음
+	// 일반 레벨에서 요구 경험치가 증가하는 고정량
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level")
-	int32 LevelsPerExperienceDouble = 10;
+	float RequiredExperienceGrowth = 3.0f;
 
 private:
 	// Only components hidden by the close camera are restored; material/weapon visibility is untouched.
