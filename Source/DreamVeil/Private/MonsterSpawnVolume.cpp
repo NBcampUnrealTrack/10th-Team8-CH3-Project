@@ -1,7 +1,9 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "MonsterSpawnVolume.h"
+#include "DreamObjectPoolSubsystem.h"
+#include "MainGameModeBase.h"
 #include "Kismet/GameplayStatics.h"
 
 #include "MainPlayerCharacter.h"
@@ -119,7 +121,7 @@ bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
 
 		//플레이어 몸 안에서 솟아오르는 것만 막음 문 앞에 볼륨을 놓았을 때 생김
 		if (Player && MinPlayerDistance > 0.0f
-			&& FVector::Dist(Candidate, Player->GetActorLocation()) < MinPlayerDistance)
+			&& FVector::DistSquared(Candidate, Player->GetActorLocation()) < FMath::Square(static_cast<double>(MinPlayerDistance)))
 		{
 			continue;
 		}
@@ -186,7 +188,7 @@ AMonsterBase* AMonsterSpawnVolume::SpawnOneMonster(const TArray<TSubclassOf<AMon
 
 	//낸 몬스터를 등록하거나 스펙을 걸어주는 일은 하지 않음
 	//게임모드가 액터 스폰을 지켜보고 있다가 알아서 등록하고 스펙은 몬스터가 스스로 MonsterInit에서 검
-	return GetWorld()->SpawnActor<AMonsterBase>(ChosenClass, AdjustedLocation, SpawnRotation, SpawnParameters);
+	return Cast<AMonsterBase>(UDreamObjectPoolSubsystem::Spawn(GetWorld(), ChosenClass, FTransform(SpawnRotation, AdjustedLocation), nullptr, nullptr, SpawnParameters.SpawnCollisionHandlingOverride));
 }
 
 void AMonsterSpawnVolume::BeginPlay()
@@ -308,6 +310,12 @@ void AMonsterSpawnVolume::SpawnOneFromWave()
 	{
 		GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
 		return;
+	}
+
+	// Recheck at actual spawn time: queued waves from several volumes share one budget.
+	if (const AMainGameModeBase* Mode = GetWorld()->GetAuthGameMode<AMainGameModeBase>())
+	{
+		if (!Mode->CanSpawnRegularMonster()) return;
 	}
 
 	PendingSpawnCount--;

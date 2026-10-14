@@ -1,6 +1,7 @@
 #pragma once
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
+#include "WeaponTypes.h"
 #include "DVVisual.generated.h"
 
 // Read-only visual adapter. Never equips, buys, sells, enhances or changes game data.
@@ -17,11 +18,19 @@ public:
 protected:
  virtual TSharedRef<SWidget> RebuildWidget() override;
  virtual void NativePreConstruct() override;
+ virtual void NativeConstruct() override;
+ virtual void NativeDestruct() override;
  virtual void NativeTick(const FGeometry& Geometry,float DeltaTime) override;
 private:
  UPROPERTY(Transient) TObjectPtr<class UImage> Icon;
  UPROPERTY(Transient) TObjectPtr<class UImage> TierFrame;
  UPROPERTY(Transient) TObjectPtr<class UTextBlock> TimerText;
+ TWeakObjectPtr<class UInventoryComponent> CachedInventory;
+ TWeakObjectPtr<class AMainPlayerCharacter> CachedPlayer;
+ UFUNCTION() void HandleInventoryChanged();
+ UFUNCTION() void HandleWeaponChanged(EWeaponSlot NewSlot);
+ void BindVisualEvents();
+ int32 LastTimerSecond=-999;
  float Elapsed=0;
  int32 LastSlot=-999,LastTier=-999;
  void RefreshVisual();

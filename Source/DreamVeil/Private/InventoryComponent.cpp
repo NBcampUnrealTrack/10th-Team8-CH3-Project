@@ -1,4 +1,6 @@
-#include "InventoryComponent.h"
+﻿#include "InventoryComponent.h"
+#include "DreamObjectPoolSubsystem.h"
+#include "Engine/World.h"
 #include "MonsterProgressionLibrary.h"
 
 #include "DreamVeilGameInstance.h"
@@ -195,15 +197,8 @@ void UInventoryComponent::PlayPartDestroySound()
 
 	//SpawnSound2D를 안 쓰는 이유 그쪽은 만들자마자 재생해서 UI 소리 표시를 걸 틈이 없음
 	//마지막 true는 다 울리면 알아서 정리하라는 뜻 한 번 울리고 끝나는 소리라 들고 있을 필요가 없음
-	UAudioComponent* DestroySoundAudio = UGameplayStatics::CreateSound2D(this, PartDestroySound, 1.0f, 1.0f, 0.0f, nullptr, false, true);
-
-	if (DestroySoundAudio)
-	{
-		//상점 화면은 게임을 멈춘 채로 떠서 이걸 켜지 않으면 소리가 아예 나지 않음
-		DestroySoundAudio->bIsUISound = true;
-
-		DestroySoundAudio->Play();
-	}
+    if (UDreamObjectPoolSubsystem* Pool = GetWorld()->GetSubsystem<UDreamObjectPoolSubsystem>())
+        Pool->PlaySound2D(PartDestroySound, true);
 }
 
 //화면에 띄울 문구를 알림

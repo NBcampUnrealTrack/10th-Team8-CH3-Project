@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -48,6 +48,7 @@ class DREAMVEIL_API UMonsterSkill : public UActorComponent
     GENERATED_BODY()
 
 public:
+    void ResetForPool(bool bActivate);
     UMonsterSkill();
 
     // 빈 목록이면 특수공격 없음. 엘리트는 하나, 보스는 전체 패턴을 등록한다.

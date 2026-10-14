@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
@@ -35,6 +35,7 @@ public:
 
 	//주인 컴포넌트가 사라질 때 타이머나 걸어둔 효과를 정리
 	virtual void Deactivate();
+    virtual void ResetForPool() { Deactivate(); }
 
 	//타이머를 쓸 수 있도록 주인 컴포넌트의 월드를 돌려줌
 	virtual UWorld* GetWorld() const override;

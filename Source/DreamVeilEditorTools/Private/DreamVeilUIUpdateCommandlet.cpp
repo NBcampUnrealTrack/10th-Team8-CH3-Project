@@ -1,4 +1,4 @@
-#include "DreamVeilUIUpdateCommandlet.h"
+﻿#include "DreamVeilUIUpdateCommandlet.h"
 #include "WidgetBlueprint.h"
 #include "Blueprint/WidgetTree.h"
 #include "Components/PanelWidget.h"
@@ -200,9 +200,9 @@ int32 UDreamVeilUIUpdateCommandlet::Main(const FString& Params)
     }
     if (FParse::Param(*Params, TEXT("AuditMaps")))
     {
-        for (const TCHAR* Map : {TEXT("Lobby"), TEXT("LV_1"), TEXT("LV_2"), TEXT("LV_3"), TEXT("LV_4"), TEXT("EndlessLV")})
+        for (const TCHAR* Map : {TEXT("Lobby"), TEXT("LV_1"), TEXT("LV_2"), TEXT("LV_3"), TEXT("LV_4"), TEXT("Endless")})
         {
-            auto* World = UEditorLoadingAndSavingUtils::LoadMap(FString::Printf(TEXT("/Game/Maps/Level/%s"), Map));
+            auto* World = UEditorLoadingAndSavingUtils::LoadMap(FCString::Strcmp(Map, TEXT("Endless")) == 0 ? FString(TEXT("/Game/Endless/Endless")) : FString::Printf(TEXT("/Game/Maps/Level/%s"), Map));
             if (!World) return 12;
             Report += FString::Printf(TEXT("MAP %s\n"), Map);
             for (TActorIterator<AActor> It(World); It; ++It)

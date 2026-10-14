@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -21,6 +21,7 @@ class DREAMVEIL_API UDispatchTableComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+    void ResetForPool();
 	//생성자
 	UDispatchTableComponent();
 
@@ -33,6 +34,7 @@ public:
 	//뽑을 수 있는 증강 목록 에디터에서 바로 수정 가능 일반 몬스터는 안 씀
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Augment")
 	FAugmentPool AugmentPool;
+    FAugmentPool PoolInitialAugments;
 
 	//보상 UI 선택지 AUGMENT_CHOICE_COUNT개를 겹치지 않게 뽑음 풀은 건드리지 않음 플레이어용
 	UFUNCTION(BlueprintCallable, Category = "Augment")
@@ -138,6 +140,7 @@ private:
 	//지금까지 얻은 증강의 스킬 객체 처음 얻을 때 만들어짐
 	UPROPERTY(Transient)
 	TMap<EAugmentID, TObjectPtr<UAugmentSkillBase>> AcquiredSkills;
+    UPROPERTY(Transient) TMap<EAugmentID, TObjectPtr<UAugmentSkillBase>> RecycledSkills;
 
 	//ApplyAugment로 얻은 증강 번호 얻은 순서대로 같은 번호가 여러 번이면 그만큼 중첩
 	//레벨을 넘길 때 GameInstance가 이걸 저장했다가 새 레벨의 플레이어에게 RestoreAugments로 다시 적용함

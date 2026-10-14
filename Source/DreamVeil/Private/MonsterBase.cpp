@@ -1,7 +1,11 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "MonsterBase.h"
+#include "DreamObjectPoolSubsystem.h"
+#include "MainGameModeBase.h"
+#include "BrainComponent.h"
+#include "BehaviorTree/BlackboardComponent.h"
 #include "MonsterProgressionLibrary.h"
 #include "MonsterSkill.h"
 #include "MonsterAIController.h"
@@ -181,6 +185,7 @@ void AMonsterBase::BeginPlay()
 	Super::BeginPlay();
 	// 여기서 자식클래스가 재구성한 MonsterInit이 호출될거니 나머지 BeginPlay에선 호출 ㄴㄴ
 	MonsterInit();
+	RefreshAnimationOptimization();
 	GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
 	// 레그돌에서 일어날 때 메시를 캡슐의 원래 자리에 다시 붙이기 위해 기억해둠
 	CachedMeshRelativeTransform = GetMesh()->GetRelativeTransform();
@@ -376,19 +381,19 @@ void AMonsterBase::SpawnAttackProjectile()
 
 	//
 	AMonsterProjectile* Projectile = 
-		GetWorld()->SpawnActorDeferred<AMonsterProjectile>(
+		Cast<AMonsterProjectile>(UDreamObjectPoolSubsystem::AcquireDeferred(GetWorld(),
 			RangedProjectile,
 			SpawnTransform,
 			this,
 			this,
 			ESpawnActorCollisionHandlingMethod::AlwaysSpawn
-		);
+		));
 
 	if (!Projectile) return;
 
 	Projectile->SetDamage(MonsterCombatStats->GetAttackPower());
 
-	UGameplayStatics::FinishSpawningActor(Projectile, SpawnTransform);
+	UDreamObjectPoolSubsystem::FinishAcquire(Projectile, SpawnTransform);
 }
 
 float AMonsterBase::GetMonsterAttackRange() const
@@ -428,6 +433,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 	AttackTarget = Target;
 	bAttackExecuted = false;
 	bIsAttacking = true;
+	RefreshAnimationOptimization();
 	ActiveAttackMontage = nullptr;
 
 	//전용 공격 애니메이션이 없는 몬스터도 공격 상태를 유지해야 스킬이 평타 중간에 끼어들지 않음
@@ -460,6 +466,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 		if (!TempAnimInstance || !TempAnimMontage || TempAnimMontage == nullptr)
 		{
 			bIsAttacking = false;
+	RefreshAnimationOptimization();
 			AttackTarget.Reset();
 			return false;
 		}
@@ -469,6 +476,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 		if (TempAnimInstance->Montage_Play(TempAnimMontage) <= 0.0f)
 		{
 			bIsAttacking = false;
+	RefreshAnimationOptimization();
 			ActiveAttackMontage = nullptr;
 			AttackTarget.Reset();
 			return false;
@@ -488,6 +496,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 	// Static Mesh 안쓸거 같아서 구현은 안 해두는데 이거 만약 쓰면 여따 구현내용 남겨주세요
 
 	bIsAttacking = false;
+	RefreshAnimationOptimization();
 	AttackTarget.Reset();
 	return false;
 }
@@ -544,6 +553,7 @@ void AMonsterBase::FinishAttack(bool bSucceeded)
 	GetWorldTimerManager().ClearTimer(AttackEndTimer);
 
 	bIsAttacking = false;
+	RefreshAnimationOptimization();
 	bAttackExecuted = false;
 	AttackTarget.Reset();
 	ActiveAttackMontage = nullptr;
@@ -603,6 +613,7 @@ void AMonsterBase::ActivateRagdoll(const FVector& LaunchVelocity)
 
 	// 레그돌 시작여부
 	bIsRagdoll = true;
+	RefreshAnimationOptimization();
 
 	if (AMonsterAIController* AIController = Cast<AMonsterAIController>(this->GetController()))
 	{
@@ -762,6 +773,7 @@ void AMonsterBase::FinishGetUp()
 	bIsGettingUp = false;
 	ActiveGetUpMontage = nullptr;
 	bIsRagdoll = false;
+	RefreshAnimationOptimization();
 
 	// BT의 IsRagdoll을 false로 돌려서 기존 로직 재개
 	if (AMonsterAIController* AIController = Cast<AMonsterAIController>(GetController()))
@@ -799,6 +811,7 @@ bool AMonsterBase::IsHeadshotHit(const FHitResult& HitResult) const
 
 void AMonsterBase::OnDeath()
 {
+	RefreshAnimationOptimization();
 	//사망 알림이 다시 들어와도 1초 대기 시간이 처음부터 시작되지 않도록 막음
 	if (GetWorldTimerManager().TimerExists(DeathTimer)) return;
 
@@ -835,7 +848,15 @@ void AMonsterBase::OnDeath()
 	if (DeathMontageLength <= 0.0f && !bIsRagdoll) ActivateRagdoll(FVector::ZeroVector);
 	//물리 에셋이 없는 몬스터도 사망 후 공격하거나 이동하지 않도록 처리함
 	bIsRagdoll = true;
-	DetachFromControllerPendingDestroy();
+	RefreshAnimationOptimization();
+    if (UDreamObjectPoolSubsystem::IsManaged(this))
+    {
+        if (AAIController* AI = Cast<AAIController>(GetController()))
+        {
+            AI->StopMovement(); if (AI->GetBrainComponent()) AI->GetBrainComponent()->StopLogic(TEXT("Pooled monster died"));
+        }
+    }
+    else DetachFromControllerPendingDestroy();
 	GetCharacterMovement()->StopMovementImmediately();
 	GetCharacterMovement()->DisableMovement();
 	GetCapsuleComponent()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
@@ -880,9 +901,9 @@ void AMonsterBase::FinishDeath()
 		const FName PelvisBone = SkeletalMesh->DoesSocketExist(PelvisBoneName) ? PelvisBoneName : SkeletalMesh->GetBoneName(0);
 		const FVector EffectLocation = PelvisBone.IsNone() ? SkeletalMesh->GetComponentLocation() : SkeletalMesh->GetSocketLocation(PelvisBone);
 		//월드에 독립적으로 생성하고 재생이 끝나면 자동 정리하므로 시체 제거 후에도 연출이 남음
-		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), DeathParticle, EffectLocation, FRotator::ZeroRotator, true);
+		UGameplayStatics::SpawnEmitterAtLocation(GetWorld(), DeathParticle, EffectLocation, FRotator::ZeroRotator, true, EPSCPoolMethod::AutoRelease);
 	}
-	Destroy();
+	UDreamObjectPoolSubsystem::ReleaseOrDestroy(this);
 }
 
 //받은 데미지를 증강 라이브러리로 넘김 방어력 체력 흡혈 가시 갑옷 처리
@@ -918,4 +939,70 @@ float AMonsterBase::PlayDeathMontage()
 	//Montage_Play는 재생 길이를 돌려주고 실패하면 0 이하를 돌려줌
 	//재생 속도를 1로 두므로 돌려받은 길이가 그대로 기다릴 시간이 됨
 	return AnimInstance->Montage_Play(DeathMontage);
+}
+
+void AMonsterBase::RefreshAnimationOptimization()
+{
+    USkeletalMeshComponent* MeshComponent = GetMesh();
+    if (!MeshComponent) return;
+    const bool bUseOptimization = !bIsAttacking && !bIsRagdoll
+        && !(MonsterSkill && MonsterSkill->IsUsingSkill())
+        && !(MonsterCombatStats && MonsterCombatStats->IsDead());
+    if (MeshComponent->bEnableUpdateRateOptimizations != bUseOptimization)
+    {
+        MeshComponent->bEnableUpdateRateOptimizations = bUseOptimization;
+
+    }
+}
+
+void AMonsterBase::PrepareForPoolReuse()
+{
+    bIsRagdoll = bIsGettingUp = bIsAttacking = bAttackExecuted = false;
+    RagdollSettleWaitTime = 0; AttackTarget.Reset(); ActiveGetUpMontage = nullptr; ActiveAttackMontage = nullptr;
+    GetMesh()->SetSimulatePhysics(false);
+    GetMesh()->AttachToComponent(GetCapsuleComponent(), FAttachmentTransformRules::KeepRelativeTransform);
+    GetMesh()->SetRelativeTransform(CachedMeshRelativeTransform);
+    GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    if (UAnimInstance* Anim = GetMesh()->GetAnimInstance()) Anim->Montage_Stop(0);
+    if (MonsterCombatStats) MonsterCombatStats->ResetForPool();
+}
+void AMonsterBase::OnPoolAcquired()
+{
+    MonsterInit();
+    GetMesh()->SetComponentTickEnabled(true);
+    GetMesh()->SetRenderCustomDepth(bRenderOutline);
+    GetMesh()->SetCustomDepthStencilValue(OutlineStencilValue);
+    GetCharacterMovement()->Activate(true);
+    GetCharacterMovement()->SetComponentTickEnabled(true);
+    GetCharacterMovement()->SetDefaultMovementMode();
+    GetCharacterMovement()->SetAvoidanceEnabled(true);
+    if (MonsterSkill) MonsterSkill->ResetForPool(true);
+    RefreshAnimationOptimization();
+    if (!GetController()) SpawnDefaultController();
+    if (AMonsterAIController* AI = Cast<AMonsterAIController>(GetController()))
+    {
+        AI->SetActorTickEnabled(true);
+        if (AI->GetBrainComponent()) AI->GetBrainComponent()->SetComponentTickEnabled(true);
+        AI->SetRagdollState(false); AI->SetSkillMovementLocked(false);
+        if (UBlackboardComponent* BB = AI->GetBlackboardComponent()) BB->SetValueAsObject(TEXT("PlayerActor"), UGameplayStatics::GetPlayerPawn(this, 0));
+        if (AI->GetBrainComponent()) AI->GetBrainComponent()->RestartLogic();
+    }
+    if (AMainGameModeBase* Mode = GetWorld()->GetAuthGameMode<AMainGameModeBase>()) Mode->RegisterReusedMonster(this);
+}
+void AMonsterBase::OnPoolReturned()
+{
+    CancelAttack(); if (MonsterSkill) MonsterSkill->ResetForPool(false);
+    if (MonsterDispatchTable) MonsterDispatchTable->ResetForPool();
+    if (MonsterCombatStats) MonsterCombatStats->SetOnFire(false, nullptr);
+    HideAttackWarning();
+    if (AAIController* AI = Cast<AAIController>(GetController()))
+    {
+        AI->StopMovement(); AI->SetActorTickEnabled(false);
+        if (AI->GetBrainComponent()) { AI->GetBrainComponent()->StopLogic(TEXT("Monster returned to pool")); AI->GetBrainComponent()->SetComponentTickEnabled(false); }
+    }
+    GetCharacterMovement()->StopMovementImmediately(); GetCharacterMovement()->SetAvoidanceEnabled(false);
+    GetCharacterMovement()->DisableMovement(); GetCharacterMovement()->SetComponentTickEnabled(false);
+    GetMesh()->SetSimulatePhysics(false); GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+    GetMesh()->SetComponentTickEnabled(false); GetMesh()->SetRenderCustomDepth(false);
+    OnAttackFinished.Clear(); OnDeathReported.Clear(); bPoolLifeRegistered = false;
 }

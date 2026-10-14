@@ -1,7 +1,8 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "DreamPoolable.h"
 #include "ThornSpikeEffect.generated.h"
 
 class UInstancedStaticMeshComponent;
@@ -24,12 +25,17 @@ struct FThornSpikeState
 //모양을 바꾸려면 이 클래스를 상속한 블루프린트를 만들어 메시 머티리얼 수치를 바꾸고
 //플레이어의 CombatStats에 있는 ThornSpikeEffectClass에 지정하면 됨
 UCLASS()
-class DREAMVEIL_API AThornSpikeEffect : public AActor
+class DREAMVEIL_API AThornSpikeEffect : public AActor, public IDreamPoolable
 {
 	GENERATED_BODY()
 
 public:
 	AThornSpikeEffect();
+    virtual void PrepareForPoolReuse() override { Spikes.Reset(); ElapsedTime = 0; }
+    virtual void OnPoolAcquired() override;
+    virtual void LifeSpanExpired() override;
+    virtual int32 GetPoolCapacity() const override { return 64; }
+    void StartSpikes();
 
 protected:
 	virtual void BeginPlay() override;

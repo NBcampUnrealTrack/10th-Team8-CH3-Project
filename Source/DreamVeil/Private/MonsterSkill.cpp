@@ -1,4 +1,5 @@
-#include "MonsterSkill.h"
+﻿#include "MonsterSkill.h"
+#include "DreamObjectPoolSubsystem.h"
 
 #include "MonsterBase.h"
 #include "CombatStatsComponent.h"
@@ -110,6 +111,7 @@ bool UMonsterSkill::BeginSkill(EMonsterSkillType Skill)
     ActiveSkill = Skill;
     ActiveCooldown = FMath::Max(0.0f, FindSettings(Skill)->Cooldown);
     bIsUsingSkill = true;
+    if (AMonsterBase* OwnerMonster = Cast<AMonsterBase>(GetOwner())) OwnerMonster->RefreshAnimationOptimization();
     return true;
 }
 
@@ -126,6 +128,7 @@ void UMonsterSkill::FinishSkill()
     CleanupCharge();
     CleanupFanShot();
     CleanupBlackHole();
+    if (AMonsterBase* OwnerMonster = Cast<AMonsterBase>(GetOwner())) OwnerMonster->RefreshAnimationOptimization();
 }
 
 bool UMonsterSkill::TryUseSkill(EMonsterSkillType Skill)
@@ -428,13 +431,13 @@ void UMonsterSkill::FireFanShot()
         for (const FVector& Direction : GetFanShotDirections())
         {
             const FTransform SpawnTransform(Direction.Rotation(), SpawnLocation);
-            AMonsterProjectile* Projectile = GetWorld()->SpawnActorDeferred<AMonsterProjectile>(
-                ProjectileClass, SpawnTransform, Monster, Monster, ESpawnActorCollisionHandlingMethod::AlwaysSpawn);
+            AMonsterProjectile* Projectile = Cast<AMonsterProjectile>(UDreamObjectPoolSubsystem::AcquireDeferred(GetWorld(),
+                ProjectileClass, SpawnTransform, Monster, Monster, ESpawnActorCollisionHandlingMethod::AlwaysSpawn));
             if (!Projectile) continue;
 
             //쉬움 L1 기준 피해에 스킬 피해 배율을 곱한다. 폭발탄이면 폭발 피해도 이 값을 기준으로 계산된다.
             Projectile->SetDamage(FanShotDamage * Monster->GetSkillDamageScale());
-            UGameplayStatics::FinishSpawningActor(Projectile, SpawnTransform);
+            UDreamObjectPoolSubsystem::FinishAcquire(Projectile, SpawnTransform);
             Spawned.Add(Projectile);
         }
 
@@ -568,14 +571,14 @@ bool UMonsterSkill::TryUseBlackHole()
     //장판은 스스로 경고 -> 발동 -> 소멸을 처리한다. 시전자가 죽어도 이미 깔린 장판은 남는다.
     const TSubclassOf<ABlackHoleZone> ZoneClass = BlackHoleZoneClass ? BlackHoleZoneClass : TSubclassOf<ABlackHoleZone>(ABlackHoleZone::StaticClass());
     const FTransform ZoneTransform(FRotator::ZeroRotator, ZoneLocation);
-    if (ABlackHoleZone* Zone = GetWorld()->SpawnActorDeferred<ABlackHoleZone>(
-        ZoneClass, ZoneTransform, Monster, Monster, ESpawnActorCollisionHandlingMethod::AlwaysSpawn))
+    if (ABlackHoleZone* Zone = Cast<ABlackHoleZone>(UDreamObjectPoolSubsystem::AcquireDeferred(GetWorld(),
+        ZoneClass, ZoneTransform, Monster, Monster, ESpawnActorCollisionHandlingMethod::AlwaysSpawn)))
     {
         //장판 BP에 경고 머티리얼이 없으면 몬스터의 경고 데칼 머티리얼을 쓴다.
         Zone->SetFallbackWarningMaterial(Monster->GetAttackWarningMaterial());
         //장판 BP의 DamagePerTick은 쉬움 L1 기준 깔리는 순간의 배율로 고정한다.
         Zone->SetDamageScale(Monster->GetSkillDamageScale());
-        UGameplayStatics::FinishSpawningActor(Zone, ZoneTransform);
+        UDreamObjectPoolSubsystem::FinishAcquire(Zone, ZoneTransform);
     }
 
     if (BlackHoleCastSeconds > 0.0f)
@@ -612,4 +615,13 @@ void UMonsterSkill::CleanupBlackHole()
             }
         }
     }
+}
+
+void UMonsterSkill::ResetForPool(bool bActivate)
+{
+    CancelSkill();
+    GetWorld()->GetTimerManager().ClearAllTimersForObject(this);
+    NextUseTimes.Reset(); SetComponentTickEnabled(false);
+    if (bActivate && Cast<AEliteMonster>(GetOwner()) && !Cast<ABossMonster>(GetOwner()))
+        GetWorld()->GetTimerManager().SetTimer(ChargeCheckTimer, this, &UMonsterSkill::CheckSkillRange, 0.2f, true);
 }

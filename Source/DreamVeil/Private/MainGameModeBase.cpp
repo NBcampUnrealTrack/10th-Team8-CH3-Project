@@ -1,4 +1,5 @@
-#include "MainGameModeBase.h"
+﻿#include "MainGameModeBase.h"
+#include "DreamObjectPoolSubsystem.h"
 
 #include "Components/AudioComponent.h"
 #include "Sound/SoundBase.h"
@@ -181,6 +182,11 @@ void AMainGameModeBase::StartNextWave()
 }
 
 //맵에 있는 스폰 볼륨 전부에게 이번 웨이브 몬스터를 내라고 시킴
+bool AMainGameModeBase::CanSpawnRegularMonster() const
+{
+	return AliveMonsterCount < GetMaxAliveMonsters();
+}
+
 void AMainGameModeBase::RequestContinuousSpawn()
 {
 	//다음 신호부터 먼저 예약함 아래에서 중간에 돌아가도 스폰이 끊기지 않게
@@ -347,7 +353,7 @@ AMonsterBase* AMainGameModeBase::SpawnBoss()
 	//바닥이나 벽에 조금 겹쳐도 일단 나오게 함 안 그러면 보스가 안 나와서 레벨이 끝나지 않음
 	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
 
-	AMonsterBase* Boss = GetWorld()->SpawnActor<AMonsterBase>(BossClass, SpawnLocation, PlayerPawn->GetActorRotation(), SpawnParameters);
+	AMonsterBase* Boss = Cast<AMonsterBase>(UDreamObjectPoolSubsystem::Spawn(GetWorld(), BossClass, FTransform(PlayerPawn->GetActorRotation(), SpawnLocation), nullptr, nullptr, SpawnParameters.SpawnCollisionHandlingOverride));
 
 	//보스 판정은 액터 태그로 하므로 블루프린트에서 태그를 빠뜨렸어도 여기서 달아줌
 	//이게 없으면 보스를 잡아도 클리어가 안 됨
@@ -390,6 +396,7 @@ void AMainGameModeBase::NotifyAllMonstersSpawned()
 //몬스터의 사망 이벤트를 구독하고 살아있는 수에 더함
 void AMainGameModeBase::RegisterMonster(AMonsterBase* Monster)
 {
+    if (Monster && Monster->bPoolLifeRegistered) return;
 	if (!Monster)
 	{
 		return;
@@ -403,6 +410,7 @@ void AMainGameModeBase::RegisterMonster(AMonsterBase* Monster)
 		return;
 	}
 
+	Monster->bPoolLifeRegistered = true;
 	AliveMonsterCount++;
 
 	//보스의 처치 수도 5초 뒤 신호로 반영해야 마지막 몬스터 판정이 지연을 건너뛰지 않음
@@ -553,8 +561,7 @@ void AMainGameModeBase::PlayBGM(USoundBase* NewBGM)
 	if (BGMAudio)
 	{
 		BGMAudio->Stop();
-		BGMAudio->DestroyComponent();
-		BGMAudio = nullptr;
+
 	}
 
 	CurrentBGM = NewBGM;
@@ -577,7 +584,8 @@ void AMainGameModeBase::PlayBGM(USoundBase* NewBGM)
 	//바로 틀지 않고 만들어만 두는 이유 재생을 시작하기 전에 UI 소리로 표시해야 하기 때문
 	//게임 오버 화면과 증강 선택창이 게임을 멈추는데 UI 소리로 표시하지 않으면 배경음도 같이 멈춤
 	//화면만 멈춘 게 아니라 게임이 죽은 것처럼 들려서 게임 오버 곡이 아예 안 들리는 문제가 됨
-	BGMAudio = UGameplayStatics::CreateSound2D(this, NewBGM, 1.0f, 1.0f, 0.0f, nullptr, false, false);
+    if (!IsValid(BGMAudio)) BGMAudio = UGameplayStatics::CreateSound2D(this, NewBGM, 1.0f, 1.0f, 0.0f, nullptr, false, false);
+    else BGMAudio->SetSound(NewBGM);
 
 	if (BGMAudio)
 	{
@@ -818,4 +826,10 @@ float AMainGameModeBase::GetLevelTimeProgress() const
 		0.0f,
 		1.0f
 	);
+}
+
+void AMainGameModeBase::EndPlay(const EEndPlayReason::Type Reason)
+{
+    if (IsValid(BGMAudio)) { BGMAudio->Stop(); BGMAudio->DestroyComponent(); BGMAudio = nullptr; }
+    Super::EndPlay(Reason);
 }

@@ -1,9 +1,10 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "DreamPoolable.h"
 #include "MonsterProjectile.generated.h"
 
 class USphereComponent;
@@ -12,12 +13,17 @@ class UProjectileMovementComponent;
 class UPrimitiveComponent;
 
 UCLASS()
-class DREAMVEIL_API AMonsterProjectile : public AActor
+class DREAMVEIL_API AMonsterProjectile : public AActor, public IDreamPoolable
 {
 	GENERATED_BODY()
 	
 public:	
 	AMonsterProjectile();
+    virtual void PrepareForPoolReuse() override;
+    virtual void OnPoolAcquired() override;
+    virtual void OnPoolReturned() override;
+    virtual int32 GetPoolCapacity() const override { return 128; }
+    virtual void LifeSpanExpired() override;
 	
 	void SetDamage(float damage);
 

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "AugmentSkillBase.h"
@@ -58,6 +58,7 @@ public:
 	virtual void Apply() override;
 
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;
+    virtual void ResetForPool() override { bActivated = false; }
 
 private:
 	//배율이 현재 적용된 상태인지 중복 곱하기 방지
@@ -77,6 +78,7 @@ public:
 	virtual void Apply() override;
 
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;
+    virtual void ResetForPool() override { bActivated = false; }
 
 private:
 	//배율이 현재 적용된 상태인지 중복 곱하기 방지

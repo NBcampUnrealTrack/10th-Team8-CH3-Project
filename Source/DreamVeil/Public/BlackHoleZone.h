@@ -1,7 +1,8 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Actor.h"
+#include "DreamPoolable.h"
 #include "BlackHoleZone.generated.h"
 
 class USceneComponent;
@@ -19,12 +20,17 @@ class UParticleSystem;
 //불타는 상태는 화염탄(UContinuousAttackSkill)과 같은 방식으로 대상의 UCombatStatsComponent::SetOnFire를 켜고 끔
 //불꽃 에셋도 화염탄처럼 불을 붙인 쪽(시전 몬스터)의 DispatchTableComponent::OnFireEffect를 씀
 UCLASS()
-class DREAMVEIL_API ABlackHoleZone : public AActor
+class DREAMVEIL_API ABlackHoleZone : public AActor, public IDreamPoolable
 {
 	GENERATED_BODY()
 
 public:
 	ABlackHoleZone();
+    virtual void PrepareForPoolReuse() override;
+    virtual void OnPoolAcquired() override;
+    virtual void OnPoolReturned() override;
+    virtual int32 GetPoolCapacity() const override { return 16; }
+    void StartZone();
 
 	virtual void Tick(float DeltaSeconds) override;
 
@@ -167,10 +173,13 @@ private:
 	//이 장판이 불을 붙인 대상과 장판 밖에서 남은 연소 시간
 	//화염탄의 BurningTargets와 같은 역할 대상이 죽거나 사라질 수 있어서 약한 참조
 	TMap<TWeakObjectPtr<AActor>, float> BurningTargets;
+    TMap<TWeakObjectPtr<AActor>, uint32> BurningGenerations;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UMaterialInterface> FallbackWarningMaterial;
 
 	UPROPERTY(Transient)
 	TObjectPtr<UAudioComponent> LoopAudio;
+	float PullTargetRefreshCountdown = 0.0f;
+	TArray<TWeakObjectPtr<AActor>> CachedPullTargets;
 };

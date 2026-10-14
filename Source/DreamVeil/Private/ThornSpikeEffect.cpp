@@ -1,4 +1,5 @@
-#include "ThornSpikeEffect.h"
+﻿#include "ThornSpikeEffect.h"
+#include "DreamObjectPoolSubsystem.h"
 
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Engine/StaticMesh.h"
@@ -42,6 +43,11 @@ AThornSpikeEffect::AThornSpikeEffect()
 void AThornSpikeEffect::BeginPlay()
 {
 	Super::BeginPlay();
+    StartSpikes();
+}
+
+void AThornSpikeEffect::StartSpikes()
+{
 
 	//원뿔 메시를 못 찾았으면 그릴 것이 없음 빈 액터가 남지 않게 바로 사라짐
 	if (!SpikeMeshes->GetStaticMesh())
@@ -51,7 +57,9 @@ void AThornSpikeEffect::BeginPlay()
 		return;
 	}
 
-	Spikes.Reserve(SpikeCount);
+	Spikes.Reset(SpikeCount);
+    const bool bReuseInstances = SpikeMeshes->GetInstanceCount() == SpikeCount;
+    if (!bReuseInstances) SpikeMeshes->ClearInstances();
 
 	//원을 가시 수만큼 고르게 나눈 뒤 각도를 조금씩 흔듦
 	//완전히 무작위로 두면 한쪽에 몰려서 반대쪽이 비어 보임
@@ -82,7 +90,8 @@ void AThornSpikeEffect::BeginPlay()
 		Spikes.Add(Spike);
 
 		//처음에는 전부 땅속에 있음 Tick이 시간에 맞춰 올림
-		SpikeMeshes->AddInstance(Spike.BaseTransform);
+        if (bReuseInstances) SpikeMeshes->UpdateInstanceTransform(SpikeIndex, Spike.BaseTransform, false, SpikeIndex == SpikeCount - 1, true);
+        else SpikeMeshes->AddInstance(Spike.BaseTransform);
 	}
 
 	//마지막 가시까지 다 가라앉으면 스스로 사라짐
@@ -129,3 +138,6 @@ void AThornSpikeEffect::Tick(float DeltaSeconds)
 			true);
 	}
 }
+
+void AThornSpikeEffect::OnPoolAcquired() { StartSpikes(); }
+void AThornSpikeEffect::LifeSpanExpired() { UDreamObjectPoolSubsystem::ReleaseOrDestroy(this); }

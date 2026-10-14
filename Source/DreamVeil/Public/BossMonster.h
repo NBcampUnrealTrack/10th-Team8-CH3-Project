@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "MonsterBase.h"
@@ -28,6 +28,7 @@ class DREAMVEIL_API ABossMonster : public AMonsterBase
 	GENERATED_BODY()
 
 public:
+    virtual void OnPoolAcquired() override;
 	ABossMonster();
 
 	//평타를 시작하기 전에 준비된 스킬부터 시도하고, 발동할 스킬이 없을 때만 부모 평타를 실행함

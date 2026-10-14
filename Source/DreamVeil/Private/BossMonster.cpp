@@ -1,4 +1,4 @@
-#include "BossMonster.h"
+﻿#include "BossMonster.h"
 
 #include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
@@ -260,3 +260,5 @@ void ABossMonster::OnDeath()
 
 	Super::OnDeath();
 }
+
+void ABossMonster::OnPoolAcquired() { Super::OnPoolAcquired(); RestartSkillTimer(); }

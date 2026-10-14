@@ -1,4 +1,4 @@
-#include "CombatStatsComponent.h"
+﻿#include "CombatStatsComponent.h"
 
 #include "AugmentTypes.h"
 #include "Kismet/GameplayStatics.h"
@@ -193,6 +193,7 @@ float UCombatStatsComponent::ApplyIncomingDamage(float IncomingDamage, bool bIgn
 void UCombatStatsComponent::BeginPlay()
 {
     Super::BeginPlay();
+    PoolInitialStats = Stats;
 
     //시작할 때 체력을 가득 채움 이벤트는 보내지 않으므로 UI는 Getter로 시작 값을 읽을 것
     Stats.CurrentHealth = Stats.MaxHealth;
@@ -240,7 +241,7 @@ void UCombatStatsComponent::SetOnFire(bool bNewOnFire, UParticleSystem* FireEffe
             FootOffset,
             FRotator::ZeroRotator,
             EAttachLocation::KeepRelativeOffset,
-            false
+            false, EPSCPoolMethod::ManualRelease
         );
 
         return;
@@ -250,7 +251,7 @@ void UCombatStatsComponent::SetOnFire(bool bNewOnFire, UParticleSystem* FireEffe
     if (FireEffectComponent)
     {
         //Deactivate가 아니라 DestroyComponent를 쓰는 이유 다시 붙으면 새로 스폰하므로 남겨둘 이유가 없음
-        FireEffectComponent->DestroyComponent();
+        FireEffectComponent->ReleaseToPool();
         FireEffectComponent = nullptr;
     }
 }
@@ -259,4 +260,11 @@ void UCombatStatsComponent::SetOnFire(bool bNewOnFire, UParticleSystem* FireEffe
 bool UCombatStatsComponent::IsOnFire() const
 {
     return bOnFire;
+}
+
+void UCombatStatsComponent::ResetForPool()
+{
+    SetOnFire(false, nullptr);
+    Stats = PoolInitialStats;
+    Stats.bIsDead = false; Stats.CurrentHealth = Stats.MaxHealth;
 }

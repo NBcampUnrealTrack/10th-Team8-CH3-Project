@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -7,6 +7,7 @@
 #include "MonsterType.h"
 #include "TimerManager.h"
 #include "Engine/HitResult.h"
+#include "DreamPoolable.h"
 #include "MonsterBase.generated.h"
 
 class AMonsterProjectile;
@@ -29,11 +30,17 @@ DECLARE_MULTICAST_DELEGATE_OneParam(
 );
 
 UCLASS()
-class DREAMVEIL_API AMonsterBase : public ACharacter
+class DREAMVEIL_API AMonsterBase : public ACharacter, public IDreamPoolable
 {
 	GENERATED_BODY()
 public:
 	AMonsterBase();
+    virtual void PrepareForPoolReuse() override;
+    virtual void OnPoolAcquired() override;
+    virtual void OnPoolReturned() override;
+    virtual int32 GetPoolCapacity() const override { return 8; }
+    virtual float GetPoolReuseDelay() const override { return 5.0f; }
+    bool bPoolLifeRegistered = false;
 
 	float GetMonsterAttackRange() const;
 
@@ -65,6 +72,9 @@ public:
 	TObjectPtr<UMonsterSkill> MonsterSkill;
 
 	bool IsAttacking() const { return bIsAttacking; }
+
+	// Keep full pose updates while attacks, skills or ragdoll depend on animation.
+	void RefreshAnimationOptimization();
 
 	// 시각 효과는 몬스터가 소유하고, 스킬 컴포넌트에서 필요할 때 요청한다.
 	void ShowAttackWarning(const FVector& StartPos, const FVector& EndPos, float AttackWidth);

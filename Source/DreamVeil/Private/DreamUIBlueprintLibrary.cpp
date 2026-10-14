@@ -1,4 +1,7 @@
-#include "DreamUIBlueprintLibrary.h"
+﻿#include "DreamUIBlueprintLibrary.h"
+#include "DreamObjectPoolSubsystem.h"
+#include "Components/PanelWidget.h"
+#include "Engine/World.h"
 #include "BedActor.h"
 #include "DreamVeilGameInstance.h"
 #include "MainPlayerController.h"
@@ -84,4 +87,29 @@ void UDreamUIBlueprintLibrary::ContinueDreamGameOver(UUserWidget* Widget)
     PC->CloseMenuWidget();
     if (bTimedOut) GI->FailCurrentLevel();
     else GI->ContinueAfterDeath();
+}
+
+UUserWidget* UDreamUIBlueprintLibrary::AcquirePooledWidget(UObject* Context, TSubclassOf<UUserWidget> WidgetClass, APlayerController* OwningPlayer)
+{
+    UWorld* World = Context ? Context->GetWorld() : nullptr;
+    if (!World) return nullptr;
+    if (!OwningPlayer) OwningPlayer = UGameplayStatics::GetPlayerController(Context, 0);
+    UDreamObjectPoolSubsystem* Pool = World->GetSubsystem<UDreamObjectPoolSubsystem>();
+    return Pool ? Pool->AcquireWidget(Context, WidgetClass, OwningPlayer) : nullptr;
+}
+void UDreamUIBlueprintLibrary::ReleasePooledWidget(UUserWidget* Widget)
+{
+    if (!Widget) return;
+    UDreamObjectPoolSubsystem* Pool = Widget->GetWorld() ? Widget->GetWorld()->GetSubsystem<UDreamObjectPoolSubsystem>() : nullptr;
+    if (!Pool || !Pool->ReleaseWidget(Widget)) Widget->RemoveFromParent();
+}
+void UDreamUIBlueprintLibrary::ReleasePooledPanelChildren(UPanelWidget* Panel)
+{
+    if (!Panel) return;
+    while (Panel->GetChildrenCount())
+    {
+        UWidget* Child = Panel->GetChildAt(Panel->GetChildrenCount() - 1);
+        if (UUserWidget* Widget = Cast<UUserWidget>(Child)) ReleasePooledWidget(Widget);
+        else Panel->RemoveChild(Child);
+    }
 }

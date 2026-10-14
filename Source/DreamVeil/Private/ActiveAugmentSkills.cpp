@@ -1,4 +1,4 @@
-//지속 공격 총에 맞은 대상에게 독을 걺 이미 걸린 대상이면 시간과 데미지만 갱신
+﻿//지속 공격 총에 맞은 대상에게 독을 걺 이미 걸린 대상이면 시간과 데미지만 갱신
     //이미 독에 걸려 있으면 틱 주기는 그대로 두고 남은 시간과 데미지만 새로 맞음
     //불이 붙었다는 연출 켜기 꺼지는 건 타이머가 끝날 때 ProcessPoisonTick이 함
     //첫 독 데미지는 맞은 순간이 아니라 한 간격 뒤부터
@@ -6,6 +6,7 @@
 //지속 공격 한 대상에게 독 데미지 한 번
     //독 데미지 표식을 달아서 대상 방어력을 무시하고 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않음
 #include "ActiveAugmentSkills.h"
+#include "DreamObjectPoolSubsystem.h"
 
 #include "AugmentDamageLibrary.h"
 #include "CombatStatsComponent.h"
@@ -178,6 +179,11 @@ void UContinuousAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitD
     FBurningTargetState* BurnState = BurningTargets.Find(TargetActor);
 
     //이미 불이 붙어 있으면 틱 주기는 그대로 두고 남은 시간과 데미지만 새로 맞음
+    if (BurnState && BurnState->TargetGeneration != UDreamObjectPoolSubsystem::Generation(TargetActor))
+    {
+        World->GetTimerManager().ClearTimer(BurnState->TickTimerHandle);
+        BurningTargets.Remove(TargetActor); BurnState = nullptr;
+    }
     if (BurnState)
     {
         BurnState->TickDamage = TickDamage;
@@ -187,6 +193,7 @@ void UContinuousAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitD
 
     FBurningTargetState NewState;
     NewState.TickDamage = TickDamage;
+    NewState.TargetGeneration = UDreamObjectPoolSubsystem::Generation(TargetActor);
     NewState.RemainingTime = CONTINUOUS_ATTACK_DURATION;
 
     BurnState = &BurningTargets.Add(TargetActor, NewState);
@@ -226,7 +233,7 @@ void UContinuousAttackSkill::Deactivate()
 
         //타이머만 지우면 불꽃이 영원히 남으므로 여기서도 꺼줌
         //약한 참조라 이미 사라진 대상은 Get이 nullptr을 돌려줘서 자동으로 걸러짐
-        if (AActor* BurningActor = BurnPair.Key.Get())
+        if (AActor* BurningActor = BurnPair.Key.Get(); BurningActor && BurnPair.Value.TargetGeneration == UDreamObjectPoolSubsystem::Generation(BurningActor))
         {
             if (UCombatStatsComponent* BurningStats = BurningActor->FindComponentByClass<UCombatStatsComponent>())
             {
@@ -251,6 +258,12 @@ void UContinuousAttackSkill::ProcessBurnTick(TWeakObjectPtr<AActor> WeakTarget)
     UWorld* World = GetWorld();
 
     AActor* TargetActor = WeakTarget.Get();
+    if (!TargetActor || BurnState->TargetGeneration != UDreamObjectPoolSubsystem::Generation(TargetActor))
+    {
+        if (World) World->GetTimerManager().ClearTimer(BurnState->TickTimerHandle);
+        BurningTargets.Remove(WeakTarget); return;
+    }
+
 
     //화염 데미지 표식을 달아서 대상 방어력을 무시하고 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않음
     //대상이 사라졌거나 이미 죽어서 데미지가 안 들어가면 0이 돌아옴

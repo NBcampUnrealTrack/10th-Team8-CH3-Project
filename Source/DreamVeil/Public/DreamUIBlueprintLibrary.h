@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "CoreMinimal.h"
 #include "Engine/DataAsset.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
@@ -7,6 +7,8 @@
 
 class UUserWidget;
 class UTexture2D;
+class UPanelWidget;
+class APlayerController;
 
 // Hard asset references ensure all twelve icons are included when cooking the UI.
 UCLASS(BlueprintType)
@@ -23,6 +25,12 @@ class DREAMVEIL_API UDreamUIBlueprintLibrary : public UBlueprintFunctionLibrary
 {
     GENERATED_BODY()
 public:
+    UFUNCTION(BlueprintCallable, Category="Pooling", meta=(WorldContext="Context", DefaultToSelf="Context", DeterminesOutputType="WidgetClass"))
+    static UUserWidget* AcquirePooledWidget(UObject* Context, TSubclassOf<UUserWidget> WidgetClass, APlayerController* OwningPlayer);
+    UFUNCTION(BlueprintCallable, Category="Pooling")
+    static void ReleasePooledWidget(UUserWidget* Widget);
+    UFUNCTION(BlueprintCallable, Category="Pooling")
+    static void ReleasePooledPanelChildren(UPanelWidget* Panel);
     UFUNCTION(BlueprintCallable, Category="Dream UI", meta=(DefaultToSelf="Widget"))
     static void OpenBedDreamSelect(UUserWidget* Widget);
 

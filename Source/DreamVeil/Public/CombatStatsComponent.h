@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -31,6 +31,7 @@ class DREAMVEIL_API UCombatStatsComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+    void ResetForPool();
 	//생성자
 	UCombatStatsComponent();
 
@@ -157,4 +158,5 @@ private:
 	//체력 공격력 방어력 기본값은 디테일 패널에서 캐릭터별로 입력
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats", meta = (AllowPrivateAccess = "true"))
 	FCombatStats Stats;
+    FCombatStats PoolInitialStats;
 };

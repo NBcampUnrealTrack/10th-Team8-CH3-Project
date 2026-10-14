@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "AugmentSkillBase.h"
@@ -16,6 +16,7 @@ struct FBurningTargetState
 {
 	//틱마다 줄 데미지
 	float TickDamage = 0.0f;
+    uint32 TargetGeneration = 0;
 
 	//남은 지속 시간
 	float RemainingTime = 0.0f;

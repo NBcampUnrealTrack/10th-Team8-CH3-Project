@@ -1,4 +1,4 @@
-#include "MainPlayerCharacter.h"
+﻿#include "MainPlayerCharacter.h"
 #include "MainPlayerController.h"
 #include "InteractableActorBase.h"
 #include "Engine/OverlapResult.h"
@@ -1196,13 +1196,14 @@ void AMainPlayerCharacter::UpdateHeartbeat(float OldValue, float NewValue)
 	if (bShouldPlay)
 	{
 		//이미 재생 중이면 다시 틀지 않음 안 그러면 맞을 때마다 소리가 겹침
-		if (!HeartbeatAudio)
+		if (!IsValid(HeartbeatAudio))
 		{
 			//2D로 재생하는 이유 플레이어 자신의 심장이라 거리에 따라 작아지면 안 됨
 			//사운드 에셋의 Looping을 켜두면 계속 반복됨
-			HeartbeatAudio = UGameplayStatics::SpawnSound2D(this, HeartbeatSound);
+			HeartbeatAudio = UGameplayStatics::SpawnSound2D(this, HeartbeatSound, 1.0f, 1.0f, 0.0f, nullptr, false, false);
 		}
 
+        else if (!HeartbeatAudio->IsPlaying()) HeartbeatAudio->Play();
 		return;
 	}
 
@@ -1210,7 +1211,7 @@ void AMainPlayerCharacter::UpdateHeartbeat(float OldValue, float NewValue)
 	if (HeartbeatAudio)
 	{
 		HeartbeatAudio->Stop();
-		HeartbeatAudio = nullptr;
+
 	}
 }
 
@@ -1571,4 +1572,10 @@ void AMainPlayerCharacter::TryInteract(const FInputActionValue& Value)
 	}
 	// 가장 가까운 액터와 상호작용
 	ClosestActor->Interact(this);
+}
+
+void AMainPlayerCharacter::EndPlay(const EEndPlayReason::Type Reason)
+{
+    if (IsValid(HeartbeatAudio)) { HeartbeatAudio->Stop(); HeartbeatAudio->DestroyComponent(); HeartbeatAudio = nullptr; }
+    Super::EndPlay(Reason);
 }

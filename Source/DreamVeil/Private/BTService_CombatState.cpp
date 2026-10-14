@@ -53,7 +53,7 @@ void UBTService_CombatState::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
 	}
 
 	//플레이어와 몬스터 사이의 거리 계산
-	const double Distance = FVector::Distance(AIPawn->GetActorLocation(), PlayerPawn->GetActorLocation());
+	const double DistanceSquared = FVector::DistSquared(AIPawn->GetActorLocation(), PlayerPawn->GetActorLocation());
 
 	// 몬스터의 공격 반경, 즉 공격할 수 있는 거리(근접, 원거리)
 	//Cast 결과를 바로 쓰지 않는 이유 몬스터가 아닌 폰이 이 행동트리를 쓰면 nullptr이 되어 크래시가 남
@@ -65,5 +65,5 @@ void UBTService_CombatState::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
 
 	// 해당 근접공격 때리기 가능하면 IsAttackAble 변수 변경
 	//매 틱 같은 값을 적어도 괜찮음 SetValueAsBool은 값이 바뀔 때만 관찰자에게 알림
-	Blackboard->SetValueAsBool(IS_ATTACK_ABLE_KEY, Distance <= CombatDistance);
+	Blackboard->SetValueAsBool(IS_ATTACK_ABLE_KEY, DistanceSquared <= FMath::Square(static_cast<double>(CombatDistance)));
 }

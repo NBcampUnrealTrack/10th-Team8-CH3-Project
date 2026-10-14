@@ -85,6 +85,9 @@ public:
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	TArray<FWeaponPart> GetParts() const;
 
+	// Native visual adapters can inspect parts without copying the inventory.
+	const TArray<FWeaponPart>& GetPartsView() const { return Parts; }
+
 	//가진 꿈의 조각
 	UFUNCTION(BlueprintPure, Category = "Inventory")
 	int32 GetDreamShards() const;

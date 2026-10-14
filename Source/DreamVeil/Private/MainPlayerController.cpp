@@ -1,4 +1,5 @@
-#include "MainPlayerController.h"
+﻿#include "MainPlayerController.h"
+#include "DreamUIBlueprintLibrary.h"
 #include "EnhancedInputSubsystems.h"
 #include "MainPlayerCharacter.h"
 #include "Blueprint/UserWidget.h"
@@ -298,7 +299,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
     //침대를 보다가 컴퓨터를 누르는 것처럼 메뉴가 겹치면 먼저 것을 닫음
     CloseMenuWidget();
 
-    MenuWidgetInstance = CreateWidget<UUserWidget>(this, MenuWidgetClass);
+    MenuWidgetInstance = UDreamUIBlueprintLibrary::AcquirePooledWidget(this, MenuWidgetClass, this);
 
     if (!MenuWidgetInstance)
     {
@@ -393,7 +394,7 @@ void AMainPlayerController::CloseMenuWidget()
 
     if (MenuWidgetInstance)
     {
-        MenuWidgetInstance->RemoveFromParent();
+        UDreamUIBlueprintLibrary::ReleasePooledWidget(MenuWidgetInstance);
         MenuWidgetInstance = nullptr;
     }
 

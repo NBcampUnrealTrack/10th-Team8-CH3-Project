@@ -1,4 +1,5 @@
-#include "DispatchTableComponent.h"
+﻿#include "DispatchTableComponent.h"
+#include "DreamObjectPoolSubsystem.h"
 
 #include "ActiveAugmentSkills.h"
 #include "AugmentSkillBase.h"
@@ -23,6 +24,7 @@ UDispatchTableComponent::UDispatchTableComponent()
     //여기서 채운 값은 블루프린트에 저장된 값이 덮어씀
     //그래서 BeginPlay에서 한 번 더 확인함 비어 있으면 그때 다시 채움
     AugmentPool.BuildDefault();
+    PoolInitialAugments = AugmentPool;
 }
 
 //증강 번호와 스킬 클래스를 테이블에 등록
@@ -390,7 +392,10 @@ UAugmentSkillBase* UDispatchTableComponent::FindOrCreateSkill(EAugmentID Augment
     }
 
     //Outer를 이 컴포넌트로 넣어서 스킬이 주인과 월드를 찾을 수 있게 함
-    UAugmentSkillBase* NewSkill = NewObject<UAugmentSkillBase>(this, *SkillClass);
+    UAugmentSkillBase* NewSkill = RecycledSkills.FindRef(AugmentID);
+    if (NewSkill && NewSkill->GetClass() != *SkillClass) NewSkill = nullptr;
+    if (!NewSkill) NewSkill = NewObject<UAugmentSkillBase>(this, *SkillClass);
+    RecycledSkills.Remove(AugmentID);
 
     AcquiredSkills.Add(AugmentID, NewSkill);
 
@@ -406,6 +411,7 @@ void UDispatchTableComponent::BeginPlay()
     //그러면 레벨업을 해도 뽑을 증강이 없어서 보상만 조용히 사라짐
     //BuildDefault는 이미 차 있으면 건너뛰므로 블루프린트에서 일부러 채운 목록은 그대로 둠
     AugmentPool.BuildDefault();
+    PoolInitialAugments = AugmentPool;
 
     if (AugmentPool.Augments.Num() == 0)
     {
@@ -473,9 +479,17 @@ void UDispatchTableComponent::PlayThornReflectEffect(AActor* ReflectTarget)
 
     //몸에 붙이지 않고 그 자리에 두는 이유 땅에서 솟는 가시라 맞고 밀려나도 자리에 남아야 함
     //수명은 액터가 스스로 정해서 지워짐
-    GetWorld()->SpawnActor<AThornSpikeEffect>(
-        ThornSpikeEffectClass,
-        ReflectTarget->GetActorLocation() + FootOffset,
-        FRotator::ZeroRotator
-    );
+    UDreamObjectPoolSubsystem::Spawn(GetWorld(), ThornSpikeEffectClass,
+        FTransform(FRotator::ZeroRotator, ReflectTarget->GetActorLocation() + FootOffset));
+}
+
+void UDispatchTableComponent::ResetForPool()
+{
+    for (auto& SkillPair : AcquiredSkills) if (SkillPair.Value)
+    {
+        SkillPair.Value->ResetForPool();
+        GetWorld()->GetTimerManager().ClearAllTimersForObject(SkillPair.Value);
+        RecycledSkills.Add(SkillPair.Key, SkillPair.Value);
+    }
+    AcquiredSkills.Empty(); AugmentHistory.Empty(); AugmentPool = PoolInitialAugments;
 }

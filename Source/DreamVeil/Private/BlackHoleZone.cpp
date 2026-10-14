@@ -1,4 +1,5 @@
-#include "BlackHoleZone.h"
+﻿#include "BlackHoleZone.h"
+#include "DreamObjectPoolSubsystem.h"
 
 #include "AugmentDamageLibrary.h"
 #include "AugmentTypes.h"
@@ -49,6 +50,12 @@ void ABlackHoleZone::SetFallbackWarningMaterial(UMaterialInterface* Material)
 void ABlackHoleZone::BeginPlay()
 {
 	Super::BeginPlay();
+    StartZone();
+}
+
+void ABlackHoleZone::StartZone()
+{
+    ZoneDecal->SetVisibility(true);
 
 	//X는 투영 깊이, Y Z는 가로 세로 반지름 원형 이미지면 반지름 그대로 넣으면 됨
 	ZoneDecal->DecalSize = FVector(DecalDepth, ZoneRadius, ZoneRadius);
@@ -105,9 +112,13 @@ void ABlackHoleZone::ActivateZone()
 	if (LoopSound && LoopSoundVolume > 0.0f)
 	{
 		//장판에 붙여서 재생 장판이 사라질 때 EndPlay에서 멈춤
-		LoopAudio = UGameplayStatics::SpawnSoundAttached(
-			LoopSound, ZoneRoot, NAME_None, FVector::ZeroVector,
-			EAttachLocation::KeepRelativeOffset, true, LoopSoundVolume);
+		if (!IsValid(LoopAudio))
+        {
+            LoopAudio = UGameplayStatics::SpawnSoundAttached(LoopSound, ZoneRoot, NAME_None, FVector::ZeroVector,
+                EAttachLocation::KeepRelativeOffset, true, LoopSoundVolume);
+            if (LoopAudio) LoopAudio->bAutoDestroy = false;
+        }
+        else { LoopAudio->SetSound(LoopSound); LoopAudio->SetVolumeMultiplier(LoopSoundVolume); LoopAudio->Play(); }
 	}
 
 	//첫 피해는 한 간격 뒤부터 화염탄과 같은 규칙
@@ -137,6 +148,7 @@ void ABlackHoleZone::ExpireZone()
 		{
 			ExtinguishTarget(WeakTarget.Get());
 			BurningTargets.Remove(WeakTarget);
+            BurningGenerations.Remove(WeakTarget);
 		}
 	}
 
@@ -147,7 +159,7 @@ void ABlackHoleZone::DestroyIfDone()
 {
 	if (bZoneExpired && BurningTargets.Num() == 0)
 	{
-		Destroy();
+		UDreamObjectPoolSubsystem::ReleaseOrDestroy(this);
 	}
 }
 
@@ -170,6 +182,7 @@ void ABlackHoleZone::RefreshBurningTargets(const TArray<AActor*>& InZoneTargets)
 	{
 		//이미 타고 있으면 남은 시간만 다시 채움
 		BurningTargets.FindOrAdd(Target) = BurnLingerSeconds;
+        BurningGenerations.FindOrAdd(Target) = UDreamObjectPoolSubsystem::Generation(Target);
 
 		//불붙은 상태는 대상 본인이 들고 있음 IsOnFire로 확인해서 이미 타고 있으면 건드리지 않음
 		//다른 장판이 먼저 불을 꺼버린 경우에도 여기서 다시 붙음
@@ -185,13 +198,14 @@ void ABlackHoleZone::RefreshBurningTargets(const TArray<AActor*>& InZoneTargets)
 
 void ABlackHoleZone::ExtinguishTarget(AActor* Target)
 {
-	if (IsValid(Target))
+	if (IsValid(Target) && BurningGenerations.FindRef(Target) == UDreamObjectPoolSubsystem::Generation(Target))
 	{
 		if (UCombatStatsComponent* TargetStats = Target->FindComponentByClass<UCombatStatsComponent>())
 		{
 			TargetStats->SetOnFire(false, nullptr);
 		}
 		BurningTargets.Remove(Target);
+        BurningGenerations.Remove(Target);
 	}
 }
 
@@ -200,7 +214,7 @@ void ABlackHoleZone::ExtinguishAll()
 	for (const TPair<TWeakObjectPtr<AActor>, float>& BurnPair : BurningTargets)
 	{
 		//이미 사라진 대상은 Get이 nullptr이라 건너뜀 그때는 불꽃도 같이 사라져 있음
-		if (AActor* BurningActor = BurnPair.Key.Get())
+		if (AActor* BurningActor = BurnPair.Key.Get(); BurningActor && BurningGenerations.FindRef(BurnPair.Key) == UDreamObjectPoolSubsystem::Generation(BurningActor))
 		{
 			if (UCombatStatsComponent* BurningStats = BurningActor->FindComponentByClass<UCombatStatsComponent>())
 			{
@@ -209,6 +223,7 @@ void ABlackHoleZone::ExtinguishAll()
 		}
 	}
 	BurningTargets.Empty();
+    BurningGenerations.Empty();
 }
 
 bool ABlackHoleZone::IsHostile(AActor* Target) const
@@ -263,6 +278,11 @@ void ABlackHoleZone::ApplyDamageTick()
 		RefreshBurningTargets(InZoneTargets);
 	}
 
+	// Build membership once instead of scanning the target array for every burning actor.
+	TSet<AActor*> InZoneTargetSet;
+	InZoneTargetSet.Reserve(InZoneTargets.Num());
+	for (AActor* Target : InZoneTargets) InZoneTargetSet.Add(Target);
+
 	//데미지 처리 중에 목록이 바뀔 수 있어서 키를 복사해서 돌림
 	TArray<TWeakObjectPtr<AActor>> Keys;
 	BurningTargets.GetKeys(Keys);
@@ -271,14 +291,15 @@ void ABlackHoleZone::ApplyDamageTick()
 	{
 		AActor* Target = WeakTarget.Get();
 		float* Remaining = BurningTargets.Find(WeakTarget);
-		if (!Target || !Remaining)
+		if (!Target || !Remaining || BurningGenerations.FindRef(WeakTarget) != UDreamObjectPoolSubsystem::Generation(Target))
 		{
 			BurningTargets.Remove(WeakTarget);
+            BurningGenerations.Remove(WeakTarget);
 			continue;
 		}
 
 		//장판 밖이면 남은 시간을 깎고 다 떨어졌으면 불을 끔
-		if (!InZoneTargets.Contains(Target))
+		if (!InZoneTargetSet.Contains(Target))
 		{
 			*Remaining -= DamageInterval;
 			if (*Remaining < -UE_KINDA_SMALL_NUMBER)
@@ -324,17 +345,29 @@ void ABlackHoleZone::Tick(float DeltaSeconds)
 
 	if (!bZoneActive) return;
 
-	TArray<AActor*> Targets;
-	GatherTargets(Targets);
-
-	//들어오자마자 불이 붙어 보이게 함 데미지는 타이머 간격대로만 들어감
-	RefreshBurningTargets(Targets);
+	// Target discovery runs at 20 Hz; pull movement still uses the actual frame delta.
+	PullTargetRefreshCountdown -= DeltaSeconds;
+	if (PullTargetRefreshCountdown <= 0.0f)
+	{
+		TArray<AActor*> Targets;
+		GatherTargets(Targets);
+		RefreshBurningTargets(Targets);
+		CachedPullTargets.Reset(Targets.Num());
+		for (AActor* Target : Targets) CachedPullTargets.Add(Target);
+		PullTargetRefreshCountdown = 0.05f;
+	}
 
 	if (PullSpeed <= 0.0f) return;
 
 	const FVector Center = GetActorLocation();
-	for (AActor* Target : Targets)
+	for (const TWeakObjectPtr<AActor>& WeakTarget : CachedPullTargets)
 	{
+		AActor* Target = WeakTarget.Get();
+		if (!IsValid(Target)) continue;
+		const FVector CurrentOffset = Target->GetActorLocation() - Center;
+		if (CurrentOffset.SizeSquared2D() > FMath::Square(ZoneRadius) || FMath::Abs(CurrentOffset.Z) > ZoneHeight) continue;
+		const UCombatStatsComponent* TargetStats = Target->FindComponentByClass<UCombatStatsComponent>();
+		if (!TargetStats || TargetStats->IsDead()) continue;
 		ACharacter* Character = Cast<ACharacter>(Target);
 		if (!Character) continue;
 
@@ -349,4 +382,17 @@ void ABlackHoleZone::Tick(float DeltaSeconds)
 		const float Step = FMath::Min(PullSpeed * DeltaSeconds, Distance - PullDeadZone);
 		Character->AddActorWorldOffset(ToCenter / Distance * Step, true);
 	}
+}
+
+void ABlackHoleZone::PrepareForPoolReuse()
+{
+    bZoneActive = bZoneExpired = false; DamageScale = 1; FallbackWarningMaterial = nullptr;
+    PullTargetRefreshCountdown = 0; CachedPullTargets.Reset();
+}
+void ABlackHoleZone::OnPoolAcquired() { StartZone(); }
+void ABlackHoleZone::OnPoolReturned()
+{
+    ExtinguishAll(); CachedPullTargets.Reset();
+    if (IsValid(LoopAudio)) LoopAudio->Stop();
+    ZoneDecal->SetVisibility(false); bZoneActive = false; bZoneExpired = true;
 }

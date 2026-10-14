@@ -1,4 +1,4 @@
-#include "ExplosiveMonsterProjectile.h"
+﻿#include "ExplosiveMonsterProjectile.h"
 
 #include "AugmentDamageLibrary.h"
 #include "AugmentTypes.h"
@@ -110,7 +110,7 @@ void AExplosiveMonsterProjectile::SpawnExplosionEffect(const FVector& Location, 
 		Location,
 		Rotation,
 		FVector(EffectScale),
-		true
+		true, EPSCPoolMethod::AutoRelease
 	);
 }
 

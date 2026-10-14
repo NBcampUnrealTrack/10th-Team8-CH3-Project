@@ -10,6 +10,7 @@
 #include "GameFramework/Pawn.h"
 #include "GameFramework/DamageType.h"
 #include "MonsterBase.h"
+#include "DreamObjectPoolSubsystem.h"
 
 // Sets default values
 AMonsterProjectile::AMonsterProjectile()
@@ -99,7 +100,7 @@ void AMonsterProjectile::HandleHit(UPrimitiveComponent* HitComp, AActor* OtherAc
 
 	ProcessHit(OtherActor, Hit);
 
-	Destroy();
+	UDreamObjectPoolSubsystem::ReleaseOrDestroy(this);
 }
 
 void AMonsterProjectile::ProcessHit(AActor* OtherActor, const FHitResult& Hit)
@@ -118,3 +119,30 @@ void AMonsterProjectile::ProcessHit(AActor* OtherActor, const FHitResult& Hit)
 }
 
 
+
+void AMonsterProjectile::PrepareForPoolReuse()
+{
+    bHitProcessed = false;
+    Damage = 0;
+    BulletCollision->ClearMoveIgnoreActors();
+    Movement->StopMovementImmediately(); Movement->ClearPendingForce(true);
+    Movement->SetUpdatedComponent(BulletCollision);
+}
+void AMonsterProjectile::OnPoolAcquired()
+{
+    BulletCollision->SetCollisionEnabled(ECollisionEnabled::QueryOnly);
+    IgnoreActorWhileMoving(GetOwner()); IgnoreActorWhileMoving(GetInstigator());
+    Movement->SetUpdatedComponent(BulletCollision);
+    const UProjectileMovementComponent* Defaults = GetClass()->GetDefaultObject<AMonsterProjectile>()->Movement;
+    Movement->Velocity = Defaults->Velocity;
+    if (Movement->InitialSpeed > 0) Movement->Velocity = Movement->Velocity.GetSafeNormal() * Movement->InitialSpeed;
+    if (Movement->bInitialVelocityInLocalSpace) Movement->Velocity = GetActorTransform().TransformVectorNoScale(Movement->Velocity);
+    Movement->Activate(true); Movement->SetComponentTickEnabled(true);
+    SetLifeSpan(GetClass()->GetDefaultObject<AMonsterProjectile>()->InitialLifeSpan);
+}
+void AMonsterProjectile::OnPoolReturned()
+{
+    Movement->StopMovementImmediately(); Movement->ClearPendingForce(true); Movement->Deactivate(); Movement->SetComponentTickEnabled(false);
+    BulletCollision->ClearMoveIgnoreActors(); BulletCollision->SetCollisionEnabled(ECollisionEnabled::NoCollision);
+}
+void AMonsterProjectile::LifeSpanExpired() { UDreamObjectPoolSubsystem::ReleaseOrDestroy(this); }

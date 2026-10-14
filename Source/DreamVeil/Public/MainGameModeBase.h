@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
@@ -27,7 +27,10 @@ class DREAMVEIL_API AMainGameModeBase : public AGameModeBase
 	GENERATED_BODY()
 
 public:
+    void RegisterReusedMonster(AMonsterBase* Monster) { RegisterMonster(Monster); }
 	AMainGameModeBase();
+
+	bool CanSpawnRegularMonster() const;
 
 	//스포너가 이번 레벨에 낼 몬스터를 다 냈을 때 부를 것
 	//이 뒤로 살아있는 몬스터가 0이 되면 클리어 부르지 않으면 다 잡아도 클리어되지 않고 시간이 넘어가서 실패함
@@ -150,6 +153,7 @@ protected:
 	float BossSpawnDistance = 800.0f;
 
 	virtual void BeginPlay() override;
+    virtual void EndPlay(const EEndPlayReason::Type Reason) override;
 
 private:
 	//웨이브를 차례로 내보내는 타이머 마지막 웨이브를 내면 멈춤
@@ -261,6 +265,7 @@ private:
 
 	//몬스터의 사망 이벤트를 구독하고 살아있는 수에 더함
 	void RegisterMonster(AMonsterBase* Monster);
+
 
 	//월드에 액터가 스폰될 때마다 불림 몬스터면 등록
 	void HandleActorSpawned(AActor* SpawnedActor);

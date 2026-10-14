@@ -1,4 +1,4 @@
-#include "WeaponBase.h"
+﻿#include "WeaponBase.h"
 #include "AugmentDamageLibrary.h"
 #include "AugmentTypes.h"
 #include "CombatStatsComponent.h"
@@ -142,7 +142,7 @@ void UWeaponBase::PlayMuzzleEffects(const FVector& MuzzleLocation)
 		UNiagaraFunctionLibrary::SpawnSystemAttached(
 			MuzzleFlashEffect, this, MuzzleSocketName,
 			FVector::ZeroVector, FRotator::ZeroRotator,
-			EAttachLocation::SnapToTarget, true
+			EAttachLocation::SnapToTarget, true, true, ENCPoolMethod::AutoRelease
 		);
 	}
 
@@ -189,7 +189,7 @@ void UWeaponBase::SpawnImpactEffect(UNiagaraSystem* Effect, const FVector& Locat
 		return;
 	}
 
-	UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Effect, Location, Rotation);
+	UNiagaraFunctionLibrary::SpawnSystemAtLocation(this, Effect, Location, Rotation, FVector::OneVector, true, true, ENCPoolMethod::AutoRelease);
 }
 
 //범위 피해로 맞은 자리에 피 연출을 냄
@@ -221,7 +221,7 @@ void UWeaponBase::SpawnExplosionEffect(const FVector& Location, const FRotator& 
 		Location,
 		Rotation,
 		FVector(EffectScale),
-		true
+		true, EPSCPoolMethod::AutoRelease
 	);
 }
 
