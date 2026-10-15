@@ -24,6 +24,7 @@
 #include "TimerManager.h"
 #include "MonsterBase.h"
 #include "DreamAugmentRuntime.h"
+#include "DreamAugmentFeedback.h"
 
 //감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
 //감속 대상이 3초 안에 죽을 수 있어서 약한 참조 사용
@@ -52,6 +53,7 @@ void UKnockbackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 
     auto* Monster=Cast<AMonsterBase>(TargetCharacter);
     if (!Monster || !Monster->TryApplyAugmentStagger(.2f)) return;
+    UDreamAugmentFeedback::Emit(OwnerActor,EAugmentID::Knockback,EDreamAugmentCueShape::Impact,HitResult.ImpactPoint,55,.3f);
     const float Now=GetWorld()?GetWorld()->GetTimeSeconds():0.f;
     if (ElectricHit && GetWorld() && GetWorld()->GetNetMode()!=NM_DedicatedServer && (LastElectricTime<0.f || Now-LastElectricTime>=.1f))
     {
@@ -80,8 +82,7 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         return;
     }
 
-    //폭발 연출은 여기서 내지 않음 무기가 탄착 연출(피 파편 + 추가 효과)을 크게 키워서 대신 냄
-    //따로 폭발 이펙트를 두지 않는 이유 이미 있는 탄착 연출을 키우면 그대로 폭발로 읽힘
+    UDreamAugmentFeedback::Emit(OwnerActor,EAugmentID::AreaAttack,EDreamAugmentCueShape::Ring,HitResult.ImpactPoint+FVector(0,0,8),AREA_ATTACK_RADIUS*(GetOwnerComponent()?GetOwnerComponent()->GetEffectRangeMultiplier():1.f),.4f);
 
     //쏜 사람은 자기 범위 공격에 안 맞고 직접 맞은 대상은 이미 총 데미지를 받았으므로 제외
     TArray<AActor*> ActorsToIgnore;

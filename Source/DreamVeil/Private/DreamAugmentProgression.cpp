@@ -1,6 +1,7 @@
-#include "DispatchTableComponent.h"
+﻿#include "DispatchTableComponent.h"
 #include "DreamAugmentCatalog.h"
 #include "DreamAugmentRuntime.h"
+#include "DreamAugmentFeedback.h"
 #include "MainPlayerCharacter.h"
 #include "MainPlayerController.h"
 #include "CombatStatsComponent.h"
@@ -38,6 +39,7 @@ void UDispatchTableComponent::RecordAcquisition(EAugmentID ID)
         else ++ActiveSpecies;
     }
     ++AugmentRevision;
+    if(!bRestoringAugments)UDreamAugmentFeedback::Acquired(GetOwner(),ID);
 }
 int32 UDispatchTableComponent::GetStackCount(EAugmentID ID)const{return StackCounts.FindRef(ID);}
 int32 UDispatchTableComponent::GetOwnedCount(EAugmentCategory Category)const{return Category==EAugmentCategory::Passive?PassiveSpecies:ActiveSpecies;}
@@ -103,7 +105,15 @@ float UDispatchTableComponent::GetSkillCooldownRemaining(int32 Slot)const{return
 float UDispatchTableComponent::GetSkillCost(int32 Slot)const{return CatalogRuntime?CatalogRuntime->GetCost(GetSkillAtSlot(Slot)):0;}
 float UDispatchTableComponent::GetSkillCooldown(int32 Slot)const{return CatalogRuntime?CatalogRuntime->GetCooldown(GetSkillAtSlot(Slot)):0;}
 FString UDispatchTableComponent::GetSkillStateText(int32 Slot)const{return CatalogRuntime?CatalogRuntime->SkillState(GetSkillAtSlot(Slot)):TEXT("미해금");}
-bool UDispatchTableComponent::TryUseSkill(int32 Slot){return SkillOrder.IsValidIndex(Slot)&&GetRuntime()&&CatalogRuntime->Use(SkillOrder[Slot]);}
+bool UDispatchTableComponent::TryUseSkill(int32 Slot)
+{
+    if(!SkillOrder.IsValidIndex(Slot)||!GetRuntime())return false;
+    const bool Success=CatalogRuntime->Use(SkillOrder[Slot]);
+    auto* P=Cast<AMainPlayerCharacter>(GetOwner());auto* PC=P?Cast<AMainPlayerController>(P->GetController()):nullptr;
+    if(PC&&!UGameplayStatics::IsGamePaused(this)&&!PC->IsMenuWidgetOpen()&&!P->HasAugmentChoices())
+        if(auto* Feedback=GetWorld()->GetSubsystem<UDreamAugmentFeedback>())Feedback->SkillResult(P,SkillOrder[Slot],Success);
+    return Success;
+}
 
 void UCombatStatsComponent::SetHealthCapRatio(float Ratio)
 {

@@ -1,4 +1,5 @@
-#include "DreamAugmentRuntime.h"
+﻿#include "DreamAugmentRuntime.h"
+#include "DreamAugmentFeedback.h"
 #include "DreamAugmentCatalog.h"
 #include "DispatchTableComponent.h"
 #include "MainPlayerCharacter.h"
@@ -57,6 +58,7 @@ void UDreamAugmentRuntime::Start()
 }
 void UDreamAugmentRuntime::Reset()
 {
+    UDreamAugmentFeedback::StopSource(Player());NextAuraRefresh=0;
     if(GetWorld())GetWorld()->GetTimerManager().ClearTimer(Timer);
     if(Stats()&&FortressBonusApplied!=0)Stats()->AddDefencePower(-FortressBonusApplied);FortressBonusApplied=0;
     ClearBurns();for(auto& P:Fields)if(P.Value.Actor.IsValid()&&UDreamObjectPoolSubsystem::Generation(P.Value.Actor.Get())==P.Value.Generation)P.Value.Actor->Expire();Fields.Empty();
@@ -120,12 +122,13 @@ bool UDreamAugmentRuntime::Use(EAugmentID ID)
 {
     auto* P=Player();auto* PC=P?Cast<AMainPlayerController>(P->GetController()):nullptr;const auto* Def=DreamAugmentCatalog::Find(ID);
     if(!PC||!Def||!Def->Evolution||Def->Permanent||!Has(ID)||!Stats()||Stats()->IsDead()||UGameplayStatics::IsGamePaused(this)||PC->IsMenuWidgetOpen()||P->HasAugmentChoices()||PC->IsMoveInputIgnored())return false;
-    if(ID==EAugmentID::SkillReturn&&IsActive(ID)){if(FVector::Dist(P->GetActorLocation(),ReturnPoint)>500||!SafeMove(ReturnPoint))return false;Active.Remove(ID);return true;}
+    if(ID==EAugmentID::SkillReturn&&IsActive(ID)){if(FVector::Dist(P->GetActorLocation(),ReturnPoint)>500||!SafeMove(ReturnPoint))return false;Active.Remove(ID);UDreamAugmentFeedback::Emit(P,ID,EDreamAugmentCueShape::Ring,P->GetActorLocation()-FVector(0,0,80),100,.5f);return true;}
     if(Prepared==ID&&PrepareUntil>Now()){Prepared=static_cast<EAugmentID>(255);return true;}
     if(CooldownRemaining(ID)>0||IsActive(ID)||Charges.FindRef(ID)>0||P->GetCurrentStamina()<GetCost(ID)+20)return false;
     const bool PreparedShot=ID==EAugmentID::SkillOvercharge||ID==EAugmentID::SkillPiercing||ID==EAugmentID::SkillChain||ID==EAugmentID::SkillExplosion||ID==EAugmentID::SkillRift||ID==EAugmentID::SkillExecute||ID==EAugmentID::SkillSeal;
     if(PreparedShot){if(PrepareUntil>Now())return false;for(auto Pair:Charges)if(Pair.Value>0)return false;}
-    if(ID==EAugmentID::SkillOvercharge){Prepared=ID;PrepareUntil=Now()+3;return true;}
+    if(ID==EAugmentID::SkillOvercharge){Prepared=ID;PrepareUntil=Now()+3;CueUse(ID);return true;}
+    const FVector BeforeMove=P->GetActorLocation();
     if(ID==EAugmentID::SkillDodge){FVector Dir=P->GetLastMovementInputVector().GetSafeNormal2D();if(Dir.IsNearlyZero())Dir=P->GetActorForwardVector();if(!SafeMove(P->GetActorLocation()+Dir*200))return false;}
     if(ID==EAugmentID::SkillReturn&&P->GetCharacterMovement()->IsFalling())return false;
     if(!P->TrySpendSkillStamina(GetCost(ID)))return false;Ready.Add(ID,Now()+GetCooldown(ID));
@@ -138,8 +141,8 @@ bool UDreamAugmentRuntime::Use(EAugmentID ID)
         {FVector Start;FRotator Rotation;PC->GetPlayerViewPoint(Start,Rotation);for(int32 I=-2;I<=2;++I){FHitResult Hit;FCollisionQueryParams Q;Q.AddIgnoredActor(P);if(GetWorld()->LineTraceSingleByChannel(Hit,Start,Start+(Rotation+FRotator(0,I*3,0)).Vector()*3000,ECC_Visibility,Q)&&Cast<AMonsterBase>(Hit.GetActor()))Secondary(Hit.GetActor(),Damage*.3f);}}break;
     case EAugmentID::SkillFlame:
         {FVector Start;FRotator Rotation;PC->GetPlayerViewPoint(Start,Rotation);for(auto* A:Near(P->GetActorLocation(),400*Range))if(FVector::DotProduct((A->GetActorLocation()-P->GetActorLocation()).GetSafeNormal2D(),Rotation.Vector().GetSafeNormal2D())>.8f&&Visible(Start,A)){Secondary(A,Damage*.4f);Burn(A,Damage,3*Dur);}}break;
-    case EAugmentID::SkillChill:Active.Add(ID,Time+4*Dur);break;
-    case EAugmentID::SkillBarrage:Active.Add(ID,Time+3*Dur);break;
+    case EAugmentID::SkillChill:SetActive(ID,Time+4*Dur);break;
+    case EAugmentID::SkillBarrage:SetActive(ID,Time+3*Dur);break;
     case EAugmentID::SuppressionPulse:
         for(auto* A:Near(P->GetActorLocation(),Dispatch()->PulseRadius*Range))if(Visible(P->GetActorLocation(),A))CastChecked<AMonsterBase>(A)->TryApplyAugmentStagger(Dispatch()->PulseStaggerDuration);break;
     case EAugmentID::SkillGravity:
@@ -150,21 +153,22 @@ bool UDreamAugmentRuntime::Use(EAugmentID ID)
     case EAugmentID::SkillBarrier:Field(3,P->GetActorLocation()+P->GetActorForwardVector()*120,150,3*Dur,0);break;
     case EAugmentID::SkillTimeLock:
         for(auto* A:Near(P->GetActorLocation(),300*Range))if(Visible(P->GetActorLocation(),A)){if(Cast<AEliteMonster>(A))UDreamAugmentStatus::For(A)->Slow(TEXT("TimeLock"),.25f,.6f);else if(!Cast<ABossMonster>(A))CastChecked<AMonsterBase>(A)->TryApplyAugmentStagger(.6f,3);}break;
-    case EAugmentID::SkillGuard:Active.Add(ID,Time+1*Dur);break;
-    case EAugmentID::SkillShield:Shield=FMath::Max(Shield,Stats()->GetMaxHealth()*.1f);ShieldUntil=Time+3*Dur;Active.Add(ID,ShieldUntil);break;
-    case EAugmentID::SkillCounter:Active.Add(ID,Time+.4f);break;
-    case EAugmentID::SkillThorns:Active.Add(ID,Time+3*Dur);break;
-    case EAugmentID::SkillVampire:Active.Add(ID,Time+4*Dur);break;
-    case EAugmentID::SkillRegenerate:Active.Add(ID,Time+2);RegenNext=Time+.1f;break;
+    case EAugmentID::SkillGuard:SetActive(ID,Time+1*Dur);break;
+    case EAugmentID::SkillShield:Shield=FMath::Max(Shield,Stats()->GetMaxHealth()*.1f);ShieldUntil=Time+3*Dur;SetActive(ID,ShieldUntil);break;
+    case EAugmentID::SkillCounter:SetActive(ID,Time+.4f);break;
+    case EAugmentID::SkillThorns:SetActive(ID,Time+3*Dur);break;
+    case EAugmentID::SkillVampire:SetActive(ID,Time+4*Dur);break;
+    case EAugmentID::SkillRegenerate:SetActive(ID,Time+2);RegenNext=Time+.1f;break;
     case EAugmentID::SkillCleanse:Stats()->SetOnFire(false,nullptr);FireImmunityUntil=Time+1;break;
-    case EAugmentID::SkillFortress:Active.Add(ID,Time+4*Dur);break;
-    case EAugmentID::SkillSprint:Active.Add(ID,Time+2*Dur);break;
-    case EAugmentID::SkillReturn:ReturnPoint=P->GetActorLocation();Active.Add(ID,Time+3);break;
-    case EAugmentID::SkillMobileFire:Active.Add(ID,Time+3*Dur);break;
+    case EAugmentID::SkillFortress:SetActive(ID,Time+4*Dur);break;
+    case EAugmentID::SkillSprint:SetActive(ID,Time+2*Dur);break;
+    case EAugmentID::SkillReturn:ReturnPoint=P->GetActorLocation();SetActive(ID,Time+3);break;
+    case EAugmentID::SkillMobileFire:SetActive(ID,Time+3*Dur);break;
     case EAugmentID::SkillDodge:break;
     default:return false;
     }
-    Tick();return true;
+    if(ID==EAugmentID::SkillDodge)UDreamAugmentFeedback::Emit(P,ID,EDreamAugmentCueShape::Beam,BeforeMove-FVector(0,0,50),3,.3f,nullptr,P->GetActorLocation()-FVector(0,0,50));
+    CueUse(ID);Tick();return true;
 }
 bool UDreamAugmentRuntime::BeginShot(const FVector& Start,const FVector& Direction,float Damage,float Range,ECollisionChannel Channel)
 {
@@ -173,6 +177,12 @@ bool UDreamAugmentRuntime::BeginShot(const FVector& Start,const FVector& Directi
     {if(Player()->TrySpendSkillStamina(GetCost(Prepared))){ShotSkill=Prepared;Ready.Add(Prepared,Now()+GetCooldown(Prepared));}Prepared=static_cast<EAugmentID>(255);}
     else for(auto ID:Dispatch()->GetSkillIDs())if(Charges.FindRef(ID)>0){ShotSkill=ID;Charges[ID]--;break;}
     const bool Piercing=ShotSkill==EAugmentID::SkillPiercing || (Has(EAugmentID::PiercingRounds)&&ShotNumber%4==0);
+    if(ShotSkill!=static_cast<EAugmentID>(255)||Piercing)
+    {
+        FHitResult CueHit;FCollisionQueryParams CueQuery;CueQuery.AddIgnoredActor(Player());
+        const FVector BeamEnd=GetWorld()->LineTraceSingleByChannel(CueHit,Start,Start+Direction*Range,Channel,CueQuery)?CueHit.ImpactPoint:Start+Direction*FMath::Min(Range,2000.f);
+        UDreamAugmentFeedback::Emit(Player(),ShotSkill==static_cast<EAugmentID>(255)?EAugmentID::PiercingRounds:ShotSkill,EDreamAugmentCueShape::Beam,Player()->GetActorLocation()+FVector(0,0,35),3,.2f,nullptr,BeamEnd);
+    }
     if(!Piercing)return false;
     FCollisionQueryParams Q;Q.AddIgnoredActor(Player());const FVector End=Start+Direction*Range;
     for(int32 I=0;I<3;++I)
@@ -180,7 +190,7 @@ bool UDreamAugmentRuntime::BeginShot(const FVector& Start,const FVector& Directi
         FHitResult Hit;if(!GetWorld()->LineTraceSingleByChannel(Hit,Start,End,Channel,Q))break;auto* M=Cast<AMonsterBase>(Hit.GetActor());if(!M)break;
         const float Ratio=I==0?1:ShotSkill==EAugmentID::SkillPiercing?(I==1?.6f:.4f):(I==1?.5f:.25f);
         if(I==0){const float Applied=UAugmentDamageLibrary::ApplyWeaponHit(Player(),Hit,Damage);if(Applied>0&&Player()->GetCurrentWeapon())Player()->GetCurrentWeapon()->OnHitConfirmed.Broadcast(M->MonsterCombatStats->IsDead(),M->IsHeadshotHit(Hit));}
-        else Secondary(M,Damage*Ratio);Q.AddIgnoredActor(M);
+        else Secondary(M,Damage*Ratio);CueImpact(ShotSkill==EAugmentID::SkillPiercing?ShotSkill:EAugmentID::PiercingRounds,M);Q.AddIgnoredActor(M);
     }
     return true;
 }
@@ -208,22 +218,26 @@ void UDreamAugmentRuntime::AfterDirectHit(AActor* Target,float Damage,bool Kille
     if(FocusTarget!=Target||FocusGeneration!=Gen||Now()-FocusTime>2)FocusCount=0;FocusTarget=Target;FocusGeneration=Gen;FocusTime=Now();FocusCount=(FocusCount+1)%4;
     auto& Track=Targets.FindOrAdd(Target);if(Track.Generation!=Gen)Track=FTargetState();Track.Generation=Gen;Track.Last=Now();++Track.Hits;
     const bool Boss=Cast<ABossMonster>(Target)!=nullptr;const float Dur=Duration(),Range=Dispatch()->GetEffectRangeMultiplier();
-    if(ShotSkill==EAugmentID::SkillRift || (Has(EAugmentID::RiftRounds)&&Track.Hits%3==0)) {const bool Strong=ShotSkill==EAugmentID::SkillRift || (Track.EmpoweredMark&&Track.MarkUntil>Now());Track.MarkUntil=Now()+3*Dur;Track.EmpoweredMark=Strong;}
+    if(ShotSkill==EAugmentID::SkillRift || (Has(EAugmentID::RiftRounds)&&Track.Hits%3==0)) {const bool Strong=ShotSkill==EAugmentID::SkillRift || (Track.EmpoweredMark&&Track.MarkUntil>Now());Track.MarkUntil=Now()+3*Dur;Track.EmpoweredMark=Strong;UDreamAugmentFeedback::Emit(Player(),Strong?EAugmentID::SkillRift:EAugmentID::RiftRounds,EDreamAugmentCueShape::Mark,Target->GetActorLocation(),38,3*Dur,Target);}
     if(!Killed)
     {
-        if(Has(EAugmentID::ChillingRounds)||IsActive(EAugmentID::SkillChill))UDreamAugmentStatus::For(Target)->Slow(TEXT("Chill"),IsActive(EAugmentID::SkillChill)?(Boss?.05f:.2f):(Boss?.03f:.1f),2*Dur);
-        if(Has(EAugmentID::GravityMark)&&Track.Hits%5==0&&InternalReady(EAugmentID::GravityMark,4)){for(auto* Other:Near(Target->GetActorLocation(),200*Range,Target))if(!Cast<ABossMonster>(Other)&&Visible(Target->GetActorLocation(),Other)){UDreamAugmentStatus::For(Other)->PullToward(Target->GetActorLocation(),100);break;}}
-        if(Has(EAugmentID::StopMark)&&Track.Hits%8==0)CastChecked<AMonsterBase>(Target)->TryApplyAugmentStagger(.2f,3);
-        if(!Boss && (ShotSkill==EAugmentID::SkillSeal||(Has(EAugmentID::SealRounds)&&Track.Hits%5==0&&InternalReady(EAugmentID::SealRounds,6))))UDreamAugmentStatus::For(Target)->Seal((ShotSkill==EAugmentID::SkillSeal?2:.5f)*Dur);
+        if(Has(EAugmentID::ChillingRounds)||IsActive(EAugmentID::SkillChill))
+        {if(UDreamAugmentStatus::For(Target)->Slow(TEXT("Chill"),IsActive(EAugmentID::SkillChill)?(Boss?.05f:.2f):(Boss?.03f:.1f),2*Dur))UDreamAugmentFeedback::Emit(Player(),EAugmentID::ChillingRounds,EDreamAugmentCueShape::Mark,Target->GetActorLocation(),32,2*Dur,Target);}
+        if(Has(EAugmentID::GravityMark)&&Track.Hits%5==0&&InternalReady(EAugmentID::GravityMark,4)){for(auto* Other:Near(Target->GetActorLocation(),200*Range,Target))if(!Cast<ABossMonster>(Other)&&Visible(Target->GetActorLocation(),Other)){UDreamAugmentStatus::For(Other)->PullToward(Target->GetActorLocation(),100);UDreamAugmentFeedback::Emit(Player(),EAugmentID::GravityMark,EDreamAugmentCueShape::Beam,Other->GetActorLocation(),3,.3f,nullptr,Target->GetActorLocation());break;}}
+        if(Has(EAugmentID::StopMark)&&Track.Hits%8==0&&CastChecked<AMonsterBase>(Target)->TryApplyAugmentStagger(.2f,3))CueImpact(EAugmentID::StopMark,Target);
+        if(!Boss && (ShotSkill==EAugmentID::SkillSeal||(Has(EAugmentID::SealRounds)&&Track.Hits%5==0&&InternalReady(EAugmentID::SealRounds,6)))){const float Seconds=(ShotSkill==EAugmentID::SkillSeal?2:.5f)*Dur;UDreamAugmentStatus::For(Target)->Seal(Seconds);UDreamAugmentFeedback::Emit(Player(),EAugmentID::SealRounds,EDreamAugmentCueShape::Mark,Target->GetActorLocation(),42,Seconds,Target);}
     }
-    if(Has(EAugmentID::FragmentRounds)&&DirectHitCount%5==0){int32 Count=0;for(auto* A:Near(Hit.ImpactPoint,200*Range,Target))if(Visible(Hit.ImpactPoint,A)){Secondary(A,Damage*.15f);if(++Count==2)break;}}
+    if(Has(EAugmentID::FragmentRounds)&&DirectHitCount%5==0){int32 Count=0;for(auto* A:Near(Hit.ImpactPoint,200*Range,Target))if(Visible(Hit.ImpactPoint,A)){Secondary(A,Damage*.15f);UDreamAugmentFeedback::Emit(Player(),EAugmentID::FragmentRounds,EDreamAugmentCueShape::Beam,Hit.ImpactPoint,3,.18f,nullptr,A->GetActorLocation());if(++Count==2)break;}}
     if(ShotSkill==EAugmentID::SkillChain||(Has(EAugmentID::ChainRounds)&&DirectHitCount%5==0&&InternalReady(EAugmentID::ChainRounds,1)))
-        for(auto* A:Near(Hit.ImpactPoint,300*Range,Target))if(Visible(Hit.ImpactPoint,A)){Secondary(A,Damage*.3f);break;}
-    if(ShotSkill==EAugmentID::SkillExplosion)Radial(Hit.ImpactPoint,300*Range,Damage,Target);
-    if(Has(EAugmentID::RetreatTactics)&&FVector::DotProduct(Player()->GetVelocity().GetSafeNormal2D(),Player()->GetActorForwardVector())<-.25f&&InternalReady(EAugmentID::RetreatTactics,3))Active.Add(EAugmentID::RetreatTactics,Now()+1*Dur);
+        for(auto* A:Near(Hit.ImpactPoint,300*Range,Target))if(Visible(Hit.ImpactPoint,A)){UDreamAugmentFeedback::Emit(Player(),ShotSkill==EAugmentID::SkillChain?ShotSkill:EAugmentID::ChainRounds,EDreamAugmentCueShape::Beam,Hit.ImpactPoint,3,.25f,nullptr,A->GetActorLocation());Secondary(A,Damage*.3f);break;}
+    if(ShotSkill==EAugmentID::SkillExplosion){UDreamAugmentFeedback::Emit(Player(),ShotSkill,EDreamAugmentCueShape::Ring,Hit.ImpactPoint+FVector(0,0,8),300*Range,.65f);UDreamAugmentFeedback::Emit(Player(),ShotSkill,EDreamAugmentCueShape::Impact,Hit.ImpactPoint,95,.45f);Radial(Hit.ImpactPoint,300*Range,Damage,Target);}
+    else if(ShotSkill==EAugmentID::SkillExecute||ShotSkill==EAugmentID::SkillOvercharge)CueImpact(ShotSkill,Target,100);
+    if(Has(EAugmentID::FocusFire)&&FocusCount==0)CueImpact(EAugmentID::FocusFire,Target);
+    if(Has(EAugmentID::ExecutionRounds)){auto* S=Target->FindComponentByClass<UCombatStatsComponent>();if(S&&S->GetHealthPercentage()<=.25f)CueImpact(EAugmentID::ExecutionRounds,Target);}
+    if(Has(EAugmentID::RetreatTactics)&&FVector::DotProduct(Player()->GetVelocity().GetSafeNormal2D(),Player()->GetActorForwardVector())<-.25f&&InternalReady(EAugmentID::RetreatTactics,3))SetActive(EAugmentID::RetreatTactics,Now()+1*Dur);
     if(Killed)
     {
-        if(Has(EAugmentID::Rampage)){RampageStacks=FMath::Min(5,IsActive(EAugmentID::Rampage)?RampageStacks+1:1);Active.Add(EAugmentID::Rampage,Now()+3*Dur);}
+        if(Has(EAugmentID::Rampage)){RampageStacks=FMath::Min(5,IsActive(EAugmentID::Rampage)?RampageStacks+1:1);SetActive(EAugmentID::Rampage,Now()+3*Dur);}
         if(Has(EAugmentID::KillTrap)&&InternalReady(EAugmentID::KillTrap,8))Field(1,Hit.ImpactPoint,200*Range,5*Dur,.3f);
         if(Has(EAugmentID::SuppressionEcho)&&InternalReady(EAugmentID::SuppressionEcho,5))Field(0,Hit.ImpactPoint,200*Range,3*Dur,.15f);
     }
@@ -232,8 +246,8 @@ void UDreamAugmentRuntime::AfterHealthDamage(AActor* Attacker,float Actual,bool 
 {
     if(Actual<=0)return;LastDamage=Now();if(Fire&&FireSince<0)FireSince=Now();
     if(IsActive(EAugmentID::SkillRegenerate))Active.Remove(EAugmentID::SkillRegenerate);
-    if(Has(EAugmentID::Riposte)&&InternalReady(EAugmentID::Riposte,6))Active.Add(EAugmentID::Riposte,Now()+2);
-    if(Has(EAugmentID::CrisisEscape)&&InternalReady(EAugmentID::CrisisEscape,8))Active.Add(EAugmentID::CrisisEscape,Now()+1.5f*Duration());
+    if(Has(EAugmentID::Riposte)&&InternalReady(EAugmentID::Riposte,6))SetActive(EAugmentID::Riposte,Now()+2);
+    if(Has(EAugmentID::CrisisEscape)&&InternalReady(EAugmentID::CrisisEscape,8))SetActive(EAugmentID::CrisisEscape,Now()+1.5f*Duration());
     if(Has(EAugmentID::Afterimage)&&Attacker&&InternalReady(EAugmentID::Afterimage,8))Field(2,Attacker->GetActorLocation()+Attacker->GetActorRightVector()*100,300,1,0);
 }
 float UDreamAugmentRuntime::AbsorbDamage(float Damage,bool Projectile,bool Fire)
@@ -243,13 +257,14 @@ float UDreamAugmentRuntime::AbsorbDamage(float Damage,bool Projectile,bool Fire)
     if(Projectile&&Has(EAugmentID::ProjectileGuard)&&InternalReady(EAugmentID::ProjectileGuard,3))Reduce=.1f;
     if(Has(EAugmentID::Resolve)&&Now()-LastDamage>=4&&InternalReady(EAugmentID::Resolve,12))Reduce=FMath::Max(Reduce,.2f);
     if(IsActive(EAugmentID::SkillGuard)){Reduce=FMath::Max(Reduce,.3f);Active.Remove(EAugmentID::SkillGuard);}
-    if(IsActive(EAugmentID::SkillCounter)&&Charges.FindRef(EAugmentID::SkillCounter)==0){Reduce=.5f;Charges.Add(EAugmentID::SkillCounter,1);Active.Add(EAugmentID::SkillCounter,Now()+2);}
+    if(IsActive(EAugmentID::SkillCounter)&&Charges.FindRef(EAugmentID::SkillCounter)==0){Reduce=.5f;Charges.Add(EAugmentID::SkillCounter,1);SetActive(EAugmentID::SkillCounter,Now()+2);}
+    if(Reduce>0)UDreamAugmentFeedback::Emit(Player(),IsActive(EAugmentID::SkillCounter)?EAugmentID::SkillCounter:EAugmentID::ProjectileGuard,EDreamAugmentCueShape::Impact,Player()->GetActorLocation(),85,.35f);
     Damage=FMath::Max(MIN_DAMAGE,Damage*(1-Reduce));
-    if(ShieldUntil>Now()&&Shield>0){const float Used=FMath::Min(Shield,Damage);Shield-=Used;Damage-=Used;}return Damage;
+    if(ShieldUntil>Now()&&Shield>0){const float Used=FMath::Min(Shield,Damage);Shield-=Used;Damage-=Used;if(Used>0)UDreamAugmentFeedback::Emit(Player(),EAugmentID::SkillShield,EDreamAugmentCueShape::Impact,Player()->GetActorLocation(),75,.3f);}return Damage;
 }
 void UDreamAugmentRuntime::Burn(AActor* Target,float BaseDamage,float Seconds)
 {
-    if(!Target)return;const int32 Gen=UDreamObjectPoolSubsystem::Generation(Target);auto* Existing=Burns.FindByPredicate([Target,Gen](const FBurn& B){return B.Target==Target&&B.Generation==Gen;});
+    if(!Target)return;UDreamAugmentFeedback::Emit(Player(),EAugmentID::ContinuousAttack,EDreamAugmentCueShape::Mark,Target->GetActorLocation(),30,Seconds,Target);const int32 Gen=UDreamObjectPoolSubsystem::Generation(Target);auto* Existing=Burns.FindByPredicate([Target,Gen](const FBurn& B){return B.Target==Target&&B.Generation==Gen;});
     if(Existing){Existing->Damage=BaseDamage*.1f*Power();Existing->Until=Now()+Seconds;return;}
     FBurn B;B.Target=Target;B.Generation=Gen;B.Damage=BaseDamage*.1f*Power();B.Next=Now()+1;B.Until=Now()+Seconds;Burns.Add(B);
     if(auto* S=Target->FindComponentByClass<UCombatStatsComponent>())S->SetOnFire(true,Dispatch()->OnFireEffect);
@@ -258,20 +273,28 @@ void UDreamAugmentRuntime::ClearBurns(){for(const auto& B:Burns)if(B.Target.IsVa
 void UDreamAugmentRuntime::Tick()
 {
     if(!Player()||!Stats()||Stats()->IsDead()){Reset();return;}const float Time=Now();
+    if(Time>=NextAuraRefresh)
+    {
+        NextAuraRefresh=Time+.75f;
+        for(auto ID:{EAugmentID::Berserker,EAugmentID::LastFortress,EAugmentID::LastBreath,EAugmentID::AutoShield})
+            if(HasFeedbackState(ID))UDreamAugmentFeedback::Emit(Player(),ID,EDreamAugmentCueShape::Aura,Player()->GetActorLocation(),ID==EAugmentID::LastBreath?88:70,1.f,Player(),FVector::ZeroVector,true);
+    }
+    for(auto ID:Dispatch()->GetSkillIDs())
+        if((Prepared==ID||Charges.FindRef(ID)>0)&&HasFeedbackState(ID))UDreamAugmentFeedback::Emit(Player(),ID,EDreamAugmentCueShape::Aura,Player()->GetActorLocation(),65,1,Player(),FVector::ZeroVector,true);
     if(ShieldUntil<=Time)Shield=0;
     if(Shield<=0)Active.Remove(EAugmentID::SkillShield);
     if(!IsActive(EAugmentID::SkillCounter))Charges.Remove(EAugmentID::SkillCounter);
     if(PrepareUntil<=Time)Prepared=static_cast<EAugmentID>(255);
-    if(Has(EAugmentID::AutoShield)&&Time-LastDamage>=6&&Shield<=0&&InternalReady(EAugmentID::AutoShield,12)){Shield=Stats()->GetMaxHealth()*.05f;ShieldUntil=Time+3*Duration();}
+    if(Has(EAugmentID::AutoShield)&&Time-LastDamage>=6&&Shield<=0&&InternalReady(EAugmentID::AutoShield,12)){Shield=Stats()->GetMaxHealth()*.05f;ShieldUntil=Time+3*Duration();UDreamAugmentFeedback::Emit(Player(),EAugmentID::AutoShield,EDreamAugmentCueShape::Ring,Player()->GetActorLocation()-FVector(0,0,80),85,.45f);}
     if(Stats()->IsOnFire())
     {
         if(FireSince<0)FireSince=Time;
-        if(Has(EAugmentID::AutoCleanse)&&Time-FireSince>=2&&InternalReady(EAugmentID::AutoCleanse,12)){Stats()->SetOnFire(false,nullptr);FireSince=-1;}
+        if(Has(EAugmentID::AutoCleanse)&&Time-FireSince>=2&&InternalReady(EAugmentID::AutoCleanse,12)){Stats()->SetOnFire(false,nullptr);FireSince=-1;UDreamAugmentFeedback::Emit(Player(),EAugmentID::AutoCleanse,EDreamAugmentCueShape::Ring,Player()->GetActorLocation()-FVector(0,0,80),85,.5f);}
     }else FireSince=-1;
     const bool Sprinting=Player()->IsActuallySprinting();
     if(Sprinting&&!bWasSprinting)LastSprintStart=Time;
-    if(!Sprinting&&bWasSprinting){LastSprintStop=Time;if(Has(EAugmentID::MobileSupport)&&Time-LastSprintStart>=.5f&&InternalReady(EAugmentID::MobileSupport,4))Active.Add(EAugmentID::MobileSupport,Time+2*Duration());}
-    if(Sprinting&&Time-LastSprintStart>=.5f&&Has(EAugmentID::SprintBoost)&&InternalReady(EAugmentID::SprintBoost,6))Active.Add(EAugmentID::SprintBoost,Time+1*Duration());
+    if(!Sprinting&&bWasSprinting){LastSprintStop=Time;if(Has(EAugmentID::MobileSupport)&&Time-LastSprintStart>=.5f&&InternalReady(EAugmentID::MobileSupport,4))SetActive(EAugmentID::MobileSupport,Time+2*Duration());}
+    if(Sprinting&&Time-LastSprintStart>=.5f&&Has(EAugmentID::SprintBoost)&&InternalReady(EAugmentID::SprintBoost,6))SetActive(EAugmentID::SprintBoost,Time+1*Duration());
     bWasSprinting=Sprinting;
     if(IsActive(EAugmentID::SkillMobileFire)&&Player()->GetCurrentStamina()<=20)Active.Remove(EAugmentID::SkillMobileFire);
     float Walk=1+Scale(EAugmentID::WalkSpeedUp,.02f,.3f),Sprint=1+Scale(EAugmentID::SprintSpeedUp,.02f,.3f);

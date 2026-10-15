@@ -1,4 +1,5 @@
 ﻿#include "DreamAugmentRuntime.h"
+#include "DreamAugmentFeedback.h"
 #include "DreamObjectPoolSubsystem.h"
 #include "MonsterBase.h"
 #include "BossMonster.h"
@@ -25,13 +26,13 @@ UDreamAugmentStatus* UDreamAugmentStatus::For(AActor* Actor)
     auto* S=Actor->FindComponentByClass<UDreamAugmentStatus>();
     if(!S){S=NewObject<UDreamAugmentStatus>(Actor);Actor->AddInstanceComponent(S);S->RegisterComponent();}return S;
 }
-void UDreamAugmentStatus::Slow(FName Source,float Amount,float Seconds)
+bool UDreamAugmentStatus::Slow(FName Source,float Amount,float Seconds)
 {
-    auto* M=Cast<AMonsterBase>(GetOwner());if(!M || !M->MonsterCombatStats || M->MonsterCombatStats->IsDead() || Seconds<=0)return;
-    if(M->MonsterSkill && M->MonsterSkill->IsUsingSkill())return;
+    auto* M=Cast<AMonsterBase>(GetOwner());if(!M || !M->MonsterCombatStats || M->MonsterCombatStats->IsDead() || Seconds<=0)return false;
+    if(M->MonsterSkill && M->MonsterSkill->IsUsingSkill())return false;
     auto& S=Slows.FindOrAdd(Source);S.Amount=FMath::Clamp(Amount,0.f,1.f);S.Until=GetWorld()->GetTimeSeconds()+Seconds;
     if(!GetWorld()->GetTimerManager().IsTimerActive(Timer))GetWorld()->GetTimerManager().SetTimer(Timer,this,&UDreamAugmentStatus::Update,.1f,true);
-    Update();
+    Update();return true;
 }
 void UDreamAugmentStatus::Seal(float Seconds)
 {
@@ -78,12 +79,13 @@ ADreamAugmentField::ADreamAugmentField()
 void ADreamAugmentField::Configure(APawn* OwnerPawn,int32 InKind,float InRadius,float Seconds,float InStrength)
 {
     Source=OwnerPawn;SetOwner(OwnerPawn);SetInstigator(OwnerPawn);Kind=InKind;Radius=FMath::Max(1.f,InRadius);Strength=InStrength;Until=GetWorld()->GetTimeSeconds()+Seconds;Health=20;
-    Visual->SetVisibility(Kind>=2);Visual->SetRelativeScale3D(Kind==3?FVector(.05f,3.f,2.f):FVector(.25f,.25f,1.f));
+    Visual->SetVisibility(false);Visual->SetRelativeScale3D(Kind==3?FVector(.05f,3.f,2.f):FVector(.25f,.25f,1.f));
     Sphere->SetSphereRadius(Kind==2?30:Radius);Sphere->SetCollisionResponseToAllChannels(ECR_Ignore);Sphere->SetCollisionObjectType(Kind==2?ECC_Pawn:ECC_WorldDynamic);
     Sphere->SetCollisionEnabled(Kind==2?ECollisionEnabled::QueryOnly:ECollisionEnabled::NoCollision);Sphere->SetCollisionResponseToChannel(ECC_Visibility,ECR_Block);Sphere->SetCollisionResponseToChannel(ECC_WorldDynamic,ECR_Block);
     Barrier->SetBoxExtent(FVector(4,150,100));Barrier->SetCollisionResponseToAllChannels(ECR_Ignore);Barrier->SetCollisionResponseToChannel(ECC_WorldDynamic,ECR_Block);Barrier->SetCollisionEnabled(Kind==3?ECollisionEnabled::QueryAndPhysics:ECollisionEnabled::NoCollision);
-    Warning->SetVisibility(Kind<=1);Warning->DecalSize=FVector(50,Radius,Radius);
-    if(auto* Monster=Cast<AMonsterBase>(UGameplayStatics::GetActorOfClass(this,AMonsterBase::StaticClass())))Warning->SetDecalMaterial(Monster->GetAttackWarningMaterial());
+    Warning->SetVisibility(false);
+    const auto ID=Kind==0?EAugmentID::SkillSuppress:Kind==1?EAugmentID::SkillTrap:Kind==2?EAugmentID::SkillDecoy:EAugmentID::SkillBarrier;
+    UDreamAugmentFeedback::Emit(OwnerPawn,ID,Kind==3?EDreamAugmentCueShape::Barrier:Kind==2?EDreamAugmentCueShape::Decoy:EDreamAugmentCueShape::Field,GetActorLocation(),Kind>=2?85:Radius,Seconds,this);
     if(Kind==2)ActiveDecoys.AddUnique(this);
     GetWorldTimerManager().SetTimer(Timer,this,&ADreamAugmentField::Update,.15f,true);Update();
 }
@@ -97,7 +99,7 @@ void ADreamAugmentField::Update()
         if(Kind==1){if(!Cast<ABossMonster>(M))UDreamAugmentStatus::For(M)->Slow(TEXT("AugmentTrap"),1.f,Strength);else UDreamAugmentStatus::For(M)->Slow(TEXT("AugmentTrap"),.1f,Strength);Trigger=true;}
         else UDreamAugmentStatus::For(M)->Slow(TEXT("AugmentField"),Cast<ABossMonster>(M)?(Strength<=.15f?.03f:.05f):Strength,.3f);
     }
-    if(Trigger)Expire();
+    if(Trigger){UDreamAugmentFeedback::Emit(Source.Get(),EAugmentID::SkillTrap,EDreamAugmentCueShape::Ring,GetActorLocation(),Radius,.45f);Expire();}
 }
 void ADreamAugmentField::Expire(){UDreamObjectPoolSubsystem::ReleaseOrDestroy(this);}
 void ADreamAugmentField::PrepareForPoolReuse(){Health=20;Source.Reset();}

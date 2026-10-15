@@ -1,4 +1,5 @@
-#include "DispatchTableComponent.h"
+﻿#include "DispatchTableComponent.h"
+#include "DreamAugmentFeedback.h"
 #include "DreamObjectPoolSubsystem.h"
 
 #include "ActiveAugmentSkills.h"
@@ -493,6 +494,7 @@ void UDispatchTableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 //가시 반사를 맞은 대상 발밑에 가시를 냄
 void UDispatchTableComponent::PlayThornReflectEffect(AActor* ReflectTarget)
 {
+    if(ReflectTarget)UDreamAugmentFeedback::Emit(GetOwner(),EAugmentID::ThornArmor,EDreamAugmentCueShape::Impact,ReflectTarget->GetActorLocation(),60,.35f);
     //가시는 반사를 맞은 쪽 발밑에서 솟음 대상이 없으면 어디에 낼지 알 수 없음
     if (!ReflectTarget || !ThornSpikeEffectClass)
     {

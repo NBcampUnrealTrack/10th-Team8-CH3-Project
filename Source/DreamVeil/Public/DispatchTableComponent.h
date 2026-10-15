@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -162,6 +162,10 @@ public:
 	//가시 반사를 맞은 대상 발밑에 가시를 냄 반사가 실제로 들어갔을 때 AugmentDamageLibrary가 부름
 	UFUNCTION(BlueprintCallable, Category = "Augment|Effect")
 	void PlayThornReflectEffect(AActor* ReflectTarget);
+
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Augment|Feedback") bool bAugmentFeedbackEnabled=true;
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Augment|Feedback",meta=(ClampMin="0",ClampMax="1")) float AugmentEffectOpacity=.85f;
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Augment|Feedback",meta=(ClampMin="0",ClampMax="1")) float AugmentSoundVolume=.65f;
 
 protected:
 	//생명주기 함수

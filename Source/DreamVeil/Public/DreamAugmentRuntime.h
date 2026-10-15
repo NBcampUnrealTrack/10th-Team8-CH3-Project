@@ -23,7 +23,7 @@ class DREAMVEIL_API UDreamAugmentStatus : public UActorComponent
 public:
     UDreamAugmentStatus();
     static UDreamAugmentStatus* For(AActor* Actor);
-    void Slow(FName Source,float Amount,float Duration);
+    bool Slow(FName Source,float Amount,float Duration);
     void Seal(float Duration);
     bool IsSealed() const;
     void Reset();
@@ -89,6 +89,7 @@ public:
     float CooldownRemaining(EAugmentID ID) const;
     FString SkillState(EAugmentID ID) const;
     bool IsActive(EAugmentID ID) const;
+    bool HasFeedbackState(EAugmentID ID) const;
     bool BlocksFire() const;
     bool AllowsSprintFire() const;
     void UnlockSkill(EAugmentID ID);
@@ -129,6 +130,11 @@ private:
     int32 SecondaryDepth=0;
     FTimerHandle Timer;
     void Tick();
+    void SetActive(EAugmentID ID,float Until);
+    void CueUse(EAugmentID ID);
+    void CueImpact(EAugmentID ID,AActor* Target,float Radius=55);
+    float NextAuraRefresh=0;
+
     bool InternalReady(EAugmentID ID,float Interval);
     TArray<AActor*> Near(const FVector& Location,float Radius,AActor* Ignore=nullptr) const;
     bool Visible(const FVector& From,AActor* Target) const;

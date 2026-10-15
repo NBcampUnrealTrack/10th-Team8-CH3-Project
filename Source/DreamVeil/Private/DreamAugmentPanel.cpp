@@ -2,6 +2,7 @@
 #include "DispatchTableComponent.h"
 #include "DreamAugmentCatalog.h"
 #include "DreamAugmentRuntime.h"
+#include "DreamAugmentFeedback.h"
 #include "MainGameModeBase.h"
 #include "Components/ButtonSlot.h"
 #include "MainPlayerCharacter.h"
@@ -131,6 +132,9 @@ void UDreamAugmentPanel::Build()
             auto* NumberSlot=Stack->AddChildToOverlay(Number);NumberSlot->SetHorizontalAlignment(HAlign_Center);NumberSlot->SetVerticalAlignment(VAlign_Center);SkillLabels.Add(Number);
 
         }
+        FeedbackLabel=Label(TEXT(""),16);FeedbackLabel->SetAutoWrapText(false);FeedbackLabel->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);
+        FeedbackLabel->SetColorAndOpacity(FSlateColor(FLinearColor(.94f,.82f,1)));FeedbackLabel->SetShadowColorAndOpacity(FLinearColor::Black);FeedbackLabel->SetShadowOffset(FVector2D(1,1));
+        auto* NoticeSlot=Canvas->AddChildToCanvas(FeedbackLabel);NoticeSlot->SetPosition(FVector2D(0,-32));NoticeSlot->SetSize(FVector2D(396,28));
         SetVisibility(ESlateVisibility::HitTestInvisible);return;
     }
     if(Mode==EDreamAugmentPanelMode::Guide)
@@ -360,6 +364,8 @@ void UDreamAugmentPanel::RefreshHUD()
     const bool DescriptionChanged=LastHUDPawn.Get()!=P||LastHUDRevision!=D->GetAugmentRevision()||Now>=NextHUDDescriptionRefresh;
     if(DescriptionChanged){LastHUDPawn=P;LastHUDRevision=D->GetAugmentRevision();NextHUDDescriptionRefresh=Now+1;}
 
+    auto* Feedback=GetWorld()->GetSubsystem<UDreamAugmentFeedback>();
+    if(FeedbackLabel){const FString Message=Feedback?Feedback->Notice(P):FString();if(FeedbackLabel->GetText().ToString()!=Message)FeedbackLabel->SetText(FText::FromString(Message));FeedbackLabel->SetVisibility(Message.IsEmpty()?ESlateVisibility::Collapsed:ESlateVisibility::HitTestInvisible);}
     const bool LastBreath=D->HasAcquiredAugment(EAugmentID::LastBreath);
     if(LastBreath && !HealthCapMarker)
     {
@@ -394,6 +400,13 @@ void UDreamAugmentPanel::RefreshHUD()
             if(SkillIcons[I]->GetBrush().GetResourceObject()!=(Texture?Texture->Get():nullptr))SkillIcons[I]->SetBrushFromTexture(Texture?Texture->Get():nullptr);
             SkillIcons[I]->SetVisibility(Texture?ESlateVisibility::HitTestInvisible:ESlateVisibility::Hidden);
             SkillIcons[I]->SetColorAndOpacity(Cooling?FLinearColor(.38f,.38f,.42f,.9f):FLinearColor::White);
+            const auto* Runtime=D->FindRuntime();const bool Active=Runtime&&Runtime->HasFeedbackState(ID);
+            const bool Failed=Feedback&&Feedback->FailureUntil(ID)>GetWorld()->GetTimeSeconds();
+            const bool Affordable=Owned&&P->GetCurrentStamina()>=D->GetSkillCost(I)+20;
+            const float Pulse=.8f+.2f*FMath::Sin(GetWorld()->GetTimeSeconds()*5);
+            SkillFrames[I]->SetBrushColor(Failed?FLinearColor(1,.12f,.2f):Active?FLinearColor(.7f,.42f,1,1)*Pulse:!Cooling&&Affordable?FLinearColor(.8f,.55f,1):FLinearColor(.35f,.2f,.45f));
+            if(Active)SkillIcons[I]->SetColorAndOpacity(FLinearColor(1,.85f,1));
+            else if(!Cooling&&!Affordable)SkillIcons[I]->SetColorAndOpacity(FLinearColor(.5f,.4f,.55f));
             SkillFrames[I]->SetRenderOpacity(Owned?1.f:0.f);
             if(DescriptionChanged)SkillIcons[I]->SetToolTipText(Owned?D->GetCurrentAugmentDescription(ID):FText::FromString(TEXT("진화 스킬 미해금")));
         }
@@ -464,4 +477,3 @@ void UDreamAugmentChoiceHost::NativeDestruct()
 {
     if(Overlay.IsValid())Overlay->RemoveFromParent();Overlay.Reset();Super::NativeDestruct();
 }
-

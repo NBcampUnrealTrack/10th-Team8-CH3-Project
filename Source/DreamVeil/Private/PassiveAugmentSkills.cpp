@@ -5,6 +5,7 @@
 #include "MainPlayerCharacter.h"
 #include "DispatchTableComponent.h"
 #include "DreamAugmentRuntime.h"
+#include "DreamAugmentFeedback.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -178,6 +179,7 @@ void UVampireSkill::OnDamageDealt(float FinalDamage)
     const float Before=Stats->GetCurrentHealth();
     Stats->Heal(Amount);
     WindowHealing+=FMath::Max(0.0f,Stats->GetCurrentHealth()-Before);
+    if(Stats->GetCurrentHealth()>Before)UDreamAugmentFeedback::Emit(GetOwnerActor(),EAugmentID::Vampire,EDreamAugmentCueShape::Ring,GetOwnerActor()->GetActorLocation()-FVector(0,0,80),65,.35f);
 }
 
 //재생력 회복 타이머 시작 이미 돌고 있으면 무시
@@ -230,5 +232,6 @@ void URegenerationSkill::ProcessRegenerationTick()
     //체력이 꽉 차 있으면 잃은 체력이 0이라 회복량도 0이 됨 Heal이 알아서 아무것도 안 함
     const float LostHealth = Stats->GetMaxHealth() - Stats->GetCurrentHealth();
 
-    Stats->Heal(LostHealth * REGENERATION_LOST_HEALTH_RATIO);
+    const float Before=Stats->GetCurrentHealth();Stats->Heal(LostHealth * REGENERATION_LOST_HEALTH_RATIO);
+    if(Stats->GetCurrentHealth()>Before)UDreamAugmentFeedback::Emit(GetOwnerActor(),EAugmentID::Regeneration,EDreamAugmentCueShape::Ring,GetOwnerActor()->GetActorLocation()-FVector(0,0,80),70,.5f);
 }

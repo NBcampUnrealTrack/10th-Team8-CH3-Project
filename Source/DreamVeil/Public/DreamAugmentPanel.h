@@ -74,6 +74,7 @@ private:
     UPROPERTY() TObjectPtr<UDreamAugmentActionButton> Reroll;
     UPROPERTY() TObjectPtr<UTextBlock> RerollLabel;
     UPROPERTY() TObjectPtr<UTextBlock> HUDText;
+    UPROPERTY() TObjectPtr<UTextBlock> FeedbackLabel;
     UPROPERTY() TObjectPtr<UBorder> HealthCapMarker;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> SkillLabels;
     UPROPERTY() TArray<TObjectPtr<UTextBlock>> SkillKeyLabels;
