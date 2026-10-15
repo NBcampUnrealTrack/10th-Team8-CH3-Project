@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
@@ -13,6 +13,7 @@ class APawn;
 class USoundBase;
 class USoundClass;
 class USoundMix;
+class UDreamBalanceProfile;
 
 //난이도 죽거나 시간 초과로 실패했을 때 증강 파츠 꿈의 조각 소총을 얼마나 잃는지
 //팀에서 상의해서 안 쓸 난이도는 빼도 됨 규칙은 FailCurrentLevel ContinueAfterDeath에만 있음
@@ -24,8 +25,11 @@ enum class EGameDifficulty : uint8
 	//죽거나 실패하면 그 레벨에서 얻은 것만 잃고 레벨에 들어가기 전 상태로 로비로
 	Normal,
 	//사망 또는 시간 초과 게임 오버 시 저장/진행도 초기화 후 로비 복귀
-	Hard
+	Hard,
+    // Append to preserve Easy/Normal/Hard values in existing saves and assets.
+    SuperEasy
 };
+DECLARE_DYNAMIC_MULTICAST_DELEGATE_OneParam(FOnDifficultyChanged, EGameDifficulty, Difficulty);
 
 //레벨이 바뀌어도 남는 게임 전체 정보
 //플레이어가 얻은 증강 기록을 레벨을 넘기기 전에 저장하고 새 레벨의 플레이어에게 복원함
@@ -39,6 +43,13 @@ class DREAMVEIL_API UDreamVeilGameInstance : public UGameInstance
 
 public:
 	UDreamVeilGameInstance();
+    UPROPERTY(BlueprintAssignable, Category="Difficulty")
+    FOnDifficultyChanged OnDifficultyChanged;
+    UFUNCTION(BlueprintPure, Category="Balance")
+    UDreamBalanceProfile* GetBalanceProfile() const { return BalanceProfile; }
+private:
+    UPROPERTY() TObjectPtr<UDreamBalanceProfile> BalanceProfile;
+public:
 
 	//플레이어의 증강 기록을 저장 다음 레벨을 열기 직전에 부를 것
 	UFUNCTION(BlueprintCallable, Category = "Augment")

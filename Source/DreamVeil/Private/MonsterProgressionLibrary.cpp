@@ -1,6 +1,7 @@
-#include "MonsterProgressionLibrary.h"
+﻿#include "MonsterProgressionLibrary.h"
 
 #include "DreamVeilGameInstance.h"
+#include "DreamBalanceProfile.h"
 #include "EliteMonster.h"
 #include "MainGameModeBase.h"
 #include "MainPlayerCharacter.h"
@@ -46,6 +47,8 @@ float UMonsterProgressionLibrary::GetDifficultyStatScale(const UObject* WorldCon
 		0,
 		static_cast<int32>(UE_ARRAY_COUNT(MONSTER_STAT_SCALE_BY_DIFFICULTY)) - 1);
 
+    const auto* Profile=DreamVeilGameInstance->GetBalanceProfile();
+    if(Profile && Profile->DifficultyStatScales.IsValidIndex(DifficultyIndex))return FMath::Max(.01f,Profile->DifficultyStatScales[DifficultyIndex]);
 	return MONSTER_STAT_SCALE_BY_DIFFICULTY[DifficultyIndex];
 }
 
@@ -66,7 +69,9 @@ float UMonsterProgressionLibrary::GetStageStatScale(const UObject* WorldContextO
 	{
 		const float ElapsedMinutes = World->GetTimeSeconds() / 60.0f;
 
-		return 1.0f + ENDLESS_STAT_SCALE_PER_MINUTE * ElapsedMinutes;
+        const auto* Profile=DreamVeilGameInstance->GetBalanceProfile();
+        const float Growth=Profile?FMath::Max(0.0f,Profile->EndlessStatGrowthPerMinute):ENDLESS_STAT_SCALE_PER_MINUTE;
+		return 1.0f + Growth * ElapsedMinutes;
 	}
 
 	const int32 LevelNumber = DreamVeilGameInstance->GetCurrentLevelNumber();
@@ -82,6 +87,8 @@ float UMonsterProgressionLibrary::GetStageStatScale(const UObject* WorldContextO
 		0,
 		static_cast<int32>(UE_ARRAY_COUNT(MONSTER_STAT_SCALE_BY_STAGE)) - 1);
 
+    const auto* Profile=DreamVeilGameInstance->GetBalanceProfile();
+    if(Profile && Profile->StageStatScales.IsValidIndex(StageIndex))return FMath::Max(.01f,Profile->StageStatScales[StageIndex]);
 	return MONSTER_STAT_SCALE_BY_STAGE[StageIndex];
 }
 

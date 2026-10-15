@@ -11,6 +11,7 @@ class UDispatchTableComponent;
 class UInventoryComponent;
 class UWeaponBase;
 class UAnimMontage;
+class UAnimSequence;
 class UAnimInstance;
 class UAudioComponent;
 class USoundBase;
@@ -71,6 +72,19 @@ class DREAMVEIL_API AMainPlayerCharacter : public ACharacter
 public:
 
 	AMainPlayerCharacter();
+
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats|Growth", meta=(ClampMin="0"))
+    float HealthPerLevel = 2.0f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats|Growth", meta=(ClampMin="0"))
+    float AttackPerLevel = 0.25f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Animation|Death")
+    TObjectPtr<UAnimSequence> DeathAnimation;
+private:
+    void ApplyLevelGrowth();
+    float AppliedLevelHealth = 0.0f;
+    float AppliedLevelAttack = 0.0f;
+    bool bDeathPresentationStarted = false;
+public:
 
 	void ConfigureCameraCollision();
 	virtual void CalcCamera(float DeltaTime, FMinimalViewInfo& OutResult) override;
@@ -262,6 +276,9 @@ public:
 	UFUNCTION(BlueprintCallable, Category = "Augment")
 	bool SelectAugmentChoice(EAugmentID AugmentID);
 
+	UFUNCTION(BlueprintPure, Category="Augment")
+	bool IsAugmentChoiceInputReady() const;
+
 	//증강 선택 보상을 하나 줌 레벨업 한 번과 같은 효과
 	//몬스터가 떨군 증강 아이템을 주웠을 때 아이템 쪽에서 부를 것 죽은 상태면 무시
 	UFUNCTION(BlueprintCallable, Category = "Augment")
@@ -420,6 +437,7 @@ private:
 
 	//아직 띄우지 못한 레벨업 보상 수 선택지를 고르는 동안 또 레벨이 오르면 쌓임
 	int32 PendingAugmentChoiceCount = 0;
+	double AugmentChoiceUnlockTime = 0.0;
 
 	//현재 스태미나 뛰는 동안 줄고 멈추면 잠깐 쉬었다가 다시 참
 	float CurrentStamina;

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/StaticMeshComponent.h"
@@ -148,6 +148,12 @@ protected:
 	//발사음 볼륨 배율 1이 원본 크기 권총 기본 0.7 소총은 연사라 더 자주 울려서 생성자에서 0.5로 낮춤
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect", meta = (ClampMin = "0", UIMin = "0", UIMax = "1"))
 	float FireSoundVolume = 0.4f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Effect", meta=(ClampMin="0.1",ClampMax="2"))
+    float MuzzleFlashScale = 1.0f;
+
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Weapon|Effect", meta=(ClampMin="0.5",ClampMax="2"))
+    float FireSoundPitch = 1.0f;
 
 	//벽 바닥 물건처럼 폰이 아닌 곳에 맞았을 때 튀는 파편 이펙트
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Weapon|Effect")

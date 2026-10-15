@@ -1,7 +1,8 @@
-    //L4까지 다 깼으면 열 레벨이 없음 이때 로비 UI는 Endless 버튼을 보여줘야 함
+﻿    //L4까지 다 깼으면 열 레벨이 없음 이때 로비 UI는 Endless 버튼을 보여줘야 함
     //깬 레벨 수가 곧 다음 레벨의 인덱스 하나도 안 깼으면 0번인 L1
     //실수로 두 번 불려도 레벨 개수를 넘지 않게 막음
 #include "DreamVeilGameInstance.h"
+#include "DreamBalanceProfile.h"
 
 #include "DispatchTableComponent.h"
 #include "InventoryComponent.h"
@@ -51,10 +52,10 @@ const TCHAR* const ENDLESS_MAP_PATH = TEXT("/Game/Endless/Endless");
 //난이도가 몬스터 스폰 곡선 경사(AMonsterSpawnVolume::DifficultyCurve)에 거는 배율 순서는 쉬움 보통 어려움
 //그 값은 작을수록 초반부터 가파르게 어려워지므로 쉬움은 1보다 크게 어려움은 1보다 작게 둠
 //여기 숫자만 바꾸면 난이도별 체감이 조절됨
-const float SPAWN_CURVE_SCALE_BY_DIFFICULTY[] = { 1.6f, 1.0f, 0.5f };
+const float SPAWN_CURVE_SCALE_BY_DIFFICULTY[] = { 1.6f, 1.0f, 0.5f, 2.0f };
 
 //난이도 수와 표의 칸 수가 어긋나면 컴파일 단계에서 바로 알 수 있게 막음
-static_assert(static_cast<int32>(UE_ARRAY_COUNT(SPAWN_CURVE_SCALE_BY_DIFFICULTY)) == static_cast<int32>(EGameDifficulty::Hard) + 1, "SPAWN_CURVE_SCALE_BY_DIFFICULTY needs one value per difficulty");
+static_assert(static_cast<int32>(UE_ARRAY_COUNT(SPAWN_CURVE_SCALE_BY_DIFFICULTY)) == static_cast<int32>(EGameDifficulty::SuperEasy) + 1, "SPAWN_CURVE_SCALE_BY_DIFFICULTY needs one value per difficulty");
 
 //플레이어의 증강 기록을 저장
 void UDreamVeilGameInstance::SavePlayerAugments(UDispatchTableComponent* PlayerDispatchTable)
@@ -207,7 +208,7 @@ void UDreamVeilGameInstance::FailCurrentLevel()
     //진행도(ClearedLevelCount)도 그대로라 로비에서 게임 시작을 누르면 같은 레벨을 다시 도전함
 
     //쉬움은 이번 판에 얻은 증강 인벤토리 무기까지 전부 저장 쉬움은 모으기 편하게 하려는 난이도라 위 꼼수를 막지 않음
-    if (Difficulty == EGameDifficulty::Easy)
+    if (Difficulty == EGameDifficulty::Easy || Difficulty == EGameDifficulty::SuperEasy)
     {
         SaveCurrentPlayerProgress();
     }
@@ -337,7 +338,7 @@ bool UDreamVeilGameInstance::LoadGameFromSlot()
 
     ClearedLevelCount = SaveData->ClearedLevelCount;
     bHardRunEnded = false;
-    Difficulty = SaveData->Difficulty;
+    Difficulty = uint8(SaveData->Difficulty)<=uint8(EGameDifficulty::SuperEasy)?SaveData->Difficulty:EGameDifficulty::Normal;
     SavedPlayerAugmentHistory = SaveData->AugmentHistory;
     SavedParts = SaveData->Parts;
     SavedDreamShards = SaveData->DreamShards;
@@ -374,7 +375,11 @@ FText UDreamVeilGameInstance::GetSavedGameSummary() const
 
     FText DifficultyText = NSLOCTEXT("Save", "SummaryNormal", "보통");
 
-    if (SaveData->Difficulty == EGameDifficulty::Easy)
+    if (SaveData->Difficulty == EGameDifficulty::SuperEasy)
+    {
+        DifficultyText = NSLOCTEXT("Save", "SummarySuperEasy", "슈퍼 겁쟁이");
+    }
+    else if (SaveData->Difficulty == EGameDifficulty::Easy)
     {
         DifficultyText = NSLOCTEXT("Save", "SummaryEasy", "쉬움");
     }
@@ -421,6 +426,9 @@ bool UDreamVeilGameInstance::OpenEndless()
         return false;
     }
 
+    // Capture purchases, currency and level progress made in the lobby before travel.
+    SaveCurrentPlayerProgress();
+    bHardRunEnded = false;
     UGameplayStatics::OpenLevel(this, ENDLESS_MAP_PATH);
 
     return true;
@@ -474,6 +482,8 @@ bool UDreamVeilGameInstance::IsInLobby() const
 
 UDreamVeilGameInstance::UDreamVeilGameInstance()
 {
+    static ConstructorHelpers::FObjectFinder<UDreamBalanceProfile> Profile(TEXT("/Game/Data/DA_DreamBalance"));
+    BalanceProfile=Profile.Object;
     //메인 메뉴 곡만 경로로 직접 찾음 게임 인스턴스는 블루프린트가 없어서 에디터에서 지정할 칸이 없음
     //곡을 바꾸려면 같은 경로에 다시 임포트하거나 여기 경로를 고칠 것
     static ConstructorHelpers::FObjectFinder<USoundBase> MainMenuBGMFinder(TEXT("/Game/Audio/BGM/BGM_MainMenu.BGM_MainMenu"));
@@ -593,7 +603,9 @@ void UDreamVeilGameInstance::CheatSetClearedLevelCount(int32 NewClearedCount)
 //난이도를 정함
 void UDreamVeilGameInstance::SetDifficulty(EGameDifficulty NewDifficulty)
 {
+    if (uint8(NewDifficulty) > uint8(EGameDifficulty::SuperEasy)) return;
     Difficulty = NewDifficulty;
+    OnDifficultyChanged.Broadcast(Difficulty);
 }
 
 //지금 난이도
@@ -606,7 +618,9 @@ EGameDifficulty UDreamVeilGameInstance::GetDifficulty() const
 //enum 값을 그대로 표의 번호로 쓰므로 난이도를 추가하면 위 표에도 값을 하나 더해야 함(static_assert가 잡아줌)
 float UDreamVeilGameInstance::GetSpawnCurveScale() const
 {
-    return SPAWN_CURVE_SCALE_BY_DIFFICULTY[static_cast<int32>(Difficulty)];
+    const int32 Index=FMath::Clamp(int32(Difficulty),0,int32(EGameDifficulty::SuperEasy));
+    if(BalanceProfile && BalanceProfile->EliteCurveScales.IsValidIndex(Index))return FMath::Max(.1f,BalanceProfile->EliteCurveScales[Index]);
+    return SPAWN_CURVE_SCALE_BY_DIFFICULTY[Index];
 }
 
 //플레이어 인벤토리를 저장

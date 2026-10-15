@@ -1,4 +1,4 @@
-#include "PassiveAugmentSkills.h"
+﻿#include "PassiveAugmentSkills.h"
 
 #include "AugmentTypes.h"
 #include "CombatStatsComponent.h"
@@ -84,19 +84,14 @@ void UBerserkerSkill::UpdateState()
         return;
     }
 
-    const bool bShouldActivate = Stats->GetHealthPercentage() <= BERSERKER_THRESHOLD;
-
-    if (bShouldActivate && !bActivated)
+    const float HealthRatio=Stats->GetHealthPercentage();
+    const float DesiredMultiplier=HealthRatio<=BERSERKER_CRITICAL_THRESHOLD?BERSERKER_CRITICAL_MULTIPLIER:
+        (HealthRatio<=BERSERKER_THRESHOLD?BERSERKER_MULTIPLIER:1.0f);
+    if(!FMath::IsNearlyEqual(DesiredMultiplier,AppliedMultiplier))
     {
-        Stats->MultiplyAttackPower(BERSERKER_MULTIPLIER);
-        bActivated = true;
-        return;
-    }
-
-    if (!bShouldActivate && bActivated)
-    {
-        Stats->MultiplyAttackPower(1.0f / BERSERKER_MULTIPLIER);
-        bActivated = false;
+        // Replace only this skill's factor, preserving growth and other attack modifiers.
+        Stats->MultiplyAttackPower(DesiredMultiplier/AppliedMultiplier);
+        AppliedMultiplier=DesiredMultiplier;
     }
 }
 
@@ -165,7 +160,17 @@ void UVampireSkill::OnDamageDealt(float FinalDamage)
         return;
     }
 
-    Stats->Heal(FinalDamage * VAMPIRE_HEAL_RATIO);
+    if(!GetWorld() || FinalDamage<=0 || Stats->IsDead())return;
+    const float Now=GetWorld()->GetTimeSeconds();
+    if(HealWindowStart<0 || Now<HealWindowStart || Now-HealWindowStart>=1.0f)
+    {
+        HealWindowStart=Now;WindowHealing=0;
+    }
+    const float Remaining=FMath::Max(0.0f,Stats->GetMaxHealth()*VAMPIRE_MAX_HEALTH_RATIO_PER_SECOND-WindowHealing);
+    const float Amount=FMath::Min(FinalDamage*VAMPIRE_HEAL_RATIO,Remaining);
+    const float Before=Stats->GetCurrentHealth();
+    Stats->Heal(Amount);
+    WindowHealing+=FMath::Max(0.0f,Stats->GetCurrentHealth()-Before);
 }
 
 //재생력 회복 타이머 시작 이미 돌고 있으면 무시

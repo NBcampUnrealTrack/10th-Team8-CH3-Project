@@ -58,11 +58,11 @@ public:
 	virtual void Apply() override;
 
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;
-    virtual void ResetForPool() override { bActivated = false; }
+    virtual void ResetForPool() override { AppliedMultiplier = 1.0f; }
 
 private:
 	//배율이 현재 적용된 상태인지 중복 곱하기 방지
-	bool bActivated = false;
+	float AppliedMultiplier = 1.0f;
 
 	//체력 비율을 보고 배율을 켜거나 끔
 	void UpdateState();
@@ -107,6 +107,10 @@ class DREAMVEIL_API UVampireSkill : public UAugmentSkillBase
 
 public:
 	virtual void OnDamageDealt(float FinalDamage) override;
+    virtual void ResetForPool() override { HealWindowStart = -1; WindowHealing = 0; }
+private:
+    float HealWindowStart = -1;
+    float WindowHealing = 0;
 };
 
 //재생력 일정 간격마다 체력 회복

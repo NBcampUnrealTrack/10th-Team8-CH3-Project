@@ -1,4 +1,10 @@
 ﻿#include "DreamUIBlueprintLibrary.h"
+#include "MainPlayerCharacter.h"
+#include "Containers/Ticker.h"
+#include "DreamSuperEasyButton.h"
+#include "DreamEnhancePreviewWidget.h"
+#include "InventoryComponent.h"
+#include "UObject/UnrealType.h"
 #include "DreamObjectPoolSubsystem.h"
 #include "Components/PanelWidget.h"
 #include "Engine/World.h"
@@ -22,6 +28,7 @@ void UDreamUIBlueprintLibrary::OpenBedDreamSelect(UUserWidget* Widget)
 void UDreamUIBlueprintLibrary::PlayMainMenuBGM(UUserWidget* Widget)
 {
     if (!Widget) return;
+    UDreamSuperEasyButton::Install(Widget);
     if (auto* GI = Widget->GetGameInstance<UDreamVeilGameInstance>())
         GI->PlayMainMenuBGM();
 }
@@ -65,6 +72,25 @@ bool UDreamUIBlueprintLibrary::EnterDream(UUserWidget* Widget, int32 LevelNumber
 void UDreamUIBlueprintLibrary::ApplyAugmentIcons(UUserWidget* Widget, const TArray<EAugmentID>& Choices, UDreamAugmentIconSet* IconSet)
 {
     if (!Widget) return;
+    auto* Pawn=Cast<AMainPlayerCharacter>(Widget->GetOwningPlayerPawn());
+    // Core ticker uses real time while the choice pauses world simulation.
+    if (Pawn && !Pawn->IsAugmentChoiceInputReady())
+    {
+        TArray<TWeakObjectPtr<UButton>> Buttons;
+        for (int32 Index=1;Index<=3;++Index)
+            if (auto* Button=Cast<UButton>(Widget->GetWidgetFromName(*FString::Printf(TEXT("Button_Choice%d"),Index))))
+            { Button->SetIsEnabled(false); Buttons.Add(Button); }
+        TWeakObjectPtr<AMainPlayerCharacter> WeakPawn=Pawn;
+        TWeakObjectPtr<UUserWidget> WeakWidget=Widget;
+        const int32 ChoiceCount=Choices.Num();
+        FTSTicker::GetCoreTicker().AddTicker(FTickerDelegate::CreateLambda([WeakPawn,WeakWidget,Buttons,ChoiceCount](float)
+        {
+            if (!WeakPawn.IsValid() || !WeakWidget.IsValid() || !WeakPawn->HasAugmentChoices()) return false;
+            if (!WeakPawn->IsAugmentChoiceInputReady()) return true;
+            for (int32 I=0;I<Buttons.Num();++I) if (Buttons[I].IsValid()) Buttons[I]->SetIsEnabled(I<ChoiceCount);
+            return false;
+        }),.05f);
+    }
     for (int32 Index = 0; Index < 3; ++Index)
     {
         auto* Image = Cast<UImage>(Widget->GetWidgetFromName(*FString::Printf(TEXT("Image_Choice%dIcon"), Index + 1)));
@@ -95,7 +121,9 @@ UUserWidget* UDreamUIBlueprintLibrary::AcquirePooledWidget(UObject* Context, TSu
     if (!World) return nullptr;
     if (!OwningPlayer) OwningPlayer = UGameplayStatics::GetPlayerController(Context, 0);
     UDreamObjectPoolSubsystem* Pool = World->GetSubsystem<UDreamObjectPoolSubsystem>();
-    return Pool ? Pool->AcquireWidget(Context, WidgetClass, OwningPlayer) : nullptr;
+    UUserWidget* Result = Pool ? Pool->AcquireWidget(Context, WidgetClass, OwningPlayer) : nullptr;
+    if (Result && WidgetClass && WidgetClass->GetFName() == TEXT("WBP_Computer_C")) UDreamEnhancePreviewWidget::Install(Result);
+    return Result;
 }
 void UDreamUIBlueprintLibrary::ReleasePooledWidget(UUserWidget* Widget)
 {
@@ -112,4 +140,22 @@ void UDreamUIBlueprintLibrary::ReleasePooledPanelChildren(UPanelWidget* Panel)
         if (UUserWidget* Widget = Cast<UUserWidget>(Child)) ReleasePooledWidget(Widget);
         else Panel->RemoveChild(Child);
     }
+}
+
+UWidget* UDreamUIBlueprintLibrary::FindNamedWidget(UUserWidget* Host,FName Name)
+{
+    return Host?Host->GetWidgetFromName(Name):nullptr;
+}
+
+bool UDreamUIBlueprintLibrary::SelectEnhancePart(UUserWidget* Host,int32 PartIndex)
+{
+    if(!Host || !Host->GetOwningPlayerPawn())return false;
+    const auto* Inventory=Host->GetOwningPlayerPawn()->FindComponentByClass<UInventoryComponent>();
+    auto* Selected=FindFProperty<FIntProperty>(Host->GetClass(),TEXT("SelectedEnhancePartIndex"));
+    if(!Inventory || !Selected)return false;
+    const bool Valid=Inventory->GetPartsView().IsValidIndex(PartIndex);
+    Selected->SetPropertyValue_InContainer(Host,Valid?PartIndex:INDEX_NONE);
+    if(UFunction* Refresh=Host->FindFunction(TEXT("RefreshEnhanceDetail")))Host->ProcessEvent(Refresh,nullptr);
+    if(auto* Preview=Cast<UDreamEnhancePreviewWidget>(Host->GetWidgetFromName(TEXT("EnhancePreviewNative"))))Preview->RefreshPreview();
+    return Valid;
 }

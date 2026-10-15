@@ -24,6 +24,7 @@ UDispatchTableComponent::UDispatchTableComponent()
     //여기서 채운 값은 블루프린트에 저장된 값이 덮어씀
     //그래서 BeginPlay에서 한 번 더 확인함 비어 있으면 그때 다시 채움
     AugmentPool.BuildDefault();
+    AugmentPool.FillDisplayTexts();
     PoolInitialAugments = AugmentPool;
 }
 
@@ -207,9 +208,9 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
             FText::AsNumber(STAMINA_UP_AMOUNT));
     case EAugmentID::Berserker:
         return FText::Format(
-            NSLOCTEXT("Augment", "BerserkerDesc", "체력이 {0}% 이하일 때 공격력이 {1}배가 됩니다."),
-            FormatPercentText(BERSERKER_THRESHOLD),
-            FText::AsNumber(BERSERKER_MULTIPLIER));
+            NSLOCTEXT("Augment","BerserkerTieredDesc","체력이 {0}% 이하일 때 공격력 {1}배, {2}% 이하일 때 {3}배가 됩니다. 두 배율은 중첩되지 않습니다."),
+            FormatPercentText(BERSERKER_THRESHOLD),FText::AsNumber(BERSERKER_MULTIPLIER),
+            FormatPercentText(BERSERKER_CRITICAL_THRESHOLD),FText::AsNumber(BERSERKER_CRITICAL_MULTIPLIER));
     case EAugmentID::LastFortress:
         return FText::Format(
             NSLOCTEXT("Augment", "LastFortressDesc", "체력이 {0}% 이하일 때 방어력이 {1}배가 됩니다."),
@@ -221,15 +222,15 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
             FormatPercentText(THORN_ARMOR_DEFENCE_RATIO));
     case EAugmentID::Vampire:
         return FText::Format(
-            NSLOCTEXT("Augment", "VampireDesc", "입힌 피해의 {0}%만큼 체력을 회복합니다."),
-            FormatPercentText(VAMPIRE_HEAL_RATIO));
+            NSLOCTEXT("Augment","VampireCappedDesc","실제로 깎은 체력의 {0}%를 회복합니다. 1초 동안 최대 체력의 {1}%까지 회복하며, 화염·반사 피해는 제외됩니다."),
+            FormatPercentText(VAMPIRE_HEAL_RATIO),FormatPercentText(VAMPIRE_MAX_HEALTH_RATIO_PER_SECOND));
     case EAugmentID::Regeneration:
         return FText::Format(
             NSLOCTEXT("Augment", "RegenerationDesc", "{0}초마다 잃은 체력의 {1}%를 회복합니다."),
             FText::AsNumber(REGENERATION_INTERVAL),
             FormatPercentText(REGENERATION_LOST_HEALTH_RATIO));
     case EAugmentID::Knockback:
-        return NSLOCTEXT("Augment", "KnockbackDesc", "여분의 열쇠를 두었으니까ㅏㅏㅏ!!!(적을 경직시킵니다.)");
+        return NSLOCTEXT("Augment", "KnockbackElectricDesc", "총에 맞은 적을 밀어내며 전기 효과가 발생합니다.");
     case EAugmentID::AreaAttack:
         return FText::Format(
             NSLOCTEXT("Augment", "AreaAttackDesc", "총알이 맞은 지점 주변 {0}m 안의 적에게 피해의 {1}%가 함께 들어갑니다. 멀수록 약해집니다."),
@@ -411,6 +412,7 @@ void UDispatchTableComponent::BeginPlay()
     //그러면 레벨업을 해도 뽑을 증강이 없어서 보상만 조용히 사라짐
     //BuildDefault는 이미 차 있으면 건너뛰므로 블루프린트에서 일부러 채운 목록은 그대로 둠
     AugmentPool.BuildDefault();
+    AugmentPool.FillDisplayTexts();
     PoolInitialAugments = AugmentPool;
 
     if (AugmentPool.Augments.Num() == 0)

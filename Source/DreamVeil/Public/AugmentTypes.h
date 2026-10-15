@@ -1,4 +1,4 @@
-//지속 공격 독 데미지 간격
+﻿//지속 공격 독 데미지 간격
 //지속 공격 독 지속 시간 다시 맞으면 시간만 처음부터 다시
 #pragma once
 
@@ -66,7 +66,9 @@ const float REGENERATION_INTERVAL = 2.0f;
 //흡혈 회복 비율 회복량 = 입힌 피해 * 이 값
 //0.1에서 0.005로 내림 연사 무기에 폭발탄까지 붙으면 한 번 쏠 때 들어가는 타격 수가 많아서
 //비율이 조금만 높아도 맞으면서 계속 차오름
-const float VAMPIRE_HEAL_RATIO = 0.005f;
+const float VAMPIRE_HEAL_RATIO = 0.0035f;
+// Shared across direct and splash hits: at most 1% maximum health per game-time second.
+const float VAMPIRE_MAX_HEALTH_RATIO_PER_SECOND = 0.01f;
 
 //가시 갑옷 반사량 계수 반사 데미지 = 방어력 * 이 값
 //받은 데미지 비율이 아니라 방어력을 보는 이유 약한 공격을 여러 번 맞을 때도 반사가 일정하고
@@ -86,6 +88,8 @@ const float BERSERKER_THRESHOLD = 0.4f;
 
 //광전사 공격력 배율
 const float BERSERKER_MULTIPLIER = 1.5f;
+const float BERSERKER_CRITICAL_THRESHOLD = 0.1f;
+const float BERSERKER_CRITICAL_MULTIPLIER = 2.0f;
 
 //최후의 요새 발동 체력 비율
 const float LAST_FORTRESS_THRESHOLD = 0.3f;

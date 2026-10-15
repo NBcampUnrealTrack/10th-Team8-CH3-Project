@@ -1,6 +1,10 @@
-#include "BTTask_MonsterAttack.h"
+﻿#include "BTTask_MonsterAttack.h"
 
 #include "AIController.h"
+#include "NavigationSystem.h"
+#include "Navigation/PathFollowingComponent.h"
+#include "TimerManager.h"
+#include "CombatStatsComponent.h"
 #include "MonsterBase.h"
 #include "BehaviorTree/BehaviorTreeComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -47,6 +51,30 @@ EBTNodeResult::Type UBTTask_MonsterAttack::ExecuteTask(
         return EBTNodeResult::Failed;
     }
 
+    // Ranged enemies make space before shooting when the player crowds them.
+    // One bounded navigation request and timer per retreat; no extra per-frame AI tick.
+    const float AttackRange = Monster->GetMonsterAttackRange();
+    const float Distance = FVector::Dist2D(Monster->GetActorLocation(), Target->GetActorLocation());
+    if (Monster->GetAttackType() == EMonsterAttackType::Ranged && !Monster->IsRagdoll()
+        && Monster->MonsterCombatStats && !Monster->MonsterCombatStats->IsDead()
+        && AttackRange > 400 && Distance < FMath::Clamp(AttackRange * .35f, 180.0f, 450.0f))
+    {
+        if (auto* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(Monster->GetWorld()))
+        {
+            const FVector Away = (Monster->GetActorLocation()-Target->GetActorLocation()).GetSafeNormal2D();
+            FNavLocation Point;
+            const FVector Destination = Monster->GetNavAgentLocation() + Away * 450;
+            if (!Away.IsNearlyZero() && Nav->ProjectPointToNavigation(Destination,Point,FVector(120,120,250))
+                && FVector::Dist2D(Point.Location,Target->GetActorLocation()) > Distance+150
+                && AIController->MoveToLocation(Point.Location,60,true,true,false,false,nullptr,false)
+                    == EPathFollowingRequestResult::RequestSuccessful)
+            {
+                AttackingMonster=Monster;RunningBT=&OwnerComp;bRetreating=true;
+                Monster->GetWorldTimerManager().SetTimer(RetreatTimer,this,&UBTTask_MonsterAttack::HandleRetreatFinished,1.0f,false);
+                return EBTNodeResult::InProgress;
+            }
+        }
+    }
     AIController->StopMovement();
 
     AttackingMonster = Monster;
@@ -99,16 +127,26 @@ EBTNodeResult::Type UBTTask_MonsterAttack::AbortTask(
     return EBTNodeResult::Aborted;
 }
 
+void UBTTask_MonsterAttack::HandleRetreatFinished()
+{
+    UBehaviorTreeComponent* BT=RunningBT.Get();
+    ClearBinding();
+    if(BT)FinishLatentTask(*BT,EBTNodeResult::Succeeded);
+}
+
 void UBTTask_MonsterAttack::ClearBinding()
 {
     if (AMonsterBase* Monster = AttackingMonster.Get())
     {
+        Monster->GetWorldTimerManager().ClearTimer(RetreatTimer);
+        if(bRetreating)if(auto* AI=Cast<AAIController>(Monster->GetController()))AI->StopMovement();
         if (AttackFinishedHandle.IsValid())
         {
             Monster->OnAttackFinished.Remove(AttackFinishedHandle);
         }
     }
 
+    bRetreating=false;
     AttackFinishedHandle.Reset();
     AttackingMonster.Reset();
     RunningBT.Reset();

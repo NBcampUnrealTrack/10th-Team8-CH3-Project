@@ -6,6 +6,9 @@
 //지속 공격 한 대상에게 독 데미지 한 번
     //독 데미지 표식을 달아서 대상 방어력을 무시하고 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않음
 #include "ActiveAugmentSkills.h"
+#include "Particles/ParticleSystem.h"
+#include "Kismet/GameplayStatics.h"
+#include "UObject/ConstructorHelpers.h"
 #include "DreamObjectPoolSubsystem.h"
 
 #include "AugmentDamageLibrary.h"
@@ -23,11 +26,17 @@
 //감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
 //감속 대상이 3초 안에 죽을 수 있어서 약한 참조 사용
 //넉백 총에 맞은 적을 쏜 사람 반대쪽으로 살짝 밀어냄
+UKnockbackSkill::UKnockbackSkill()
+{
+    static ConstructorHelpers::FObjectFinderOptional<UParticleSystem> Effect(TEXT("/Game/Effects/Augments/P_KnockbackElectricHit"));
+    ElectricHit=Effect.Get();
+}
+
 void UKnockbackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
     ACharacter* TargetCharacter = Cast<ACharacter>(HitResult.GetActor());
 
-    if (!TargetCharacter)
+    if (!TargetCharacter || HitDamage<=0.f)
     {
         return;
     }
@@ -64,6 +73,13 @@ void UKnockbackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
     //bVelocityChange를 true로 두는 이유 질량을 무시하고 속도를 그대로 더함
     //false면 힘을 질량으로 나눠서 무거운 적은 거의 안 밀리는데 몬스터마다 질량이 달라 예측이 안 됨
     MovementComponent->AddImpulse(KnockbackDirection * KNOCKBACK_IMPULSE, true);
+    const float Now=GetWorld()?GetWorld()->GetTimeSeconds():0.f;
+    if (ElectricHit && GetWorld() && GetWorld()->GetNetMode()!=NM_DedicatedServer && (LastElectricTime<0.f || Now-LastElectricTime>=.1f))
+    {
+        LastElectricTime=Now;
+        UGameplayStatics::SpawnEmitterAttached(ElectricHit,TargetCharacter->GetRootComponent(),NAME_None,HitResult.ImpactPoint+HitResult.ImpactNormal*12.f,
+            FRotator::ZeroRotator,FVector(1),EAttachLocation::KeepWorldPosition,true,EPSCPoolMethod::AutoRelease,true);
+    }
 }
 
 //범위 공격 총알이 맞은 지점 주변 대상에게 데미지

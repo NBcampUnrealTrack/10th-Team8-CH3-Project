@@ -20,6 +20,7 @@ class UDecalComponent;
 class UMonsterSkill;
 class UMaterialInterface;
 class UParticleSystem;
+class USoundBase;
 
 //사망 연출과 별개로 게임모드에 처치 완료를 알림. 보스는 사망 5초 뒤 전달함
 DECLARE_MULTICAST_DELEGATE(FOnMonsterDeathReported);
@@ -313,4 +314,12 @@ private:
 
 	FTimerHandle AttackHitTimer;
 	FTimerHandle AttackEndTimer;
+    void FinishHitFeedback();
+    FTimerHandle HitFeedbackTimer;
+    float LastHitFeedbackTime=-100.0f;
+    float LastHitSoundTime=-100.0f;
+    UPROPERTY(EditDefaultsOnly, Category="Monster|Feedback")
+    TObjectPtr<USoundBase> HitFeedbackSound;
+    float HitFeedbackOriginalRate=1.0f;
+    bool bHitFeedbackActive=false;
 };

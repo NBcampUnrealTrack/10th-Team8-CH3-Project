@@ -8,6 +8,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "NiagaraFunctionLibrary.h"
 #include "NiagaraSystem.h"
+#include "NiagaraComponent.h"
 #include "Particles/ParticleSystem.h"
 #include "Sound/SoundBase.h"
 #include "MonsterBase.h"
@@ -139,17 +140,18 @@ void UWeaponBase::PlayMuzzleEffects(const FVector& MuzzleLocation)
 		//총구 소켓에 붙여서 재생 소켓이 없으면 무기 원점에 붙음 GetMuzzleLocation과 같은 규칙
 		//SnapToTarget은 소켓의 위치와 방향을 그대로 따름 그래서 소켓의 X축이 총구 앞을 봐야 불꽃이 앞으로 나감
 		//bAutoDestroy가 true라 재생이 끝나면 알아서 지워짐 연사해도 컴포넌트가 쌓이지 않음
-		UNiagaraFunctionLibrary::SpawnSystemAttached(
+		UNiagaraComponent* Flash=UNiagaraFunctionLibrary::SpawnSystemAttached(
 			MuzzleFlashEffect, this, MuzzleSocketName,
 			FVector::ZeroVector, FRotator::ZeroRotator,
 			EAttachLocation::SnapToTarget, true, true, ENCPoolMethod::AutoRelease
 		);
+        if(Flash)Flash->SetRelativeScale3D(FVector(FMath::Clamp(MuzzleFlashScale,.1f,2.0f)));
 	}
 
 	if (FireSound && FireSoundVolume > 0.0f)
 	{
 		//총소리는 짧아서 붙이지 않고 쏜 자리에서 한 번 재생
-		UGameplayStatics::PlaySoundAtLocation(this, FireSound, MuzzleLocation, FireSoundVolume);
+		UGameplayStatics::PlaySoundAtLocation(this, FireSound, MuzzleLocation, FireSoundVolume,FMath::Clamp(FireSoundPitch,.5f,2.0f));
 	}
 }
 

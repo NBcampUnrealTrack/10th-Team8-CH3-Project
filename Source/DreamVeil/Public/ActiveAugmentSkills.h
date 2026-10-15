@@ -34,7 +34,12 @@ class DREAMVEIL_API UKnockbackSkill : public UAugmentSkillBase
 	GENERATED_BODY()
 
 public:
+    UKnockbackSkill();
 	virtual void OnWeaponHit(const FHitResult& HitResult, float HitDamage) override;
+    virtual void ResetForPool() override { Super::ResetForPool(); LastElectricTime=-1.f; }
+private:
+    UPROPERTY() TObjectPtr<class UParticleSystem> ElectricHit;
+    float LastElectricTime=-1.f;
 };
 
 //범위 공격 총알이 맞은 지점을 중심으로 반경 안의 대상에게 총 데미지 비율만큼 데미지
@@ -42,7 +47,6 @@ UCLASS()
 class DREAMVEIL_API UAreaAttackSkill : public UAugmentSkillBase
 {
 	GENERATED_BODY()
-
 public:
 	virtual void OnWeaponHit(const FHitResult& HitResult, float HitDamage) override;
 };

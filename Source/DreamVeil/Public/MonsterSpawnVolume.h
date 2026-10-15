@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -84,6 +84,9 @@ protected:
 	float DifficultyCurve;
 
 private:
+	bool TrySpawnMonster();
+	int32 SpawnSectorSequence = 0;
+
 	//아직 내보내지 못하고 남은 몬스터 수 웨이브 타이머가 하나씩 줄임
 	int32 PendingSpawnCount = 0;
 

@@ -1,4 +1,5 @@
 ﻿#include "MainPlayerCharacter.h"
+#include "HAL/PlatformTime.h"
 #include "MainPlayerController.h"
 #include "InteractableActorBase.h"
 #include "Engine/OverlapResult.h"
@@ -23,7 +24,9 @@
 #include "MonsterCollision.h"
 #include "Animation/AnimInstance.h"
 #include "Animation/AnimMontage.h"
+#include "Animation/AnimSequence.h"
 #include "Components/SkeletalMeshComponent.h"
+#include "Engine/SkeletalMesh.h"
 #include "UObject/ConstructorHelpers.h"
 #include "Components/AudioComponent.h"
 #include "Components/PostProcessComponent.h"
@@ -128,6 +131,8 @@ AMainPlayerCharacter::AMainPlayerCharacter()
 	RifleWeapon->SetupAttachment(GetMesh(), TEXT("Weapon_r_Rifle"));
 	RifleWeapon->SetHiddenInGame(true);
 
+    static ConstructorHelpers::FObjectFinder<UAnimSequence> DefaultDeath(TEXT("/Game/Animation/Death_Fwd"));
+    DeathAnimation = DefaultDeath.Object;
 	CurrentWeaponSlot = EWeaponSlot::Pistol;
 
 	NoramalSpeed = 630.0f;
@@ -320,6 +325,13 @@ float AMainPlayerCharacter::TakeDamage(float DamageAmount, FDamageEvent const& D
 //플레이어가 죽었을 때
 void AMainPlayerCharacter::HandleDead()
 {
+    if (bDeathPresentationStarted) return;
+    bDeathPresentationStarted = true;
+    if (DeathAnimation && GetMesh() && GetMesh()->GetSkeletalMeshAsset()
+        && GetMesh()->GetSkeletalMeshAsset()->GetSkeleton() == DeathAnimation->GetSkeleton())
+    {
+        GetMesh()->PlayAnimation(DeathAnimation, false);
+    }
 	//더 이상 조작하지 못하게 입력과 이동을 막음
 	if (APlayerController* PlayerController = Cast<APlayerController>(GetController()))
 	{
@@ -716,6 +728,7 @@ void AMainPlayerCharacter::NormalizeLevelProgress()
 	{
 		CurrentExperience -= GetRequiredExperience();
 		PlayerLevel++;
+        ApplyLevelGrowth();
 
 		//레벨마다 증강 선택 보상 하나
 		PendingAugmentChoiceCount++;
@@ -730,6 +743,7 @@ void AMainPlayerCharacter::RestoreLevelProgress(int32 SavedLevel, float SavedExp
 	//1보다 작은 값이 들어와도 레벨이 0이 되지 않게 막음
 	PlayerLevel = FMath::Max(SavedLevel, 1);
 	CurrentExperience = FMath::Max(SavedExperience, 0.0f);
+    ApplyLevelGrowth();
 
 	//되돌린 값이 이미 요구치를 넘었으면 여기서 레벨을 올려줌 보통은 아무 일도 안 일어남
 	NormalizeLevelProgress();
@@ -776,8 +790,14 @@ int32 AMainPlayerCharacter::GetPendingAugmentChoiceCount() const
 }
 
 //UI에서 고른 증강을 적용
+bool AMainPlayerCharacter::IsAugmentChoiceInputReady() const
+{
+	return HasAugmentChoices() && FPlatformTime::Seconds() >= AugmentChoiceUnlockTime;
+}
+
 bool AMainPlayerCharacter::SelectAugmentChoice(EAugmentID AugmentID)
 {
+	if (!IsAugmentChoiceInputReady()) return false;
 	//지금 띄운 선택지 중 하나만 고를 수 있음
 	if (!CurrentAugmentChoices.Contains(AugmentID))
 	{
@@ -850,6 +870,7 @@ void AMainPlayerCharacter::RefreshAugmentChoices()
 
 		SetAugmentChoicePaused(true);
 
+		AugmentChoiceUnlockTime = FPlatformTime::Seconds() + 1.0;
 		OnAugmentChoicesReady.Broadcast(CurrentAugmentChoices);
 
 		return;
@@ -879,6 +900,12 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 		return;
 	}
 
+	if (PendingAugmentChoiceCount <= 0)
+	{
+		if (!HasAugmentChoices()) SetAugmentChoicePaused(false);
+		return;
+	}
+
 	while (PendingAugmentChoiceCount > 0)
 	{
 		PendingAugmentChoiceCount--;
@@ -894,7 +921,8 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 			UE_LOG(LogTemp, Warning, TEXT("[Augment] 선택지 %d개 방송 게임 멈춤 여기까지 왔는데 창이 안 뜨면 위젯이 Add to Viewport를 안 한 것"),
 				CurrentAugmentChoices.Num());
 
-			OnAugmentChoicesReady.Broadcast(CurrentAugmentChoices);
+			AugmentChoiceUnlockTime = FPlatformTime::Seconds() + 1.0;
+		OnAugmentChoicesReady.Broadcast(CurrentAugmentChoices);
 			return;
 		}
 	}
@@ -1578,4 +1606,23 @@ void AMainPlayerCharacter::EndPlay(const EEndPlayReason::Type Reason)
 {
     if (IsValid(HeartbeatAudio)) { HeartbeatAudio->Stop(); HeartbeatAudio->DestroyComponent(); HeartbeatAudio = nullptr; }
     Super::EndPlay(Reason);
+}
+
+
+void AMainPlayerCharacter::ApplyLevelGrowth()
+{
+    if (!CombatStats) return;
+    const float Levels = float(FMath::Max(0, PlayerLevel - 1));
+    const float HealthBonus = Levels * FMath::Max(0.0f, HealthPerLevel);
+    const float AttackBonus = Levels * FMath::Max(0.0f, AttackPerLevel);
+    // Apply only the delta. Restoring the same level again cannot duplicate bonuses.
+    CombatStats->SetMaxHealth(CombatStats->GetMaxHealth() + HealthBonus - AppliedLevelHealth);
+    CombatStats->AddAttackPower(AttackBonus - AppliedLevelAttack);
+    AppliedLevelHealth = HealthBonus; AppliedLevelAttack = AttackBonus;
+    if (HealthBonus > 0.0f)
+    {
+        const float Health = CombatStats->GetCurrentHealth();
+        CombatStats->OnCurrentHealthChanged.Broadcast(Health, Health);
+    }
+    // Increasing max health does not refill current health or revive the player.
 }

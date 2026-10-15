@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/PlayerController.h"
@@ -20,6 +20,11 @@ class DREAMVEIL_API AMainPlayerController : public APlayerController
 	GENERATED_BODY()
 public:
 	AMainPlayerController();
+
+	UFUNCTION(BlueprintCallable, Category = "UI|Pause")
+	void TogglePauseMenu();
+	UFUNCTION(BlueprintPure, Category = "UI|Pause")
+	bool IsPauseMenuOpen() const;
 
 	//총성과 별개로 플레이어에게 들려주는 짧은 헤드샷 확인음. BP에서 다른 소리로 교체할 수 있음
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI|Headshot")
@@ -149,6 +154,9 @@ private:
 	//플레이어가 죽었을 때 게임 오버 화면을 띄우고 마우스로 버튼을 누를 수 있게 함
 	UFUNCTION()
 	void ShowGameOver();
+    void FinishDeathPresentation();
+    FTimerHandle DeathPresentationTimer;
+    bool bDeathPresentationActive = false;
 
 	//누르고 있던 키를 버리고 쌓인 속도를 지움
 	//메뉴가 뜨면 입력 모드가 UI로 바뀌어서 키를 떼는 신호가 캐릭터까지 오지 않음

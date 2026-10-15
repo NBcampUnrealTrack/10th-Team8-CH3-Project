@@ -2,6 +2,8 @@
 
 
 #include "MonsterBase.h"
+#include "Sound/SoundBase.h"
+#include "UObject/ConstructorHelpers.h"
 #include "DreamObjectPoolSubsystem.h"
 #include "MainGameModeBase.h"
 #include "BrainComponent.h"
@@ -36,6 +38,8 @@ const float DEATH_CORPSE_LINGER_TIME = 1.0f;
 
 AMonsterBase::AMonsterBase()
 {
+    static ConstructorHelpers::FObjectFinder<USoundBase> HitSound(TEXT("/Game/Audio/SFX/S_MonsterImpact"));
+    HitFeedbackSound=HitSound.Object;
 	PrimaryActorTick.bCanEverTick = false;
 	// 월드에 스폰됐을 경우 AIController Possess 시키기
 	//PlacedInWorld는 레벨에 손으로 놓아둔 몬스터에게만 컨트롤러를 붙여줌
@@ -811,6 +815,7 @@ bool AMonsterBase::IsHeadshotHit(const FHitResult& HitResult) const
 
 void AMonsterBase::OnDeath()
 {
+    FinishHitFeedback();
 	RefreshAnimationOptimization();
 	//사망 알림이 다시 들어와도 1초 대기 시간이 처음부터 시작되지 않도록 막음
 	if (GetWorldTimerManager().TimerExists(DeathTimer)) return;
@@ -916,7 +921,29 @@ float AMonsterBase::TakeDamage(float DamageAmount, FDamageEvent const& DamageEve
 		return 0.0f;
 	}
 
-	return UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
+    const float Applied=UAugmentDamageLibrary::ProcessIncomingDamage(this, Damage, DamageEvent.DamageTypeClass, EventInstigator, DamageCauser);
+    if(Applied>0 && HitFeedbackSound && GetWorld()->GetTimeSeconds()-LastHitSoundTime>=.12f)
+    {
+        if(const APawn* Listener=UGameplayStatics::GetPlayerPawn(this,0))
+        {
+            const float Distance=FVector::Dist(Listener->GetActorLocation(),GetActorLocation());
+            if(Distance<2000)
+            {
+                LastHitSoundTime=GetWorld()->GetTimeSeconds();
+                UGameplayStatics::PlaySoundAtLocation(this,HitFeedbackSound,GetActorLocation(),.3f*(1-Distance/2000));
+            }
+        }
+    }
+    if (Applied>0 && MonsterCombatStats && !MonsterCombatStats->IsDead() && !bIsRagdoll && !bIsAttacking
+        && !(MonsterSkill && MonsterSkill->IsUsingSkill()) && GetWorld()->GetTimeSeconds()-LastHitFeedbackTime>=.35f)
+    {
+        LastHitFeedbackTime=GetWorld()->GetTimeSeconds();
+        if(!bHitFeedbackActive)HitFeedbackOriginalRate=GetMesh()->GlobalAnimRateScale;
+        bHitFeedbackActive=true;GetMesh()->GlobalAnimRateScale=HitFeedbackOriginalRate*.55f;
+        RefreshAnimationOptimization();
+        GetWorldTimerManager().SetTimer(HitFeedbackTimer,this,&AMonsterBase::FinishHitFeedback,.07f,false);
+    }
+    return Applied;
 }
 
 //사망 모션을 재생하고 그 길이를 돌려줌 못 틀었으면 0
@@ -945,7 +972,7 @@ void AMonsterBase::RefreshAnimationOptimization()
 {
     USkeletalMeshComponent* MeshComponent = GetMesh();
     if (!MeshComponent) return;
-    const bool bUseOptimization = !bIsAttacking && !bIsRagdoll
+    const bool bUseOptimization = !bIsAttacking && !bIsRagdoll && !bHitFeedbackActive
         && !(MonsterSkill && MonsterSkill->IsUsingSkill())
         && !(MonsterCombatStats && MonsterCombatStats->IsDead());
     if (MeshComponent->bEnableUpdateRateOptimizations != bUseOptimization)
@@ -991,6 +1018,7 @@ void AMonsterBase::OnPoolAcquired()
 }
 void AMonsterBase::OnPoolReturned()
 {
+    FinishHitFeedback();LastHitFeedbackTime=LastHitSoundTime=-100.0f;
     CancelAttack(); if (MonsterSkill) MonsterSkill->ResetForPool(false);
     if (MonsterDispatchTable) MonsterDispatchTable->ResetForPool();
     if (MonsterCombatStats) MonsterCombatStats->SetOnFire(false, nullptr);
@@ -1005,4 +1033,12 @@ void AMonsterBase::OnPoolReturned()
     GetMesh()->SetSimulatePhysics(false); GetMesh()->SetCollisionEnabled(ECollisionEnabled::NoCollision);
     GetMesh()->SetComponentTickEnabled(false); GetMesh()->SetRenderCustomDepth(false);
     OnAttackFinished.Clear(); OnDeathReported.Clear(); bPoolLifeRegistered = false;
+}
+
+void AMonsterBase::FinishHitFeedback()
+{
+    GetWorldTimerManager().ClearTimer(HitFeedbackTimer);
+    if(bHitFeedbackActive && GetMesh())GetMesh()->GlobalAnimRateScale=HitFeedbackOriginalRate;
+    bHitFeedbackActive=false;
+    RefreshAnimationOptimization();
 }

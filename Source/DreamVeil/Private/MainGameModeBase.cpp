@@ -7,6 +7,7 @@
 #include "CombatStatsComponent.h"
 #include "DispatchTableComponent.h"
 #include "DreamVeilGameInstance.h"
+#include "DreamBalanceProfile.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
@@ -205,7 +206,12 @@ void AMainGameModeBase::RequestContinuousSpawn()
 	//몇 마리를 낼지 여기서 정하지 않는 이유 좁은 방과 넓은 마당의 적정 밀도가 다름 볼륨이 스스로 정함
 	for (TActorIterator<AMonsterSpawnVolume> VolumeIterator(GetWorld()); VolumeIterator; ++VolumeIterator)
 	{
-		VolumeIterator->SpawnTick();
+	        if (const auto* GI = GetGameInstance<UDreamVeilGameInstance>())
+        {
+            // About 10% fewer requests, while existing world population limits still apply.
+            if (GI->GetDifficulty() == EGameDifficulty::SuperEasy && FMath::FRand() < (GI->GetBalanceProfile()?FMath::Clamp(GI->GetBalanceProfile()->SuperEasySpawnSkipChance,0.0f,1.0f):.10f)) continue;
+        }
+	VolumeIterator->SpawnTick();
 	}
 }
 
@@ -234,9 +240,11 @@ int32 AMainGameModeBase::GetMaxAliveMonsters() const
 
 	if (DreamVeilGameInstance && DreamVeilGameInstance->IsInEndless())
 	{
-		return ENDLESS_MAX_ALIVE_MONSTERS;
+		return DreamVeilGameInstance->GetBalanceProfile()?FMath::Max(1,DreamVeilGameInstance->GetBalanceProfile()->EndlessMonsterLimit):ENDLESS_MAX_ALIVE_MONSTERS;
 	}
 
+    const auto* Profile=DreamVeilGameInstance?DreamVeilGameInstance->GetBalanceProfile():nullptr;
+    if(Profile && Profile->StageMonsterLimits.IsValidIndex(GetStageIndex()))return FMath::Max(1,Profile->StageMonsterLimits[GetStageIndex()]);
 	return MAX_ALIVE_MONSTERS_BY_STAGE[GetStageIndex()];
 }
 
@@ -258,6 +266,8 @@ float AMainGameModeBase::GetContinuousSpawnInterval() const
 			ENDLESS_MIN_SPAWN_INTERVAL);
 	}
 
+    const auto* Profile=DreamVeilGameInstance?DreamVeilGameInstance->GetBalanceProfile():nullptr;
+    if(Profile && Profile->StageSpawnIntervals.IsValidIndex(GetStageIndex()))return FMath::Max(.1f,Profile->StageSpawnIntervals[GetStageIndex()]);
 	return SPAWN_INTERVAL_BY_STAGE[GetStageIndex()];
 }
 

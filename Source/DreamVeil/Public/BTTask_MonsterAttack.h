@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -28,6 +28,9 @@ protected:
 private:
     void HandleAttackFinished(bool bSucceeded);
     void ClearBinding();
+    void HandleRetreatFinished();
+    FTimerHandle RetreatTimer;
+    bool bRetreating = false;
 
     TWeakObjectPtr<AMonsterBase> AttackingMonster;
     TWeakObjectPtr<UBehaviorTreeComponent> RunningBT;

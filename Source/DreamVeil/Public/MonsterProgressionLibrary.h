@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "Kismet/BlueprintFunctionLibrary.h"
@@ -24,7 +24,7 @@ enum class EMonsterGrade : uint8
 //기획값 쉬움 1 보통 1.3 하드코어 1.5
 //UDreamVeilGameInstance::GetSpawnCurveScale은 엘리트가 언제부터 많아지는지를 정하고 이쪽은 한 마리가 얼마나 센지를 정함
 //둘을 나눠 둔 이유 한 값으로 묶으면 쉬움에서 엘리트를 늦게 내려다가 잡몹까지 같이 약해짐
-const float MONSTER_STAT_SCALE_BY_DIFFICULTY[] = { 1.0f, 1.3f, 1.5f };
+const float MONSTER_STAT_SCALE_BY_DIFFICULTY[] = { 1.0f, 1.3f, 1.5f, 0.85f };
 
 //레벨이 올라갈수록 몬스터가 세지는 배율 0번이 L1
 //같은 레벨 안에서는 전부 같은 배율이라 L2의 잡몹은 어느 볼륨에서 나와도 스펙이 같음

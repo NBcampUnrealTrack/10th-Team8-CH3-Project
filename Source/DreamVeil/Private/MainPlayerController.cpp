@@ -1,4 +1,8 @@
 ﻿#include "MainPlayerController.h"
+#include "DreamPauseWidget.h"
+#include "DreamTimeWarningWidget.h"
+#include "CombatStatsComponent.h"
+#include "Camera/PlayerCameraManager.h"
 #include "DreamUIBlueprintLibrary.h"
 #include "EnhancedInputSubsystems.h"
 #include "MainPlayerCharacter.h"
@@ -73,6 +77,11 @@ void AMainPlayerController::BeginPlay()
     //메인 메뉴에서는 띄우지 않음 게임 밖 화면인데 체력 바가 같이 보이면 안 됨
     //로비는 거르지 않는 이유 HUD 위젯이 스스로 접혀서 이미 안 보임
     const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
+
+    if (DreamVeilGameInstance && DreamVeilGameInstance->IsInLevelMap())
+    {
+        if (auto* Warning = CreateWidget<UDreamTimeWarningWidget>(this)) Warning->AddToViewport(5);
+    }
 
     if (HUDWidgetClass && !(DreamVeilGameInstance && DreamVeilGameInstance->IsInMainMenu()))
     {
@@ -152,6 +161,17 @@ void AMainPlayerController::ShowHeadshotFeedback()
 //플레이어가 죽었을 때
 void AMainPlayerController::ShowGameOver()
 {
+    if (bGameOverOpen || bEndingOpen || bDeathPresentationActive) return;
+    bDeathPresentationActive = true;
+    ClearHeldInput(); SetIgnoreMoveInput(true); SetIgnoreLookInput(true);
+    if (PlayerCameraManager) PlayerCameraManager->StartCameraFade(0, 1, 1.4f, FLinearColor::Black, false, true);
+    GetWorldTimerManager().SetTimer(DeathPresentationTimer, this, &AMainPlayerController::FinishDeathPresentation, 1.5f, false);
+}
+
+void AMainPlayerController::FinishDeathPresentation()
+{
+    if (!bDeathPresentationActive) return;
+    bDeathPresentationActive = false;
     if (bGameOverOpen || bEndingOpen) return;
 
     //게임 오버 곡으로 갈아 끼움 어떤 곡인지는 배경음을 들고 있는 게임모드가 정함
@@ -289,7 +309,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
 	//일시정지하면 위젯 틱도 멈추므로 메뉴를 열 때 남아 있는 X 표시를 바로 숨김
 	if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->SetVisibility(ESlateVisibility::Hidden);
     // Do not let pending augment/interaction events replace the terminal screen.
-    if (bGameOverOpen || bEndingOpen) return nullptr;
+    if (bGameOverOpen || bEndingOpen || bDeathPresentationActive) return nullptr;
     //위젯을 안 넣었으면 띄울 게 없음
     if (!MenuWidgetClass)
     {
@@ -306,7 +326,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
         return nullptr;
     }
 
-    MenuWidgetInstance->AddToViewport(MenuWidgetInstance->IsA<UEndingCreditsWidget>() ? 10000 : 0);
+    MenuWidgetInstance->AddToViewport(MenuWidgetInstance->IsA<UEndingCreditsWidget>() ? 10000 : (MenuWidgetInstance->IsA<UDreamPauseWidget>() ? 100 : 0));
 
     //입력 모드를 UI로 바꾸기 전에 눌린 키를 버림
     //순서가 중요함 UI로 바꾼 뒤에 버리면 이미 캐릭터가 이동 입력을 들고 있어서 늦음
@@ -315,6 +335,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
 
     //버튼을 마우스로 누를 수 있게 UI 전용 입력으로 바꾸고 커서를 보여줌
     FInputModeUIOnly InputMode;
+    MenuWidgetInstance->SetIsFocusable(true);
     InputMode.SetWidgetToFocus(MenuWidgetInstance->TakeWidget());
     SetInputMode(InputMode);
 
@@ -424,6 +445,8 @@ void AMainPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AMainPlayerController::HandleBGMVolumeKey);
     InputComponent->BindKey(EKeys::Down, IE_Pressed, this, &AMainPlayerController::HandleBGMVolumeKey);
     InputComponent->BindKey(EKeys::M, IE_Pressed, this, &AMainPlayerController::ToggleBGMMute);
+    FInputKeyBinding& PauseBinding = InputComponent->BindKey(EKeys::Escape, IE_Pressed, this, &AMainPlayerController::TogglePauseMenu);
+    PauseBinding.bExecuteWhenPaused = true;
 #if !UE_BUILD_SHIPPING
     InputComponent->BindKey(EKeys::F8, IE_Pressed, this, &AMainPlayerController::PreviewEndingCredits);
     //PIE reserves F8 for eject; F9 is an alternative without changing the user's editor shortcuts.
@@ -456,4 +479,23 @@ void AMainPlayerController::ToggleBGMMute()
     }
 
     DreamVeilGameInstance->ToggleBGMMute();
+}
+
+
+bool AMainPlayerController::IsPauseMenuOpen() const
+{
+    return MenuWidgetInstance && MenuWidgetInstance->IsA<UDreamPauseWidget>();
+}
+
+void AMainPlayerController::TogglePauseMenu()
+{
+    if (!IsLocalController() || bGameOverOpen || bEndingOpen || bDeathPresentationActive) return;
+    if (IsPauseMenuOpen()) { CloseMenuWidget(); return; }
+    const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
+    const auto* PawnCharacter = Cast<AMainPlayerCharacter>(GetPawn());
+    // Existing selection, inventory and interaction screens own their input/pause.
+    if (!PawnCharacter || (GI && GI->IsInMainMenu()) || IsMenuWidgetOpen()
+        || UGameplayStatics::IsGamePaused(this) || PawnCharacter->HasAugmentChoices()
+        || (PawnCharacter->CombatStats && PawnCharacter->CombatStats->IsDead()) || bShowMouseCursor) return;
+    OpenMenuWidgetPaused(UDreamPauseWidget::StaticClass());
 }

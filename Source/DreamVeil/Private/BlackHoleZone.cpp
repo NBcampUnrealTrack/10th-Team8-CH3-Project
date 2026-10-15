@@ -13,6 +13,7 @@
 #include "DrawDebugHelpers.h"
 #include "Engine/World.h"
 #include "GameFramework/Character.h"
+#include "GameFramework/CharacterMovementComponent.h"
 #include "Kismet/GameplayStatics.h"
 #include "Materials/MaterialInterface.h"
 #include "Sound/SoundBase.h"
@@ -379,7 +380,15 @@ void ABlackHoleZone::Tick(float DeltaSeconds)
 		//힘(AddImpulse)이 아니라 위치를 직접 옮기는 이유
 		//가만히 서 있으면 걷기 제동이 작은 힘을 전부 지워버려서 끌려가지 않음
 		//스윕으로 옮겨서 벽을 뚫지 않고, 한가운데를 넘어가지 않게 남은 거리까지만 옮김
-		const float Step = FMath::Min(PullSpeed * DeltaSeconds, Distance - PullDeadZone);
+        // All overlapping zones share a frame budget. They never modify MaxWalkSpeed,
+        // so leaving, expiring, death and pool return cannot leave a stale slow behind.
+        static uint64 BudgetFrame = MAX_uint64;
+        static TMap<TWeakObjectPtr<ACharacter>, float> UsedPullDistance;
+        if (BudgetFrame != GFrameCounter) { BudgetFrame = GFrameCounter; UsedPullDistance.Reset(); }
+        float& Used = UsedPullDistance.FindOrAdd(Character);
+        const float FrameLimit = FMath::Max(0.0f, Character->GetCharacterMovement()->MaxWalkSpeed * .30f * DeltaSeconds);
+        const float Step = FMath::Min3(FMath::Max(0.0f, PullSpeed) * DeltaSeconds, Distance - PullDeadZone, FMath::Max(0.0f, FrameLimit - Used));
+        Used += Step;
 		Character->AddActorWorldOffset(ToCenter / Distance * Step, true);
 	}
 }

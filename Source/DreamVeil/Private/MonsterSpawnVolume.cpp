@@ -8,11 +8,19 @@
 
 #include "MainPlayerCharacter.h"
 #include "MonsterBase.h"
+#include "EliteMonster.h"
+#include "CombatStatsComponent.h"
+#include "EngineUtils.h"
+#include "NavigationSystem.h"
+#include "NavigationPath.h"
+#include "NavigationData.h"
+#include "GameFramework/PlayerController.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 #include "DreamVeilGameInstance.h"
+#include "DreamBalanceProfile.h"
 #include "UObject/ConstructorHelpers.h"
 
 //낼 자리를 몇 번까지 뽑아볼지
@@ -54,13 +62,18 @@ AMonsterSpawnVolume::AMonsterSpawnVolume()
 
 void AMonsterSpawnVolume::ExecuteSpawnActor()
 {
+	TrySpawnMonster();
+}
+
+bool AMonsterSpawnVolume::TrySpawnMonster()
+{
 	FVector SpawnLocation;
 
 	//땅 위 설 수 있는 자리를 못 찾으면 이번 한 마리는 건너뜀
 	//공중이나 벽 속에 내면 몬스터가 끼거나 떨어져서 플레이어에게 오지 못함
 	if (!FindSpawnLocation(SpawnLocation))
 	{
-		return;
+		return false;
 	}
 
 	const float EliteSpawnRate = GetEliteRate();
@@ -70,13 +83,24 @@ void AMonsterSpawnVolume::ExecuteSpawnActor()
 
 	//엘리트에 당첨됐는데 낼 엘리트가 없으면 잡몹으로 내려감
 	//여기서 그냥 돌아가면 엘리트를 안 채워둔 볼륨이 아무것도 안 내서 웨이브가 통째로 비어버림
-	if (FMath::FRandRange(0.0f, 100.0f) <= EliteSpawnRate && AllowedElites.Num() > 0)
+    const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
+    const int32 Stage = GI ? GI->GetCurrentLevelNumber() : 1;
+    const auto* Profile=GI?GI->GetBalanceProfile():nullptr;
+    const int32 StageIndex=FMath::Clamp(Stage-1,0,3);
+    const int32 EliteLimit=Profile?(GI->IsInEndless()?FMath::Max(0,Profile->EndlessEliteLimit):
+        (Profile->StageEliteLimits.IsValidIndex(StageIndex)?FMath::Max(0,Profile->StageEliteLimits[StageIndex]):FMath::Clamp(Stage+2,3,6))):
+        (GI && GI->IsInEndless()?8:FMath::Clamp(Stage+2,3,6));
+    int32 LivingElites = 0;
+    for (TActorIterator<AEliteMonster> It(GetWorld()); It; ++It)
+    {
+        if (!It->IsHidden() && It->MonsterCombatStats && !It->MonsterCombatStats->IsDead()) ++LivingElites;
+    }
+    if (LivingElites < EliteLimit && FMath::FRandRange(0.0f, 100.0f) <= EliteSpawnRate && AllowedElites.Num() > 0)
 	{
-		SpawnOneMonster(AllowedElites, SpawnLocation);
-		return;
+		return SpawnOneMonster(AllowedElites, SpawnLocation) != nullptr;
 	}
 
-	SpawnOneMonster(BaseMonsters, SpawnLocation);
+	return SpawnOneMonster(BaseMonsters, SpawnLocation) != nullptr;
 }
 
 //이 레벨에서 나올 수 있는 엘리트만 추려서 돌려줌
@@ -107,31 +131,56 @@ TArray<TSubclassOf<AMonsterBase>> AMonsterSpawnVolume::GetEliteMonstersForCurren
 //낼 자리를 찾음
 bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
 {
-	const AMainPlayerCharacter* Player = GetPlayerCharacter();
-
-	for (int32 TryCount = 0; TryCount < SPAWN_LOCATION_TRY_COUNT; TryCount++)
-	{
-		FVector Candidate;
-
-		//내비메시 위가 아니면 다시 뽑음 볼륨이 벽에 걸쳐 있으면 절반은 여기서 걸림
-		if (!TryGetRandomNavLocation(Candidate))
-		{
-			continue;
-		}
-
-		//플레이어 몸 안에서 솟아오르는 것만 막음 문 앞에 볼륨을 놓았을 때 생김
-		if (Player && MinPlayerDistance > 0.0f
-			&& FVector::DistSquared(Candidate, Player->GetActorLocation()) < FMath::Square(static_cast<double>(MinPlayerDistance)))
-		{
-			continue;
-		}
-
-		OutLocation = Candidate;
-
-		return true;
-	}
-
-	return false;
+    AMainPlayerCharacter* PawnCharacter = GetPlayerCharacter();
+    const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
+    const bool bCombatMap = GI && (GI->IsInLevelMap() || GI->IsInEndless());
+    UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+    if (PawnCharacter && bCombatMap && Nav)
+    {
+        // One existing spawn budget can cover several approach directions without
+        // multiplying the number of spawners/monsters or creating per-frame queries.
+        const float Inner = FMath::Max(MinPlayerDistance, GI->IsInEndless() ? 1800.0f : 800.0f);
+        const float Outer = GI->IsInEndless() ? FMath::Max(Inner + 400.0f, 4000.0f) : FMath::Max(Inner + 200.0f, 2000.0f);
+        const FVector PlayerNav = PawnCharacter->GetNavAgentLocation();
+        const ANavigationData* NavData = Nav->GetNavDataForProps(PawnCharacter->GetNavAgentPropertiesRef(), PlayerNav);
+        APlayerController* PC = Cast<APlayerController>(PawnCharacter->GetController());
+        const int32 FirstSector = SpawnSectorSequence++ + int32(GetUniqueID() % 6);
+        for (int32 Attempt = 0; Attempt < 6; ++Attempt)
+        {
+            const float Angle = FMath::DegreesToRadians(float((FirstSector + Attempt) % 6) * 60.0f + FMath::FRandRange(-20.0f, 20.0f));
+            const float Radius = FMath::FRandRange(Inner, Outer);
+            FNavLocation Point;
+            if (!Nav->ProjectPointToNavigation(PlayerNav + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0) * Radius,
+                Point, FVector(150,150,300), NavData)) continue;
+            if (FVector::DistSquared2D(Point.Location, PlayerNav) < FMath::Square(Inner)) continue;
+            if (PC)
+            {
+                FVector Eye; FRotator View; PC->GetPlayerViewPoint(Eye, View);
+                FVector2D Screen; int32 Width=0, Height=0; PC->GetViewportSize(Width, Height);
+                const FVector BodyPoint = Point.Location + FVector(0,0,80);
+                if (PC->ProjectWorldLocationToScreen(BodyPoint, Screen, true) && Width > 0 && Height > 0
+                    && Screen.X >= 0 && Screen.Y >= 0 && Screen.X <= Width && Screen.Y <= Height)
+                {
+                    FHitResult Hit; FCollisionQueryParams Params(SCENE_QUERY_STAT(SpawnVisibility), false, PawnCharacter);
+                    // A visible point is deferred; cover can hide an otherwise on-screen spawn.
+                    if (!GetWorld()->LineTraceSingleByChannel(Hit, Eye, BodyPoint, ECC_Visibility, Params)) continue;
+                }
+            }
+            if (!NavData || !Nav->TestPathSync(FPathFindingQuery(PawnCharacter, *NavData, Point.Location, PlayerNav))) continue;
+            OutLocation = Point.Location; return true;
+        }
+        // No safe, reachable point: retry later, never fall back to a visible pop-in.
+        return false;
+    }
+    // Editor/test worlds and deliberately placed noncombat spawners keep volume placement.
+    for (int32 Attempt = 0; Attempt < SPAWN_LOCATION_TRY_COUNT; ++Attempt)
+    {
+        FVector Point;
+        if (!TryGetRandomNavLocation(Point)) continue;
+        if (PawnCharacter && FVector::DistSquared(Point, PawnCharacter->GetActorLocation()) < FMath::Square(double(MinPlayerDistance))) continue;
+        OutLocation = Point; return true;
+    }
+    return false;
 }
 
 AMonsterBase* AMonsterSpawnVolume::SpawnOneMonster(const TArray<TSubclassOf<AMonsterBase>>& MonsterClasses, const FVector& SpawnLocation)
@@ -159,6 +208,24 @@ AMonsterBase* AMonsterSpawnVolume::SpawnOneMonster(const TArray<TSubclassOf<AMon
 		return nullptr;
 	}
 
+    if (&MonsterClasses == &BaseMonsters)
+    {
+        const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
+        const float RangedShares[] = { .20f, .30f, .40f, .35f };
+        const int32 StageIndex = FMath::Clamp((GI ? GI->GetCurrentLevelNumber() : 1) - 1, 0, 3);
+        const auto* Profile=GI?GI->GetBalanceProfile():nullptr;
+        const float RangedShare=Profile?FMath::Clamp(GI->IsInEndless()?Profile->EndlessRangedShare:
+            (Profile->StageRangedShares.IsValidIndex(StageIndex)?Profile->StageRangedShares[StageIndex]:RangedShares[StageIndex]),0.0f,1.0f):
+            (GI && GI->IsInEndless()?.45f:RangedShares[StageIndex]);
+        const bool WantRanged = FMath::FRand() < RangedShare;
+        TArray<TSubclassOf<AMonsterBase>> Matching;
+        for (const auto& Class : ValidClasses)
+        {
+            const auto* Defaults = Class->GetDefaultObject<AMonsterBase>();
+            if ((Defaults->GetAttackType() == EMonsterAttackType::Ranged) == WantRanged) Matching.Add(Class);
+        }
+        if (Matching.Num()) ValidClasses = MoveTemp(Matching);
+    }
 	const TSubclassOf<AMonsterBase> ChosenClass = ValidClasses[FMath::RandRange(0, ValidClasses.Num() - 1)];
 
 	//캡슐 절반 높이만큼 띄워서 냄 바닥에 파묻힌 채로 나오면 이동 컴포넌트가 밀어내느라 튕김
@@ -175,7 +242,7 @@ AMonsterBase* AMonsterSpawnVolume::SpawnOneMonster(const TArray<TSubclassOf<AMon
 	FActorSpawnParameters SpawnParameters;
 
 	//좁은 곳이라 겹쳐도 일단 냄 안 그러면 몬스터가 몰린 웨이브에서 스폰이 통째로 실패함
-	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButAlwaysSpawn;
+	SpawnParameters.SpawnCollisionHandlingOverride = ESpawnActorCollisionHandlingMethod::AdjustIfPossibleButDontSpawnIfColliding;
 
 	//볼륨이 보는 쪽을 보고 나옴 문 앞에 놓고 화살표를 방 안쪽으로 돌려두면 문에서 걸어나온 것처럼 보임
 	//플레이어 쪽을 보게 하지 않는 이유 플레이어가 문 옆에 서 있으면 문을 등지지 않고 옆을 보고 나와서
@@ -288,7 +355,8 @@ void AMonsterSpawnVolume::SpawnWave(int32 MonsterCount, float SpawnInterval)
 	}
 
 	//앞 웨이브가 아직 다 안 나왔으면 남은 수에 더함 타이머가 이어서 마저 내보냄
-	PendingSpawnCount += MonsterCount;
+	// Saturate deferred work so blocked spawn points cannot queue a later burst.
+	PendingSpawnCount = FMath::Min(PendingSpawnCount + MonsterCount, 128);
 
 	//이미 돌고 있으면 그대로 두고 남은 수만 늘어남 타이머를 다시 걸면 간격이 흐트러짐
 	if (GetWorldTimerManager().IsTimerActive(WaveSpawnTimerHandle))
@@ -318,9 +386,8 @@ void AMonsterSpawnVolume::SpawnOneFromWave()
 		if (!Mode->CanSpawnRegularMonster()) return;
 	}
 
+	if (!TrySpawnMonster()) return;
 	PendingSpawnCount--;
-
-	ExecuteSpawnActor();
 
 	//마지막 한 마리를 냈으면 더 돌 이유가 없음
 	if (PendingSpawnCount <= 0)
