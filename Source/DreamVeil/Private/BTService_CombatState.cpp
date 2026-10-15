@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "BTService_CombatState.h"
@@ -57,7 +57,7 @@ void UBTService_CombatState::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
     PlayerPawn=ADreamAugmentField::FindDecoyFor(Cast<AMonsterBase>(AIPawn),PlayerPawn);
     Blackboard->SetValueAsObject(TEXT("PlayerActor"),PlayerPawn);
     FVector Approach=PlayerPawn->GetActorLocation();
-    if(auto* Tactics=GetWorld()->GetSubsystem<UDreamCrowdTacticsSubsystem>())Tactics->FindApproach(Cast<AMonsterBase>(AIPawn),PlayerPawn,Approach);
+    // Actor tracking drives pursuit; avoid repeatedly replacing the moving goal with lateral coordinates.
     Blackboard->SetValueAsVector(TEXT("PlayerVec"),Approach);
 	//플레이어와 몬스터 사이의 거리 계산
 	const double DistanceSquared = FVector::DistSquared(AIPawn->GetActorLocation(), PlayerPawn->GetActorLocation());

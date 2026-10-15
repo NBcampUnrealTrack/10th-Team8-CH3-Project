@@ -226,6 +226,7 @@ void UMonsterSkill::StartCharge()
     Monster->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
     Monster->GetCapsuleComponent()->SetCollisionResponseToChannel(MonsterCollision::Monster, ECR_Ignore);
     PlayChargeAnimation(ChargeRunAnimation);
+    Monster->PlayChargeSound();
     PreviousChargeLocation = Monster->GetActorLocation();
     bCharging = true;
     //이동 소스가 비정상적으로 진행되지 않을 때만 사용하는 종료 시각이다.

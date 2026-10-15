@@ -1,4 +1,4 @@
-#include "MainPlayerCharacter.h"
+﻿#include "MainPlayerCharacter.h"
 #include "HAL/PlatformTime.h"
 #include "MainPlayerController.h"
 #include "InteractableActorBase.h"
@@ -32,6 +32,7 @@
 #include "Components/AudioComponent.h"
 #include "Components/PostProcessComponent.h"
 #include "Materials/MaterialInterface.h"
+#include "Materials/MaterialInstanceDynamic.h"
 #include "Kismet/GameplayStatics.h"
 
 //카메라가 위아래로 돌 수 있는 최대 각도
@@ -207,7 +208,12 @@ void AMainPlayerCharacter::BeginPlay()
 	//생성자가 아니라 여기서 하는 이유 머티리얼은 블루프린트 기본값이라 생성자 시점에는 아직 안 들어와 있음
 	if (OutlinePostProcess && MonsterOutlineMaterial)
 	{
-		OutlinePostProcess->AddOrUpdateBlendable(MonsterOutlineMaterial.Get(), 1.0f);
+		const auto* GI=GetGameInstance<UDreamVeilGameInstance>();const bool Endless=GI&&GI->IsInEndless();
+        MonsterOutlineInstance=UMaterialInstanceDynamic::Create(MonsterOutlineMaterial,this);
+        MonsterOutlineInstance->SetVectorParameterValue(TEXT("OutlineColor"),FLinearColor(.85f,.88f,.94f,1));
+        MonsterOutlineInstance->SetScalarParameterValue(TEXT("OutlineThickness"),Endless?EndlessOutlineThickness:LevelOutlineThickness);
+        MonsterOutlineInstance->SetScalarParameterValue(TEXT("OutlineOpacity"),Endless?EndlessOutlineOpacity:LevelOutlineOpacity);
+        OutlinePostProcess->AddOrUpdateBlendable(MonsterOutlineInstance.Get(), 1.0f);
 	}
 
 	UCapsuleComponent* Capsule = GetCapsuleComponent();

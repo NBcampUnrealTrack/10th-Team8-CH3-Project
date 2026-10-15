@@ -89,6 +89,13 @@ void ABossMonster::BeginPlay()
 void ABossMonster::MonsterInit()
 {
 	Super::MonsterInit();
+    // The final campaign encounter alone is softened. Endless bosses retain their scaling.
+    const auto* GI=GetGameInstance<UDreamVeilGameInstance>();
+    if(GI&&GI->IsInLevelMap()&&GI->GetCurrentLevelNumber()==GI->GetLevelCount()&&MonsterCombatStats)
+    {
+        MaxHealth*=.85f;
+        MonsterCombatStats->InitStats(MaxHealth,MonsterCombatStats->GetDefencePower(),MonsterCombatStats->GetAttackPower()*.9f);
+    }
 
 	MonsterAttackRange = 1500.0f;
 	//시작은 항상 1페이즈

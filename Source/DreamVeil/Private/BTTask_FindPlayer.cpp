@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "BTTask_FindPlayer.h"
@@ -31,8 +31,7 @@ EBTNodeResult::Type UBTTask_FindPlayer::ExecuteTask(UBehaviorTreeComponent& Owne
 
 
 	FVector Approach=PlayerPawn->GetActorLocation();
-    if(auto* AI=OwnerComp.GetAIOwner())
-        if(auto* Tactics=GetWorld()->GetSubsystem<UDreamCrowdTacticsSubsystem>())Tactics->FindApproach(Cast<AMonsterBase>(AI->GetPawn()),PlayerPawn,Approach);
+    // MoveTo tracks PlayerActor continuously, including decoys.
     BlackboardComp->SetValueAsVector(TEXT("PlayerVec"),Approach);
 	return EBTNodeResult::Succeeded;
 }

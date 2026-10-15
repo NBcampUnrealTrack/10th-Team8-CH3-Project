@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -116,6 +116,11 @@ public:
 	//몬스터만 커스텀 깊이에 그려지므로(AMonsterBase::BeginPlay) 머티리얼에서 적을 따로 거를 필요가 없음
 	UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "UI")
 	TObjectPtr<UMaterialInterface> MonsterOutlineMaterial;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|Outline", meta=(ClampMin="0",ClampMax="4")) float LevelOutlineThickness=.65f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|Outline", meta=(ClampMin="0",ClampMax="4")) float EndlessOutlineThickness=1.35f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|Outline", meta=(ClampMin="0",ClampMax="1")) float LevelOutlineOpacity=.5f;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="UI|Outline", meta=(ClampMin="0",ClampMax="1")) float EndlessOutlineOpacity=.75f;
+    UPROPERTY(Transient) TObjectPtr<class UMaterialInstanceDynamic> MonsterOutlineInstance;
 
 	//위 머티리얼을 화면에 거는 포스트 프로세스
 	//레벨마다 포스트 프로세스 볼륨을 놓지 않고 플레이어에 붙인 이유 맵이 여러 개라 전부 고쳐야 하고

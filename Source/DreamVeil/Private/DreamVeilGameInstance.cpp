@@ -3,6 +3,10 @@
     //실수로 두 번 불려도 레벨 개수를 넘지 않게 막음
 #include "DreamVeilGameInstance.h"
 #include "DreamBalanceProfile.h"
+#include "MoviePlayer.h"
+#include "Widgets/Layout/SBorder.h"
+#include "Widgets/Text/STextBlock.h"
+#include "Widgets/SOverlay.h"
 
 #include "DispatchTableComponent.h"
 #include "InventoryComponent.h"
@@ -429,6 +433,18 @@ bool UDreamVeilGameInstance::OpenEndless()
     // Capture purchases, currency and level progress made in the lobby before travel.
     SaveCurrentPlayerProgress();
     bHardRunEnded = false;
+    if(IsMoviePlayerEnabled()&&GetMoviePlayer()&&GetWorld()&&GetWorld()->WorldType!=EWorldType::PIE)
+    {
+        FLoadingScreenAttributes Loading;
+        Loading.MinimumLoadingScreenDisplayTime=3.f;Loading.bAutoCompleteWhenLoadingCompletes=true;
+        Loading.bMoviesAreSkippable=false;Loading.PlaybackType=MT_Looped;
+        Loading.MoviePaths.Add(TEXT("EndlessTransition"));
+        Loading.WidgetLoadingScreen=SNew(SOverlay)
+            +SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(0,0,0,50)
+            [SNew(SBorder).BorderBackgroundColor(FLinearColor(.035f,.015f,.06f,.9f)).Padding(FMargin(28,12))
+                [SNew(STextBlock).Text(FText::FromString(TEXT("ENDLESS  ·  악몽의 도시로 이동 중…"))).ColorAndOpacity(FLinearColor(.85f,.7f,1.f))]];
+        GetMoviePlayer()->SetupLoadingScreen(Loading);
+    }
     UGameplayStatics::OpenLevel(this, ENDLESS_MAP_PATH);
 
     return true;

@@ -1,4 +1,4 @@
-#pragma once
+﻿#pragma once
 #include "CoreMinimal.h"
 #include "Blueprint/UserWidget.h"
 #include "Components/Button.h"
@@ -63,9 +63,12 @@ private:
     void RefreshHUD();
     void CloseGuide();
     void RefreshOwned();
+    void RefreshDetail();
     UTextBlock* Label(const FString& Text,int32 Size=18);
     UDreamAugmentActionButton* Button(UVerticalBox* Box,const FString& Text,int32 Action,bool Enabled=true);
     UPROPERTY() TObjectPtr<UVerticalBox> Body;
+    UPROPERTY() TObjectPtr<UVerticalBox> DetailBody;
+    UPROPERTY() TArray<TObjectPtr<UBorder>> SkillFrames;
     UPROPERTY() TObjectPtr<UTextBlock> Header;
     UPROPERTY() TObjectPtr<UTextBlock> Status;
     UPROPERTY() TObjectPtr<UDreamAugmentActionButton> Reroll;

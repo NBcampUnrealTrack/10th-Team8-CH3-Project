@@ -1,4 +1,4 @@
-#include "CoreMinimal.h"
+﻿#include "CoreMinimal.h"
 #if WITH_DEV_AUTOMATION_TESTS
 #include "Misc/AutomationTest.h"
 #include "DreamCrowdTacticsSubsystem.h"
@@ -10,23 +10,23 @@
 #include "GameFramework/WorldSettings.h"
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardData.h"
-#include "BehaviorTree/Blackboard/BlackboardKeyType_Vector.h"
+#include "BehaviorTree/Blackboard/BlackboardKeyType_Object.h"
 #include "BehaviorTree/Tasks/BTTask_MoveTo.h"
 #include "UObject/UObjectHash.h"
 
-IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDreamApproachAssetTest,"DreamVeil.Crowd.BehaviorTreeUsesValidVectorApproachKey",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
+IMPLEMENT_SIMPLE_AUTOMATION_TEST(FDreamApproachAssetTest,"DreamVeil.Crowd.BehaviorTreeTracksMovingPlayerActor",EAutomationTestFlags::EditorContext|EAutomationTestFlags::EngineFilter)
 bool FDreamApproachAssetTest::RunTest(const FString& Parameters)
 {
     auto* Tree=LoadObject<UBehaviorTree>(nullptr,TEXT("/Game/Managers/AI/BT_Monster.BT_Monster"));
     if(!TestNotNull(TEXT("Real monster behavior tree exists"),Tree))return false;
     const auto* Blackboard=Tree->GetBlackboardAsset();
     if(!TestNotNull(TEXT("Real blackboard exists"),Blackboard))return false;
-    const auto Key=Blackboard->GetKeyID(TEXT("PlayerVec"));
+    const auto Key=Blackboard->GetKeyID(TEXT("PlayerActor"));
     TestTrue(TEXT("Approach key exists"),Key!=FBlackboard::InvalidKey);
-    TestTrue(TEXT("Approach key is a vector"),Blackboard->GetKeyType(Key)==UBlackboardKeyType_Vector::StaticClass());
+    TestTrue(TEXT("Chase target is an actor"),Blackboard->GetKeyType(Key)==UBlackboardKeyType_Object::StaticClass());
     int32 Moves=0;
     ForEachObjectWithOuter(Tree,[&](UObject* Node){if(auto* Move=Cast<UBTTask_MoveTo>(Node))
-    {++Moves;TestEqual(TEXT("MoveTo follows computed approach, not the player actor"),Move->GetSelectedBlackboardKey(),FName(TEXT("PlayerVec")));}},true);
+    {++Moves;TestEqual(TEXT("MoveTo follows the moving player actor"),Move->GetSelectedBlackboardKey(),FName(TEXT("PlayerActor")));}},true);
     TestTrue(TEXT("At least one actual MoveTo was inspected"),Moves>0);return true;
 }
 

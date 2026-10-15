@@ -33,6 +33,9 @@
 #include "MonsterCollision.h"
 #include "AI/Navigation/AvoidanceManager.h"
 #include "Particles/ParticleSystem.h"
+#include "Sound/SoundBase.h"
+#include "Sound/SoundAttenuation.h"
+#include "Sound/SoundConcurrency.h"
 #include "Misc/AssertionMacros.h"
 
 //사망 모션이 끝난 뒤 시체가 남아 있는 시간 쓰러진 자세를 잠깐 보여주고 치움
@@ -43,6 +46,14 @@ AMonsterBase::AMonsterBase()
 {
     static ConstructorHelpers::FObjectFinder<USoundBase> HitSound(TEXT("/Game/Audio/SFX/S_MonsterImpact"));
     HitFeedbackSound=HitSound.Object;
+    static ConstructorHelpers::FObjectFinder<USoundBase> AttackAudio(TEXT("/Game/Audio/SFX/S_MonsterWhoosh"));AttackWhooshSound=AttackAudio.Object;
+    static ConstructorHelpers::FObjectFinder<USoundBase> ChargeAudio(TEXT("/Game/Audio/SFX/S_MonsterCharge"));ChargeWhooshSound=ChargeAudio.Object;
+    static ConstructorHelpers::FObjectFinder<USoundBase> DeathAudio(TEXT("/Game/Audio/SFX/S_MonsterDeath"));DeathSound=DeathAudio.Object;
+    CombatSoundAttenuation=CreateDefaultSubobject<USoundAttenuation>(TEXT("CombatSoundAttenuation"));
+    CombatSoundAttenuation->Attenuation.bAttenuate=true;CombatSoundAttenuation->Attenuation.bSpatialize=true;
+    CombatSoundAttenuation->Attenuation.AttenuationShapeExtents=FVector(150,0,0);CombatSoundAttenuation->Attenuation.FalloffDistance=1850;
+    static ConstructorHelpers::FObjectFinder<USoundConcurrency> CombatGroup(TEXT("/Game/Audio/Optimization/SC_MonsterCombat_12"));
+    CombatSoundConcurrency=CombatGroup.Object;
 	PrimaryActorTick.bCanEverTick = false;
 	// 월드에 스폰됐을 경우 AIController Possess 시키기
 	//PlacedInWorld는 레벨에 손으로 놓아둔 몬스터에게만 컨트롤러를 붙여줌
@@ -244,6 +255,7 @@ void AMonsterBase::EndPlay(const EEndPlayReason::Type EndPlayReason)
 //몬스터 초기화 작업. 몬스터가 전장에 투입될 때 스탯 초기화 등
 void AMonsterBase::MonsterInit()
 {
+    bDeathSoundPlayed=false;
 #pragma region Collisions
 	UCapsuleComponent* MovementCapsule = GetCapsuleComponent();
 
@@ -448,6 +460,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 	if (!bUseAttackMontage)
 	{
 		//기존 발사 함수를 재사용하므로 타깃 확인과 투사체 피해량은 몽타주 공격과 동일하게 처리됨
+		PlayCombatSound(AttackWhooshSound,.5f);
 		GetWorldTimerManager().SetTimer(AttackHitTimer, this, &AMonsterBase::ExecuteAttack, 0.5f, false);
 		//BT가 종료 알림을 기다리므로 발사 후 후딜레이까지 끝나면 기존 종료 함수로 알림을 보냄
 		//기존 타이머 핸들을 사용해 사망이나 레그돌로 공격이 취소될 때 예약된 발사도 함께 정리됨
@@ -490,6 +503,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 			return false;
 		}
 		
+        PlayCombatSound(AttackWhooshSound,.5f);
 		// 몽타주 정상종료, 중단 등 모두 콜백으로 전달시키기
 		FOnMontageEnded EndDelegate;
 		EndDelegate.BindUObject(
@@ -851,6 +865,7 @@ void AMonsterBase::OnDeath()
 	//StopAllMontages 뒤에서 트는 이유 위에서 몽타주를 전부 끊어놔서 여기보다 먼저 틀면 바로 멈춰버림
 	const bool bCanPlayDeathMontage = !bIsRagdoll && !GetCharacterMovement()->IsFalling();
 	const float DeathMontageLength = bCanPlayDeathMontage ? PlayDeathMontage() : 0.0f;
+    if(!bDeathSoundPlayed){bDeathSoundPlayed=true;PlayCombatSound(DeathSound,.65f);}
 
 	//모션을 못 틀었으면 예전 그대로
 	//이미 쓰러져 있다면 현재 물리 속도를 유지하고, 서 있었다면 추가 충격 없이 쓰러뜨림
@@ -1049,3 +1064,12 @@ void AMonsterBase::FinishHitFeedback()
     bHitFeedbackActive=false;
     RefreshAnimationOptimization();
 }
+
+void AMonsterBase::PlayCombatSound(USoundBase* Sound,float Volume)
+{
+    if(!Sound||!GetWorld()||GetNetMode()==NM_DedicatedServer)return;
+    const auto* Listener=UGameplayStatics::GetPlayerPawn(this,0);
+    if(!Listener||FVector::DistSquared(Listener->GetActorLocation(),GetActorLocation())>FMath::Square(2000.f))return;
+    UGameplayStatics::PlaySoundAtLocation(this,Sound,GetActorLocation(),Volume,FMath::FRandRange(.94f,1.06f),0.f,CombatSoundAttenuation,CombatSoundConcurrency);
+}
+void AMonsterBase::PlayChargeSound(){PlayCombatSound(ChargeWhooshSound,.65f);}

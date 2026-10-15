@@ -79,6 +79,14 @@ public:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster|Skill")
 	TObjectPtr<UMonsterSkill> MonsterSkill;
 
+    void PlayChargeSound();
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Audio") TObjectPtr<class USoundBase> AttackWhooshSound;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Audio") TObjectPtr<class USoundBase> ChargeWhooshSound;
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Audio") TObjectPtr<class USoundBase> DeathSound;
+    UPROPERTY() TObjectPtr<class USoundAttenuation> CombatSoundAttenuation;
+    UPROPERTY() TObjectPtr<class USoundConcurrency> CombatSoundConcurrency;
+    void PlayCombatSound(class USoundBase* Sound,float Volume);
+    bool bDeathSoundPlayed=false;
 	bool IsAttacking() const { return bIsAttacking; }
 
 	// Keep full pose updates while attacks, skills or ragdoll depend on animation.

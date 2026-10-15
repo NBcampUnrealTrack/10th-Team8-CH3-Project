@@ -1,7 +1,9 @@
-#include "DreamAugmentPanel.h"
+﻿#include "DreamAugmentPanel.h"
 #include "DispatchTableComponent.h"
 #include "DreamAugmentCatalog.h"
 #include "DreamAugmentRuntime.h"
+#include "MainGameModeBase.h"
+#include "Components/ButtonSlot.h"
 #include "MainPlayerCharacter.h"
 #include "MainPlayerController.h"
 #include "CombatStatsComponent.h"
@@ -64,17 +66,17 @@ UDreamAugmentActionButton* UDreamAugmentPanel::Button(UVerticalBox* Box,const FS
     auto Brush=[](UTexture2D* T){FSlateBrush B;B.SetResourceObject(T);B.DrawAs=ESlateBrushDrawType::Box;B.Margin=FMargin(.12f);return B;};
     FButtonStyle Style;Style.Normal=Brush(NormalTexture);Style.Hovered=Brush(HoverTexture);Style.Pressed=Brush(PressTexture);W->SetStyle(Style);
     auto* Caption=Label(Text,Mode==EDreamAugmentPanelMode::ChoiceToolbar?14:16);Caption->SetJustification(ETextJustify::Center);
-    const auto* IconTexture=Icons&&Action>=1000&&Action<1256?Icons->Icons.Find(static_cast<EAugmentID>(Action-1000)):nullptr;
-    if(IconTexture)
+    if(Action>=1000&&Action<1256)
     {
-        auto* Row=WidgetTree->ConstructWidget<UHorizontalBox>();
-        auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(40);Size->SetHeightOverride(40);
-        auto* Image=WidgetTree->ConstructWidget<UImage>();Image->SetBrushFromTexture(IconTexture->Get());Size->SetContent(Image);Row->AddChildToHorizontalBox(Size)->SetPadding(FMargin(10,2));
-        auto* CaptionSlot=Row->AddChildToHorizontalBox(Caption);CaptionSlot->SetSize(FSlateChildSize(ESlateSizeRule::Fill));CaptionSlot->SetVerticalAlignment(VAlign_Center);W->SetContent(Row);
+        Style.Normal=FSlateColorBrush(FLinearColor::Transparent);
+        Style.Hovered=FSlateColorBrush(FLinearColor(.2f,.10f,.29f,1));
+        Style.Pressed=FSlateColorBrush(FLinearColor(.28f,.14f,.4f,1));W->SetStyle(Style);
+        Caption->SetJustification(ETextJustify::Left);Caption->SetAutoWrapText(false);Caption->SetTextOverflowPolicy(ETextOverflowPolicy::Ellipsis);Style.NormalPadding=Style.PressedPadding=FMargin(12,6);W->SetStyle(Style);
     }
-    else W->SetContent(Caption);
+    W->SetContent(Caption);
+    if(Action>=1000)if(auto* CaptionSlot=Cast<UButtonSlot>(Caption->Slot))CaptionSlot->SetHorizontalAlignment(HAlign_Fill);
     W->SetIsEnabled(Enabled);
-    auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetMinDesiredHeight(Mode==EDreamAugmentPanelMode::ChoiceToolbar?48:54);Size->SetContent(W);
+    auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetMinDesiredHeight(Action>=1000?36:Mode==EDreamAugmentPanelMode::ChoiceToolbar?48:54);Size->SetContent(W);
     Box->AddChildToVerticalBox(Size)->SetPadding(FMargin(0,3));return W;
 }
 void UDreamAugmentPanel::NativeOnInitialized() { Super::NativeOnInitialized(); }
@@ -93,7 +95,7 @@ void UDreamAugmentPanel::NativeConstruct()
 }
 void UDreamAugmentPanel::Build()
 {
-    auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>();WidgetTree->RootWidget=Canvas;
+    auto* Canvas=WidgetTree->ConstructWidget<UCanvasPanel>(UCanvasPanel::StaticClass(),TEXT("AugmentRoot"));WidgetTree->RootWidget=Canvas;
     if(Mode==EDreamAugmentPanelMode::ChoiceToolbar)
     {
         auto* Layout=WidgetTree->ConstructWidget<UVerticalBox>();auto* LayoutSlot=Canvas->AddChildToCanvas(Layout);LayoutSlot->SetAnchors(FAnchors(0,0,1,1));LayoutSlot->SetOffsets(FMargin(4));
@@ -120,12 +122,14 @@ void UDreamAugmentPanel::Build()
         {
             auto* Column=WidgetTree->ConstructWidget<UVerticalBox>();Slots->AddChildToHorizontalBox(Column)->SetPadding(FMargin(0,0,10,0));
             auto* IconSize=WidgetTree->ConstructWidget<USizeBox>();IconSize->SetWidthOverride(56);IconSize->SetHeightOverride(56);Column->AddChildToVerticalBox(IconSize);
-            auto* Stack=WidgetTree->ConstructWidget<UOverlay>();IconSize->SetContent(Stack);
+            auto* Rim=WidgetTree->ConstructWidget<UBorder>();Rim->SetBrush(FSlateColorBrush(FLinearColor(.55f,.28f,.8f,.9f)));Rim->SetPadding(FMargin(1.5f));IconSize->SetContent(Rim);
+            auto* Inner=WidgetTree->ConstructWidget<UBorder>();Inner->SetBrush(FSlateColorBrush(FLinearColor(.055f,.025f,.09f,.8f)));Inner->SetPadding(FMargin(3));Rim->SetContent(Inner);SkillFrames.Add(Rim);
+            auto* Stack=WidgetTree->ConstructWidget<UOverlay>();Inner->SetContent(Stack);
             auto* Icon=WidgetTree->ConstructWidget<UImage>(UImage::StaticClass(),*FString::Printf(TEXT("SkillIcon%d"),I+1));
             auto* ImageSlot=Stack->AddChildToOverlay(Icon);ImageSlot->SetHorizontalAlignment(HAlign_Fill);ImageSlot->SetVerticalAlignment(VAlign_Fill);SkillIcons.Add(Icon);
             auto* Number=Label(TEXT(""),24);Number->SetAutoWrapText(false);Number->SetJustification(ETextJustify::Center);Number->SetShadowColorAndOpacity(FLinearColor::Black);Number->SetShadowOffset(FVector2D(2,2));
             auto* NumberSlot=Stack->AddChildToOverlay(Number);NumberSlot->SetHorizontalAlignment(HAlign_Center);NumberSlot->SetVerticalAlignment(VAlign_Center);SkillLabels.Add(Number);
-            auto* Key=Label(FString::FromInt(I+1),12);Key->SetJustification(ETextJustify::Center);Key->SetAutoWrapText(false);Key->SetShadowColorAndOpacity(FLinearColor::Black);Key->SetShadowOffset(FVector2D(1,1));Column->AddChildToVerticalBox(Key);SkillKeyLabels.Add(Key);
+
         }
         SetVisibility(ESlateVisibility::HitTestInvisible);return;
     }
@@ -150,9 +154,15 @@ void UDreamAugmentPanel::Build()
         const TCHAR* Names[]={TEXT("증강 도감 · Q"),TEXT("진화 루트"),TEXT("보유 증강 · E"),TEXT("닫기 · ESC / Z")};
         for(int32 I=0;I<4;++I){auto* Col=WidgetTree->ConstructWidget<UVerticalBox>();Tabs->AddChildToHorizontalBox(Col)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Button(Col,Names[I],I==2?4:I);}
         Status=Label(TEXT(""),16);Rows->AddChildToVerticalBox(Status)->SetPadding(FMargin(0,8));
+        auto* Columns=WidgetTree->ConstructWidget<UHorizontalBox>();Rows->AddChildToVerticalBox(Columns)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetAlwaysShowScrollbar(true);
-        Rows->AddChildToVerticalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
+        Columns->AddChildToHorizontalBox(Scroll)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         Body=WidgetTree->ConstructWidget<UVerticalBox>();Scroll->AddChild(Body);
+        auto* DetailFrame=WidgetTree->ConstructWidget<UBorder>();DetailFrame->SetBrush(FSlateColorBrush(FLinearColor(.055f,.035f,.08f,.9f)));DetailFrame->SetPadding(FMargin(18));
+        auto* DetailColumn=Columns->AddChildToHorizontalBox(DetailFrame);DetailColumn->SetSize(FSlateChildSize(ESlateSizeRule::Fill));DetailColumn->SetPadding(FMargin(14,0,0,0));
+        auto* DetailScroll=WidgetTree->ConstructWidget<UScrollBox>();DetailScroll->SetAlwaysShowScrollbar(true);DetailFrame->SetContent(DetailScroll);
+        DetailBody=WidgetTree->ConstructWidget<UVerticalBox>();DetailScroll->AddChild(DetailBody);
+
     }
 
 }
@@ -216,7 +226,7 @@ void UDreamAugmentPanel::HandleAction(int32 Action)
     if(Action==10){if(auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());P&&P->RerollAugmentChoices())RefreshChoice();return;}
     if(Action==0||Action==1||Action==4){Page=Action;Selection=-1;Filter=0;}
     else if(Action>=20&&Action<=22){Filter=Action-20;Selection=-1;}
-    else if(Action>=1000&&Action<1256){Selection=Action-1000;}
+    else if(Action>=1000&&Action<1256){Selection=Action-1000;RefreshDetail();return;}
     else return; // There is deliberately no evolve/confirm action in the catalog.
     RefreshGuide();
 }
@@ -274,24 +284,19 @@ void UDreamAugmentPanel::RefreshChoice()
 }
 void UDreamAugmentPanel::RefreshGuide()
 {
-    if(!Body)return;Body->ClearChildren();auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* D=P?P->DispatchTable.Get():nullptr;if(!D)return;
-    Header->SetText(FText::FromString(Page==4?TEXT("보유 중인 증강 · E"):TEXT("증강 도감 · Q")));
-    Summary=FString::Printf(TEXT("패시브 %d/6 · 액티브 %d/6 · 스킬 %d/6"),D->GetOwnedCount(EAugmentCategory::Passive),D->GetOwnedCount(EAugmentCategory::Active),D->GetSkillCount());Status->SetText(FText::FromString(Summary));
-    if(Page==4){RefreshOwned();return;}
-    if(Selection>=0)
+    if(!Body||!DetailBody)return;Body->ClearChildren();DetailBody->ClearChildren();
+    if(auto* ListScroll=Cast<UScrollBox>(Body->GetParent()))ListScroll->ScrollToStart();
+    auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* D=P?P->DispatchTable.Get():nullptr;if(!D)return;
+    Header->SetText(FText::FromString(Page==4?TEXT("보유 중인 증강 · E"):Page==1?TEXT("진화 루트"):TEXT("증강 도감 · Q")));
+    Summary=FString::Printf(TEXT("패시브 %d/6 · 액티브 %d/6 · 스킬 %d/6 · 이름을 선택하면 상세 정보를 볼 수 있습니다."),D->GetOwnedCount(EAugmentCategory::Passive),D->GetOwnedCount(EAugmentCategory::Active),D->GetSkillCount());Status->SetText(FText::FromString(Summary));
+    if(Page==4)RefreshOwned();
+    else for(const auto& Def:DreamAugmentCatalog::All())
     {
-        const auto ID=static_cast<EAugmentID>(Selection);const auto* Def=DreamAugmentCatalog::Find(ID);if(!Def)return;
-        Body->AddChildToVerticalBox(Label(Def->Name,25));Body->AddChildToVerticalBox(Label(D->GetCurrentAugmentDescription(ID).ToString(),18))->SetPadding(FMargin(0,12));
-        if(Def->Evolution){Body->AddChildToVerticalBox(Label(D->GetEvolutionStatus(ID),20));for(auto Part:Def->Ingredients)Button(Body,FString::Printf(TEXT("재료 · %s %d/1 → 상세"),*D->GetAugmentDisplayName(Part).ToString(),D->HasAcquiredAugment(Part)?1:0),1000+int32(Part));}
-        else for(const auto& Route:DreamAugmentCatalog::All())if(Route.Evolution&&Route.Ingredients.Contains(ID))Button(Body,TEXT("연결된 진화 → ")+Route.Name,1000+int32(Route.ID));
-        Body->AddChildToVerticalBox(Label(TEXT("조건 충족 후 진화 카드는 증강 선택에서 등장합니다. 도감에서는 진화하지 않습니다."),16));return;
+        if(Page==1&&!Def.Evolution)continue;if(Page==0&&Def.Evolution)continue;
+        if(Selection<0)Selection=int32(Def.ID);
+        Button(Body,(Def.Evolution?TEXT("[진화] "):Def.Category==EAugmentCategory::Passive?TEXT("[패시브] "):TEXT("[액티브] "))+Def.Name,1000+int32(Def.ID));
     }
-    for(const auto& Def:DreamAugmentCatalog::All())
-    {
-        if(Page==1&&!Def.Evolution)continue;
-        if(Page==0&&Def.Evolution)continue;
-        Button(Body,(Def.Evolution?TEXT("[진화] "):Def.Category==EAugmentCategory::Passive?TEXT("[패시브] "):TEXT("[액티브] "))+Def.Name+(Def.Evolution?TEXT(" · ")+D->GetEvolutionStatus(Def.ID):TEXT("")),1000+int32(Def.ID));
-    }
+    RefreshDetail();
 }
 void UDreamAugmentPanel::RefreshOwned()
 {
@@ -299,16 +304,37 @@ void UDreamAugmentPanel::RefreshOwned()
     for(auto ID:D->GetAugmentHistory())if(!Seen.Contains(ID))
     {
         Seen.Add(ID);const auto* Def=DreamAugmentCatalog::Find(ID);if(!Def)continue;
-        auto* TitleRow=WidgetTree->ConstructWidget<UHorizontalBox>();Body->AddChildToVerticalBox(TitleRow)->SetPadding(FMargin(0,8,0,4));
-        if(const auto* Texture=Icons?Icons->Icons.Find(ID):nullptr)
-        {
-            auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(40);Size->SetHeightOverride(40);
-            auto* Image=WidgetTree->ConstructWidget<UImage>();Image->SetBrushFromTexture(Texture->Get());Size->SetContent(Image);TitleRow->AddChildToHorizontalBox(Size)->SetPadding(FMargin(0,0,10,0));
-        }
-        TitleRow->AddChildToHorizontalBox(Label(FString::Printf(TEXT("[%s] %s × %d"),Def->Evolution?TEXT("진화"):Def->Category==EAugmentCategory::Passive?TEXT("패시브"):TEXT("액티브"),*Def->Name,D->GetStackCount(ID)),21))->SetVerticalAlignment(VAlign_Center);
-        Body->AddChildToVerticalBox(Label(D->GetCurrentAugmentDescription(ID).ToString(),16));
+        if(Selection<0)Selection=int32(ID);
+        Button(Body,FString::Printf(TEXT("[%s] %s × %d"),Def->Evolution?TEXT("진화"):Def->Category==EAugmentCategory::Passive?TEXT("패시브"):TEXT("액티브"),*Def->Name,D->GetStackCount(ID)),1000+int32(ID));
     }
-    if(Seen.IsEmpty())Body->AddChildToVerticalBox(Label(TEXT("아직 획득한 증강이 없습니다."),20));
+    if(Seen.IsEmpty())Body->AddChildToVerticalBox(Label(TEXT("아직 획득한 증강이 없습니다."),18));
+}
+void UDreamAugmentPanel::RefreshDetail()
+{
+    if(!DetailBody)return;DetailBody->ClearChildren();
+    if(auto* DetailsScroll=Cast<UScrollBox>(DetailBody->GetParent()))DetailsScroll->ScrollToStart();
+    for(auto* Child:Body->GetAllChildren())if(auto* Size=Cast<USizeBox>(Child))if(auto* Item=Cast<UDreamAugmentActionButton>(Size->GetContent()))
+    {
+        FButtonStyle ItemStyle=Item->GetStyle();ItemStyle.Normal=FSlateColorBrush(Item->Action==Selection+1000?FLinearColor(.22f,.12f,.32f,.8f):FLinearColor::Transparent);Item->SetStyle(ItemStyle);
+    }
+    auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* D=P?P->DispatchTable.Get():nullptr;
+    const auto ID=static_cast<EAugmentID>(Selection);const auto* Def=Selection>=0?DreamAugmentCatalog::Find(ID):nullptr;
+    if(!D||!Def){DetailBody->AddChildToVerticalBox(Label(TEXT("왼쪽 목록에서 증강을 선택하세요."),20));return;}
+    if(const auto* Texture=Icons?Icons->Icons.Find(ID):nullptr)
+    {
+        auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetWidthOverride(112);Size->SetHeightOverride(112);
+        auto* Image=WidgetTree->ConstructWidget<UImage>();Image->SetBrushFromTexture(Texture->Get());Size->SetContent(Image);
+        DetailBody->AddChildToVerticalBox(Size)->SetHorizontalAlignment(HAlign_Center);
+    }
+    DetailBody->AddChildToVerticalBox(Label(Def->Name,25))->SetPadding(FMargin(0,12));
+    DetailBody->AddChildToVerticalBox(Label(D->GetCurrentAugmentDescription(ID).ToString(),17))->SetPadding(FMargin(0,0,0,16));
+    if(Def->Evolution)
+    {
+        DetailBody->AddChildToVerticalBox(Label(D->GetEvolutionStatus(ID),18));
+        for(auto Part:Def->Ingredients)Button(DetailBody,FString::Printf(TEXT("재료 · %s %d/1 → 상세"),*D->GetAugmentDisplayName(Part).ToString(),D->HasAcquiredAugment(Part)?1:0),1000+int32(Part));
+    }
+    else for(const auto& Route:DreamAugmentCatalog::All())if(Route.Evolution&&Route.Ingredients.Contains(ID))Button(DetailBody,TEXT("연결된 진화 → ")+Route.Name,1000+int32(Route.ID));
+    DetailBody->AddChildToVerticalBox(Label(TEXT("조건 충족 후 진화 카드는 증강 선택에서 등장합니다."),14))->SetPadding(FMargin(0,12));
 }
 void UDreamAugmentPanel::RefreshHUD()
 {
@@ -321,13 +347,19 @@ void UDreamAugmentPanel::RefreshHUD()
     }
     auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* PC=Cast<AMainPlayerController>(GetOwningPlayer());auto* GI=GetGameInstance<UDreamVeilGameInstance>();
     const bool Visible=P && PC && GI && (GI->IsInLevelMap() || GI->IsInEndless()) && P->CombatStats && !P->CombatStats->IsDead() && !PC->IsMenuWidgetOpen() && !P->HasAugmentChoices();
-    SetRenderOpacity(Visible?1.f:0.f);if(!Visible || !P->DispatchTable) return;
+    float Opacity=PC?FMath::Clamp(PC->SkillHUDOpacity,0.f,1.f):0.f;
+    if(PC&&PC->bFadeSkillHUDWithCorruption)if(auto* GM=GetWorld()->GetAuthGameMode<AMainGameModeBase>())
+    {
+        const float Progress=FMath::Max(GM->GetLevelTimeProgress(),GM->GetCorruption());
+        const float Fade=FMath::Clamp((Progress-PC->SkillHUDFadeStart)/FMath::Max(.01f,1.f-PC->SkillHUDFadeStart),0.f,1.f);
+        Opacity*=FMath::Lerp(1.f,FMath::Clamp(PC->SkillHUDMinOpacity,0.f,1.f),Fade);
+    }
+    SetRenderOpacity(Visible&&PC->bShowEvolvedSkillHUD?Opacity:0.f);if(!Visible || !P->DispatchTable) return;
     auto* D=P->DispatchTable.Get();
     const double Now=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
     const bool DescriptionChanged=LastHUDPawn.Get()!=P||LastHUDRevision!=D->GetAugmentRevision()||Now>=NextHUDDescriptionRefresh;
     if(DescriptionChanged){LastHUDPawn=P;LastHUDRevision=D->GetAugmentRevision();NextHUDDescriptionRefresh=Now+1;}
-    const bool KeysChanged=DisplayedSkillKeys!=PC->AugmentSkillKeys;
-    if(KeysChanged)DisplayedSkillKeys=PC->AugmentSkillKeys;
+
     const bool LastBreath=D->HasAcquiredAugment(EAugmentID::LastBreath);
     if(LastBreath && !HealthCapMarker)
     {
@@ -362,8 +394,7 @@ void UDreamAugmentPanel::RefreshHUD()
             if(SkillIcons[I]->GetBrush().GetResourceObject()!=(Texture?Texture->Get():nullptr))SkillIcons[I]->SetBrushFromTexture(Texture?Texture->Get():nullptr);
             SkillIcons[I]->SetVisibility(Texture?ESlateVisibility::HitTestInvisible:ESlateVisibility::Hidden);
             SkillIcons[I]->SetColorAndOpacity(Cooling?FLinearColor(.38f,.38f,.42f,.9f):FLinearColor::White);
-            if(KeysChanged)SkillKeyLabels[I]->SetText(FText::FromString(PC->GetAugmentSkillKeyText(I)));
-            SkillKeyLabels[I]->SetColorAndOpacity(Owned?FLinearColor(.93f,.86f,.69f):FLinearColor(.45f,.43f,.47f,.6f));
+            SkillFrames[I]->SetRenderOpacity(Owned?1.f:0.f);
             if(DescriptionChanged)SkillIcons[I]->SetToolTipText(Owned?D->GetCurrentAugmentDescription(ID):FText::FromString(TEXT("진화 스킬 미해금")));
         }
     }

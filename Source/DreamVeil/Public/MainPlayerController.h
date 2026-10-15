@@ -20,6 +20,11 @@ class DREAMVEIL_API AMainPlayerController : public APlayerController
 	GENERATED_BODY()
 public:
     AMainPlayerController();
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="UI|Skill HUD") bool bShowEvolvedSkillHUD=true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="UI|Skill HUD", meta=(ClampMin="0",ClampMax="1")) float SkillHUDOpacity=1.f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="UI|Skill HUD") bool bFadeSkillHUDWithCorruption=true;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="UI|Skill HUD", meta=(ClampMin="0",ClampMax="0.99")) float SkillHUDFadeStart=.5f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="UI|Skill HUD", meta=(ClampMin="0",ClampMax="1")) float SkillHUDMinOpacity=.45f;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input|Augment") TArray<FKey> AugmentSkillKeys;
     UFUNCTION(BlueprintPure, Category="Input|Augment") FString GetAugmentSkillKeyText(int32 Slot) const;
     UFUNCTION(BlueprintCallable, Category="UI|Augment") void OpenAugmentGuide();
