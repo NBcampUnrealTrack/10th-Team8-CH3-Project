@@ -2,6 +2,7 @@
 
 
 #include "MonsterSpawnVolume.h"
+#include "DreamPlayPolish.h"
 #include "DreamObjectPoolSubsystem.h"
 #include "DreamCrowdTacticsSubsystem.h"
 #include "MainGameModeBase.h"
@@ -430,6 +431,7 @@ void AMonsterSpawnVolume::SpawnOneFromWave()
         if(!TrySpawnMonster())break;
         --PendingSpawnCount;++LastSpawnedGroupCount;
     }
+    if(LastSpawnedGroupCount>0)if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->PackSpawned();
     bPreferRangedMember=false;bHasGroupOrigin=false;bInsideSpawnGroup=false;CachedGroupEliteCount=INDEX_NONE;
     // Continuous pressure follows the game-mode clock, not a rapid retry/refill loop.
     if(bContinuousPack)PendingSpawnCount=0;

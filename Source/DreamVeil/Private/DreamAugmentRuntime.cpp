@@ -1,5 +1,6 @@
 ﻿#include "DreamAugmentRuntime.h"
 #include "DreamAugmentFeedback.h"
+#include "DreamPlayPolish.h"
 #include "DreamAugmentCatalog.h"
 #include "DispatchTableComponent.h"
 #include "MainPlayerCharacter.h"
@@ -168,13 +169,14 @@ bool UDreamAugmentRuntime::Use(EAugmentID ID)
     default:return false;
     }
     if(ID==EAugmentID::SkillDodge)UDreamAugmentFeedback::Emit(P,ID,EDreamAugmentCueShape::Beam,BeforeMove-FVector(0,0,50),3,.3f,nullptr,P->GetActorLocation()-FVector(0,0,50));
+    if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->RecordSkill();
     CueUse(ID);Tick();return true;
 }
 bool UDreamAugmentRuntime::BeginShot(const FVector& Start,const FVector& Direction,float Damage,float Range,ECollisionChannel Channel)
 {
     ++ShotNumber;ShotSkill=static_cast<EAugmentID>(255);ShotStart=Start;ShotDirection=Direction;
     if(Prepared==EAugmentID::SkillOvercharge&&PrepareUntil>=Now())
-    {if(Player()->TrySpendSkillStamina(GetCost(Prepared))){ShotSkill=Prepared;Ready.Add(Prepared,Now()+GetCooldown(Prepared));}Prepared=static_cast<EAugmentID>(255);}
+    {if(Player()->TrySpendSkillStamina(GetCost(Prepared))){ShotSkill=Prepared;Ready.Add(Prepared,Now()+GetCooldown(Prepared));if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->RecordSkill();}Prepared=static_cast<EAugmentID>(255);}
     else for(auto ID:Dispatch()->GetSkillIDs())if(Charges.FindRef(ID)>0){ShotSkill=ID;Charges[ID]--;break;}
     const bool Piercing=ShotSkill==EAugmentID::SkillPiercing || (Has(EAugmentID::PiercingRounds)&&ShotNumber%4==0);
     if(ShotSkill!=static_cast<EAugmentID>(255)||Piercing)

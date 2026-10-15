@@ -8,6 +8,9 @@
 #include "UObject/UnrealType.h"
 #include "DreamObjectPoolSubsystem.h"
 #include "Components/PanelWidget.h"
+#include "Blueprint/WidgetTree.h"
+#include "Components/ButtonSlot.h"
+#include "Components/ScaleBox.h"
 #include "Engine/World.h"
 #include "BedActor.h"
 #include "DreamVeilGameInstance.h"
@@ -18,6 +21,38 @@
 #include "Components/Image.h"
 #include "Engine/Texture2D.h"
 #include "Kismet/GameplayStatics.h"
+
+void UDreamUIBlueprintLibrary::FitMenuLabels(UUserWidget* Host)
+{
+    if(!Host||!Host->WidgetTree)return;
+    TArray<UWidget*> Widgets;Host->WidgetTree->GetAllWidgets(Widgets);
+    auto SingleLine=[](UTextBlock* Text)
+    {
+        Text->SetAutoWrapText(false);Text->SetWrapTextAt(0);
+        auto Font=Text->GetFont();Font.Size=20;Text->SetFont(Font);
+        const FString Original=Text->GetText().ToString();
+        if(Original.Contains(TEXT("\n")))Text->SetText(FText::FromString(Original.Replace(TEXT("\r"),TEXT("")).Replace(TEXT("\n"),TEXT(" "))));
+    };
+    for(auto* Widget:Widgets)
+    {
+        if(auto* Button=Cast<UButton>(Widget))
+        {
+            // Card contents are panels with long descriptions; only standalone captions fit here.
+            auto* Text=Cast<UTextBlock>(Button->GetContent());
+            if(auto* LegacyFit=Cast<UScaleBox>(Button->GetContent()))
+                if(auto* LegacyText=Cast<UTextBlock>(LegacyFit->GetContent())){LegacyFit->SetContent(nullptr);Button->SetContent(LegacyText);Text=LegacyText;}
+            if(Text)
+            {
+                SingleLine(Text);
+                const auto* CatalogButton=Cast<UDreamAugmentActionButton>(Button);
+                if(!CatalogButton||CatalogButton->Action<1000||CatalogButton->Action>=1256)Text->SetJustification(ETextJustify::Center);
+                auto Style=Button->GetStyle();Style.NormalPadding=Style.PressedPadding=FMargin(8,4);Button->SetStyle(Style);
+                if(auto* Slot=Cast<UButtonSlot>(Text->Slot)){Slot->SetPadding(FMargin(0));Slot->SetHorizontalAlignment(HAlign_Fill);Slot->SetVerticalAlignment(VAlign_Center);}
+            }
+            continue;
+        }
+    }
+}
 
 void UDreamUIBlueprintLibrary::OpenBedDreamSelect(UUserWidget* Widget)
 {
@@ -30,6 +65,7 @@ void UDreamUIBlueprintLibrary::PlayMainMenuBGM(UUserWidget* Widget)
 {
     if (!Widget) return;
     UDreamSuperEasyButton::Install(Widget);
+    FitMenuLabels(Widget);
     if (auto* GI = Widget->GetGameInstance<UDreamVeilGameInstance>())
         GI->PlayMainMenuBGM();
 }
@@ -103,6 +139,7 @@ void UDreamUIBlueprintLibrary::ApplyAugmentIcons(UUserWidget* Widget, const TArr
         Image->SetVisibility(Texture ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
     }
     UDreamAugmentPanel::InstallChoiceToolbar(Widget);
+    FitMenuLabels(Widget);
 }
 
 void UDreamUIBlueprintLibrary::ContinueDreamGameOver(UUserWidget* Widget)

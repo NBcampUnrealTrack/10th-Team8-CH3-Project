@@ -1,4 +1,5 @@
 ﻿#include "MonsterSkill.h"
+#include "DreamPlayPolish.h"
 #include "DreamAugmentRuntime.h"
 #include "DreamObjectPoolSubsystem.h"
 
@@ -110,6 +111,7 @@ bool UMonsterSkill::BeginSkill(EMonsterSkillType Skill)
 {
     if (!CanUseSkill(Skill)) return false;
 
+    if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())if(!Flow->ReserveAttack(Cast<AMonsterBase>(GetOwner()),true))return false;
     ActiveSkill = Skill;
     ActiveCooldown = FMath::Max(0.0f, FindSettings(Skill)->Cooldown);
     bIsUsingSkill = true;
@@ -125,6 +127,7 @@ void UMonsterSkill::FinishSkill()
     {
         NextUseTimes.Add(ActiveSkill, GetWorld()->GetTimeSeconds() + ActiveCooldown);
     }
+    if(auto* M=Cast<AMonsterBase>(GetOwner())){M->ClearTelegraph();if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->ReleaseAttack(M);}
     bIsUsingSkill = false;
     //AI를 재개하기 전에 쿨타임과 사용 상태를 갱신해 즉시 재발동하지 않게 한다.
     CleanupCharge();
@@ -179,9 +182,10 @@ bool UMonsterSkill::TryUseCharge()
     const FVector WarningStart = ChargeStart - FVector::UpVector * Monster->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
     Monster->ShowAttackWarning(WarningStart, WarningStart + ChargeDirection * ChargeDistance,
         ChargeWidth);
+    Monster->TelegraphAttack(1,FMath::Max(ChargeReadySeconds,.65f));
     PlayChargeAnimation(ChargeReadyAnimation);
     //준비 시간이 0이어도 타이머가 걸리도록 최소값을 둔다.
-    GetWorld()->GetTimerManager().SetTimer(ChargeReadyTimer, this, &UMonsterSkill::StartCharge, FMath::Max(ChargeReadySeconds, 0.01f), false);
+    GetWorld()->GetTimerManager().SetTimer(ChargeReadyTimer, this, &UMonsterSkill::StartCharge, FMath::Max(ChargeReadySeconds, .65f), false);
     return true;
 }
 
@@ -221,7 +225,7 @@ void UMonsterSkill::StartCharge()
     if (!bIsUsingSkill || !bChargePrepared || !IsValid(Monster)) return;
     if (Monster->MonsterCombatStats->IsDead()) { CancelSkill(); return; }
 
-    Monster->HideAttackWarning();
+    Monster->ClearTelegraph();Monster->HideAttackWarning();
     //캐릭터에 막히지 않고 지나가며 공격 판정은 별도의 Sweep으로 처리한다.
     Monster->GetCapsuleComponent()->SetCollisionResponseToChannel(ECC_Pawn, ECR_Ignore);
     Monster->GetCapsuleComponent()->SetCollisionResponseToChannel(MonsterCollision::Monster, ECR_Ignore);
@@ -319,7 +323,7 @@ void UMonsterSkill::CleanupCharge()
     if(UWorld* World=GetWorld())World->GetTimerManager().ClearTimer(ChargeReadyTimer);
     if (AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner()))
     {
-        Monster->HideAttackWarning();
+        Monster->ClearTelegraph();Monster->HideAttackWarning();
         UCharacterMovementComponent* Movement = Monster->GetCharacterMovement();
         Movement->RemoveRootMotionSource(ChargeMotionName);
         Movement->StopMovementImmediately();
@@ -354,7 +358,7 @@ void UMonsterSkill::CancelSkill()
 
     if (AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner()))
     {
-        Monster->HideAttackWarning();
+        Monster->ClearTelegraph();Monster->HideAttackWarning();
     }
     FinishSkill();
 }
@@ -407,10 +411,11 @@ bool UMonsterSkill::TryUseFanShot()
     const FVector Origin = Monster->GetActorLocation()
         - FVector::UpVector * Monster->GetCapsuleComponent()->GetScaledCapsuleHalfHeight();
     ShowFanShotWarning(Origin);
+    Monster->TelegraphAttack(2,FMath::Max(FanShotReadySeconds,.65f));
     PlayChargeAnimation(FanShotReadyAnimation);
 
     GetWorld()->GetTimerManager().SetTimer(FanShotReadyTimer, this, &UMonsterSkill::FireFanShot,
-        FMath::Max(FanShotReadySeconds, 0.01f), false);
+        FMath::Max(FanShotReadySeconds, .65f), false);
     return true;
 }
 
@@ -569,6 +574,7 @@ bool UMonsterSkill::TryUseBlackHole()
     {
         Monster->SetActorRotation(ToPlayer.GetSafeNormal2D().Rotation());
     }
+    Monster->TelegraphAttack(3,FMath::Max(BlackHoleCastSeconds,.65f));
     PlayChargeAnimation(BlackHoleCastAnimation);
 
     //장판은 스스로 경고 -> 발동 -> 소멸을 처리한다. 시전자가 죽어도 이미 깔린 장판은 남는다.

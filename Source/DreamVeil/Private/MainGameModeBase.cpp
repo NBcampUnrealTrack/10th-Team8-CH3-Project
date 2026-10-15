@@ -1,4 +1,6 @@
-#include "MainGameModeBase.h"
+﻿#include "MainGameModeBase.h"
+#include "DreamPlayPolish.h"
+#include "DreamRunSummaryWidget.h"
 #include "DreamObjectPoolSubsystem.h"
 
 #include "Components/AudioComponent.h"
@@ -216,7 +218,7 @@ void AMainGameModeBase::RequestContinuousSpawn()
 //반복 타이머는 걸 때 정한 주기를 끝까지 쓰기 때문에 Endless가 처음 주기 그대로 돌아버림
 void AMainGameModeBase::ScheduleContinuousSpawn()
 {
-	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, GetContinuousSpawnInterval(), false);
+	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, GetContinuousSpawnInterval()*(GetWorld()->GetSubsystem<UDreamEncounterDirector>()?GetWorld()->GetSubsystem<UDreamEncounterDirector>()->SpawnMultiplier(AliveMonsterCount,GetMaxAliveMonsters()):1.f), false);
 }
 
 //지금 레벨의 표 번호
@@ -526,6 +528,10 @@ void AMainGameModeBase::ClearLevel()
 		return;
 	}
 
+    if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->Finish(TEXT("클리어"));
+    if(auto* PC=Cast<AMainPlayerController>(UGameplayStatics::GetPlayerController(this,0)))
+        if(PC->OpenMenuWidgetPaused(UDreamRunSummaryWidget::StaticClass())){PC->bRunSummaryOpen=true;return;}
+
 	//LV4는 재클리어도 제작진 화면을 표시함. 보상/해금/로비 저장은 종료 버튼에서 기존 흐름을 사용함.
 	//Endless는 레벨 번호가 0이므로 보스를 잡아도 엔딩이 뜨지 않음.
 	if (DreamVeilGameInstance->GetCurrentLevelNumber() == 4)
@@ -788,6 +794,7 @@ void AMainGameModeBase::HandleRunFailed()
 	}
 
 	bTimedOut = true;
+    if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->Finish(Corruption>=1?TEXT("잠식"):TEXT("시간 초과"));
 	if (auto* PC = Cast<AMainPlayerController>(UGameplayStatics::GetPlayerController(this, 0)))
 	{
 		if (PC->ShowCorruptionGameOver()) return;

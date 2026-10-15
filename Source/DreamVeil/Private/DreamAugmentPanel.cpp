@@ -1,8 +1,10 @@
-﻿#include "DreamAugmentPanel.h"
+#include "DreamAugmentPanel.h"
 #include "DispatchTableComponent.h"
 #include "DreamAugmentCatalog.h"
 #include "DreamAugmentRuntime.h"
 #include "DreamAugmentFeedback.h"
+#include "DreamPlayPolish.h"
+#include "Components/EditableTextBox.h"
 #include "MainGameModeBase.h"
 #include "Components/ButtonSlot.h"
 #include "MainPlayerCharacter.h"
@@ -66,7 +68,8 @@ UDreamAugmentActionButton* UDreamAugmentPanel::Button(UVerticalBox* Box,const FS
     auto* W=WidgetTree->ConstructWidget<UDreamAugmentActionButton>();W->Configure(this,Action);
     auto Brush=[](UTexture2D* T){FSlateBrush B;B.SetResourceObject(T);B.DrawAs=ESlateBrushDrawType::Box;B.Margin=FMargin(.12f);return B;};
     FButtonStyle Style;Style.Normal=Brush(NormalTexture);Style.Hovered=Brush(HoverTexture);Style.Pressed=Brush(PressTexture);W->SetStyle(Style);
-    auto* Caption=Label(Text,Mode==EDreamAugmentPanelMode::ChoiceToolbar?14:16);Caption->SetJustification(ETextJustify::Center);
+    auto* Caption=Label(Text,20);Caption->SetJustification(ETextJustify::Center);
+    Caption->SetAutoWrapText(false);
     if(Action>=1000&&Action<1256)
     {
         Style.Normal=FSlateColorBrush(FLinearColor::Transparent);
@@ -77,7 +80,7 @@ UDreamAugmentActionButton* UDreamAugmentPanel::Button(UVerticalBox* Box,const FS
     W->SetContent(Caption);
     if(Action>=1000)if(auto* CaptionSlot=Cast<UButtonSlot>(Caption->Slot))CaptionSlot->SetHorizontalAlignment(HAlign_Fill);
     W->SetIsEnabled(Enabled);
-    auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetMinDesiredHeight(Action>=1000?36:Mode==EDreamAugmentPanelMode::ChoiceToolbar?48:54);Size->SetContent(W);
+    auto* Size=WidgetTree->ConstructWidget<USizeBox>();Size->SetMinDesiredHeight(Action>=1000||(Action>=20&&Action<=24)?44:Mode==EDreamAugmentPanelMode::ChoiceToolbar?48:54);Size->SetContent(W);
     Box->AddChildToVerticalBox(Size)->SetPadding(FMargin(0,3));return W;
 }
 void UDreamAugmentPanel::NativeOnInitialized() { Super::NativeOnInitialized(); }
@@ -157,6 +160,10 @@ void UDreamAugmentPanel::Build()
         auto* Tabs=WidgetTree->ConstructWidget<UHorizontalBox>();Rows->AddChildToVerticalBox(Tabs);
         const TCHAR* Names[]={TEXT("증강 도감 · Q"),TEXT("진화 루트"),TEXT("보유 증강 · E"),TEXT("닫기 · ESC / Z")};
         for(int32 I=0;I<4;++I){auto* Col=WidgetTree->ConstructWidget<UVerticalBox>();Tabs->AddChildToHorizontalBox(Col)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Button(Col,Names[I],I==2?4:I);}
+        Search=WidgetTree->ConstructWidget<UEditableTextBox>(UEditableTextBox::StaticClass(),TEXT("AugmentSearch"));Search->SetHintText(FText::FromString(TEXT("증강 이름 검색")));Search->WidgetStyle.TextStyle.SetFont(FSlateFontInfo(Font.Get(),17));Search->WidgetStyle.SetBackgroundImageNormal(FSlateColorBrush(FLinearColor(.04f,.02f,.07f,1))).SetBackgroundImageHovered(FSlateColorBrush(FLinearColor(.1f,.055f,.15f,1))).SetBackgroundImageFocused(FSlateColorBrush(FLinearColor(.1f,.055f,.15f,1))).SetForegroundColor(FLinearColor(.94f,.9f,1)).SetPadding(FMargin(10,5));Search->OnTextChanged.AddUniqueDynamic(this,&UDreamAugmentPanel::SearchChanged);Rows->AddChildToVerticalBox(Search)->SetPadding(FMargin(0,8));
+        auto* Filters=WidgetTree->ConstructWidget<UHorizontalBox>();Rows->AddChildToVerticalBox(Filters);
+        const TCHAR* FiltersText[]={TEXT("전체"),TEXT("패시브"),TEXT("액티브"),TEXT("보유"),TEXT("진화 가능")};
+        for(int32 I=0;I<5;++I){auto* Col=WidgetTree->ConstructWidget<UVerticalBox>();Filters->AddChildToHorizontalBox(Col)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));Button(Col,FiltersText[I],20+I);}
         Status=Label(TEXT(""),16);Rows->AddChildToVerticalBox(Status)->SetPadding(FMargin(0,8));
         auto* Columns=WidgetTree->ConstructWidget<UHorizontalBox>();Rows->AddChildToVerticalBox(Columns)->SetSize(FSlateChildSize(ESlateSizeRule::Fill));
         auto* Scroll=WidgetTree->ConstructWidget<UScrollBox>();Scroll->SetAlwaysShowScrollbar(true);
@@ -175,6 +182,7 @@ void UDreamAugmentPanel::NativeTick(const FGeometry& Geometry,float Delta)
     Super::NativeTick(Geometry,Delta);RefreshDelay-=Delta;if(RefreshDelay>0) return;RefreshDelay=.1f;
     if(Mode==EDreamAugmentPanelMode::SkillHUD) RefreshHUD();
     else if(Mode==EDreamAugmentPanelMode::ChoiceToolbar) RefreshChoice();
+    else if(Search&&Search->GetText().ToString()!=SearchText)SearchChanged(Search->GetText());
 }
 void UDreamAugmentPanel::InstallChoiceToolbar(UUserWidget* Host)
 {
@@ -218,7 +226,8 @@ FReply UDreamAugmentPanel::NativeOnPreviewKeyDown(const FGeometry& Geometry,cons
 {
     if(Mode==EDreamAugmentPanelMode::Guide)
     {
-        if(Event.GetKey()==EKeys::Escape||Event.GetKey()==EKeys::Z){if(!Event.IsRepeat())CloseGuide();return FReply::Handled();}
+        if(Event.GetKey()==EKeys::Escape||(Event.GetKey()==EKeys::Z&&(!Search||(!Search->HasKeyboardFocus()&&!Search->HasFocusedDescendants())))){if(!Event.IsRepeat())CloseGuide();return FReply::Handled();}
+        if(Search&&(Search->HasKeyboardFocus()||Search->HasFocusedDescendants()))return Super::NativeOnPreviewKeyDown(Geometry,Event);
         if(Event.GetKey()==EKeys::Q){if(!Event.IsRepeat())HandleAction(0);return FReply::Handled();}
         if(Event.GetKey()==EKeys::E){if(!Event.IsRepeat())HandleAction(4);return FReply::Handled();}
     }
@@ -228,8 +237,10 @@ void UDreamAugmentPanel::HandleAction(int32 Action)
 {
     if(Action==3){CloseGuide();return;}
     if(Action==10){if(auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());P&&P->RerollAugmentChoices())RefreshChoice();return;}
-    if(Action==0||Action==1||Action==4){Page=Action;Selection=-1;Filter=0;}
-    else if(Action>=20&&Action<=22){Filter=Action-20;Selection=-1;}
+    if(Action==0||Action==1||Action==4){Page=Action;Selection=-1;Filter=0;SearchText.Empty();if(Search)Search->SetText(FText::GetEmpty());}
+    else if(Action>=20&&Action<=24){Filter=Action-20;Selection=-1;}
+    else if(Action==30){if(auto* GI=GetGameInstance())if(auto* Pref=GI->GetSubsystem<UDreamPlayPreferences>()){Pref->TrackEvolution(static_cast<EAugmentID>(Selection));RefreshGuide();}return;}
+    else if(Action==31){if(auto* GI=GetGameInstance())GI->GetSubsystem<UDreamPlayPreferences>()->ClearEvolutionGoal();RefreshGuide();return;}
     else if(Action>=1000&&Action<1256){Selection=Action-1000;RefreshDetail();return;}
     else return; // There is deliberately no evolve/confirm action in the catalog.
     RefreshGuide();
@@ -246,13 +257,17 @@ void UDreamAugmentPanel::RefreshChoice()
         auto* Card=Cast<UButton>(Host->GetWidgetFromName(*FString::Printf(TEXT("Button_Choice%d"),I+1)));
         if(Card) Card->SetIsEnabled(Choices.IsValidIndex(I)&&P->IsAugmentChoiceInputReady());
     }
-    if(Choices==LastChoices) return;LastChoices=Choices;
+    const auto* Pref=GetGameInstance()?GetGameInstance()->GetSubsystem<UDreamPlayPreferences>():nullptr;
+    const auto Goal=Pref?Pref->GetEvolutionGoal():static_cast<EAugmentID>(255);
+    if(Choices==LastChoices&&LastGoal==int32(Goal)) return;LastChoices=Choices;LastGoal=int32(Goal);
     for(int32 I=0;I<3;++I)
     {
         if(!Choices.IsValidIndex(I)) continue;const auto ID=Choices[I];
         if(auto* Prop=FindFProperty<FByteProperty>(Host->GetClass(),*FString::Printf(TEXT("Choice%d"),I+1))) Prop->SetPropertyValue_InContainer(Host,uint8(ID));
         if(auto* Prop=FindFProperty<FEnumProperty>(Host->GetClass(),*FString::Printf(TEXT("Choice%d"),I+1)))
             Prop->GetUnderlyingProperty()->SetIntPropertyValue(Prop->ContainerPtrToValuePtr<void>(Host),int64(uint8(ID)));
+        const auto* GoalDef=DreamAugmentCatalog::Find(Goal);
+        const bool GoalMaterial=GoalDef&&(Goal==ID||GoalDef->Ingredients.Contains(ID));
         const bool Evolution=D->IsEvolution(ID);
         bool HasRoute=false;for(const auto& Def:DreamAugmentCatalog::All())if(Def.Evolution&&Def.Ingredients.Contains(ID)){HasRoute=true;break;}
         const bool Passive=!Evolution && D->GetAugmentCategory(ID)==EAugmentCategory::Passive;
@@ -267,7 +282,8 @@ void UDreamAugmentPanel::RefreshChoice()
         {
             Badge->SetText(FText::FromString(FString::Printf(TEXT("%02d · %s"),I+1,Evolution?TEXT("진화 카드"):HasRoute?(Passive?TEXT("패시브 · 진화 재료"):TEXT("액티브 · 진화 재료")):Passive?TEXT("패시브 / 중첩"):TEXT("액티브 / 자동"))));
             auto BadgeFont=Badge->GetFont();BadgeFont.Size=14;Badge->SetFont(BadgeFont);
-            Badge->SetColorAndOpacity(Accent);
+            if(GoalMaterial)Badge->SetText(FText::FromString(FString(TEXT("★ 목표 · "))+(Evolution?TEXT("진화 카드"):Passive?TEXT("패시브 · 재료"):TEXT("액티브 · 재료"))));
+            Badge->SetColorAndOpacity(GoalMaterial?FLinearColor(.3f,1,.8f):Accent);
         }
         if(auto* T=Cast<UTextBlock>(Host->GetWidgetFromName(*FString::Printf(TEXT("Text_Choice%dDesc"),I+1))))
         {
@@ -292,14 +308,17 @@ void UDreamAugmentPanel::RefreshGuide()
     if(auto* ListScroll=Cast<UScrollBox>(Body->GetParent()))ListScroll->ScrollToStart();
     auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* D=P?P->DispatchTable.Get():nullptr;if(!D)return;
     Header->SetText(FText::FromString(Page==4?TEXT("보유 중인 증강 · E"):Page==1?TEXT("진화 루트"):TEXT("증강 도감 · Q")));
-    Summary=FString::Printf(TEXT("패시브 %d/6 · 액티브 %d/6 · 스킬 %d/6 · 이름을 선택하면 상세 정보를 볼 수 있습니다."),D->GetOwnedCount(EAugmentCategory::Passive),D->GetOwnedCount(EAugmentCategory::Active),D->GetSkillCount());Status->SetText(FText::FromString(Summary));
+    Summary=FString::Printf(TEXT("패시브 %d/6 · 액티브 %d/6 · 스킬 %d/6"),D->GetOwnedCount(EAugmentCategory::Passive),D->GetOwnedCount(EAugmentCategory::Active),D->GetSkillCount());if(auto* GI=GetGameInstance())Summary+=TEXT("\n")+GI->GetSubsystem<UDreamPlayPreferences>()->GetGoalText(D);
+    Status->SetText(FText::FromString(Summary));
     if(Page==4)RefreshOwned();
     else for(const auto& Def:DreamAugmentCatalog::All())
     {
-        if(Page==1&&!Def.Evolution)continue;if(Page==0&&Def.Evolution)continue;
-        if(Selection<0)Selection=int32(Def.ID);
+        if(Page==1&&!Def.Evolution)continue;if(Page==0&&Def.Evolution&&Filter!=4)continue;
+        if(!MatchesFilter(Def.ID))continue;
+        if(Selection<0||!MatchesFilter(static_cast<EAugmentID>(Selection)))Selection=int32(Def.ID);
         Button(Body,(Def.Evolution?TEXT("[진화] "):Def.Category==EAugmentCategory::Passive?TEXT("[패시브] "):TEXT("[액티브] "))+Def.Name,1000+int32(Def.ID));
     }
+    if(Body->GetChildrenCount()==0){Selection=-1;Body->AddChildToVerticalBox(Label(TEXT("검색 조건에 맞는 증강이 없습니다."),17));}
     RefreshDetail();
 }
 void UDreamAugmentPanel::RefreshOwned()
@@ -307,7 +326,7 @@ void UDreamAugmentPanel::RefreshOwned()
     auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());if(!P||!P->DispatchTable)return;auto* D=P->DispatchTable.Get();TSet<EAugmentID> Seen;
     for(auto ID:D->GetAugmentHistory())if(!Seen.Contains(ID))
     {
-        Seen.Add(ID);const auto* Def=DreamAugmentCatalog::Find(ID);if(!Def)continue;
+        Seen.Add(ID);if(!MatchesFilter(ID))continue;const auto* Def=DreamAugmentCatalog::Find(ID);if(!Def)continue;
         if(Selection<0)Selection=int32(ID);
         Button(Body,FString::Printf(TEXT("[%s] %s × %d"),Def->Evolution?TEXT("진화"):Def->Category==EAugmentCategory::Passive?TEXT("패시브"):TEXT("액티브"),*Def->Name,D->GetStackCount(ID)),1000+int32(ID));
     }
@@ -335,10 +354,13 @@ void UDreamAugmentPanel::RefreshDetail()
     if(Def->Evolution)
     {
         DetailBody->AddChildToVerticalBox(Label(D->GetEvolutionStatus(ID),18));
+        Button(DetailBody,TEXT("이 진화를 목표로 추적"),30);Button(DetailBody,TEXT("진화 목표 해제"),31);
         for(auto Part:Def->Ingredients)Button(DetailBody,FString::Printf(TEXT("재료 · %s %d/1 → 상세"),*D->GetAugmentDisplayName(Part).ToString(),D->HasAcquiredAugment(Part)?1:0),1000+int32(Part));
     }
     else for(const auto& Route:DreamAugmentCatalog::All())if(Route.Evolution&&Route.Ingredients.Contains(ID))Button(DetailBody,TEXT("연결된 진화 → ")+Route.Name,1000+int32(Route.ID));
     DetailBody->AddChildToVerticalBox(Label(TEXT("조건 충족 후 진화 카드는 증강 선택에서 등장합니다."),14))->SetPadding(FMargin(0,12));
+    // Explicit wrap width gives the scroll layout the correct paragraph height before painting.
+    for(auto* Child:DetailBody->GetAllChildren())if(auto* Text=Cast<UTextBlock>(Child))Text->SetWrapTextAt(380.f);
 }
 void UDreamAugmentPanel::RefreshHUD()
 {
@@ -476,4 +498,16 @@ FReply UDreamAugmentChoiceHost::NativeOnPreviewKeyDown(const FGeometry& Geometry
 void UDreamAugmentChoiceHost::NativeDestruct()
 {
     if(Overlay.IsValid())Overlay->RemoveFromParent();Overlay.Reset();Super::NativeDestruct();
+}
+
+void UDreamAugmentPanel::SearchChanged(const FText& Text){SearchText=Text.ToString();Selection=-1;RefreshGuide();}
+bool UDreamAugmentPanel::MatchesFilter(EAugmentID ID)const
+{
+    const auto* Def=DreamAugmentCatalog::Find(ID);if(!Def||(!SearchText.IsEmpty()&&!Def->Name.Contains(SearchText)))return false;
+    const auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* D=P?P->DispatchTable.Get():nullptr;
+    if(Filter==1)return !Def->Evolution&&Def->Category==EAugmentCategory::Passive;
+    if(Filter==2)return !Def->Evolution&&Def->Category==EAugmentCategory::Active;
+    if(Filter==3)return D&&D->HasAcquiredAugment(ID);
+    if(Filter==4)return D&&Def->Evolution&&D->CanEvolve(ID);
+    return true;
 }

@@ -144,6 +144,7 @@ public:
 	//게임을 멈추고 LV4 제작진 화면을 띄움. 종료 전에는 다른 메뉴가 덮을 수 없음.
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	bool ShowEnding();
+    bool bRunSummaryOpen=false;
 	UFUNCTION(BlueprintCallable, Category = "UI")
 	void FinishEnding();
 	UFUNCTION(BlueprintPure, Category = "UI")

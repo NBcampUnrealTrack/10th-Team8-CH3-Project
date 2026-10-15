@@ -26,6 +26,8 @@ class DREAMVEIL_API UDreamUIBlueprintLibrary : public UBlueprintFunctionLibrary
 {
     GENERATED_BODY()
 public:
+    UFUNCTION(BlueprintCallable, Category="Dream UI")
+    static void FitMenuLabels(UUserWidget* Host);
     UFUNCTION(BlueprintPure, Category="Dream UI")
     static UWidget* FindNamedWidget(UUserWidget* Host, FName Name);
     UFUNCTION(BlueprintCallable, Category="Dream UI|Inventory")

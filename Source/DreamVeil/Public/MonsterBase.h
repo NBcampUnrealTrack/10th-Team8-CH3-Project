@@ -80,11 +80,19 @@ public:
 	TObjectPtr<UMonsterSkill> MonsterSkill;
 
     void PlayChargeSound();
+    void TelegraphAttack(int32 Kind,float Seconds);
+    void ClearTelegraph();
+    UPROPERTY() TObjectPtr<class ADreamAugmentCue> TelegraphCue;
+    uint32 TelegraphGeneration=0;
+    UPROPERTY() TObjectPtr<class USoundBase> WarningCharge;
+    UPROPERTY() TObjectPtr<class USoundBase> WarningFan;
+    UPROPERTY() TObjectPtr<class USoundBase> WarningZone;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Audio") TObjectPtr<class USoundBase> AttackWhooshSound;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Audio") TObjectPtr<class USoundBase> ChargeWhooshSound;
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Monster|Audio") TObjectPtr<class USoundBase> DeathSound;
     UPROPERTY() TObjectPtr<class USoundAttenuation> CombatSoundAttenuation;
     UPROPERTY() TObjectPtr<class USoundConcurrency> CombatSoundConcurrency;
+    UPROPERTY() TObjectPtr<class USoundConcurrency> WarningSoundConcurrency;
     void PlayCombatSound(class USoundBase* Sound,float Volume);
     bool bDeathSoundPlayed=false;
 	bool IsAttacking() const { return bIsAttacking; }

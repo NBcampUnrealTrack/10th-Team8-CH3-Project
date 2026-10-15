@@ -2,6 +2,7 @@
     //깬 레벨 수가 곧 다음 레벨의 인덱스 하나도 안 깼으면 0번인 L1
     //실수로 두 번 불려도 레벨 개수를 넘지 않게 막음
 #include "DreamVeilGameInstance.h"
+#include "DreamPlayPolish.h"
 #include "DreamBalanceProfile.h"
 #include "MoviePlayer.h"
 #include "Widgets/Layout/SBorder.h"
@@ -98,6 +99,7 @@ void UDreamVeilGameInstance::ClearPlayerAugments()
 //메인 메뉴에서 새 게임 시작
 void UDreamVeilGameInstance::StartNewGame()
 {
+    GetSubsystem<UDreamPlayPreferences>()->ClearRun();
     bHardRunEnded = false;
     ClearRunProgress();
 

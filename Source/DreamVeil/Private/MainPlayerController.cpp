@@ -1,4 +1,6 @@
-#include "MainPlayerController.h"
+﻿#include "MainPlayerController.h"
+#include "DreamPlayPolish.h"
+#include "DreamRunSummaryWidget.h"
 #include "DreamPauseWidget.h"
 #include "DreamInteractionPrompt.h"
 #include "DreamAugmentPanel.h"
@@ -182,6 +184,7 @@ void AMainPlayerController::FinishDeathPresentation()
 {
     if (!bDeathPresentationActive) return;
     bDeathPresentationActive = false;
+    if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->Finish(TEXT("사망"));
     if (bGameOverOpen || bEndingOpen) return;
 
     //게임 오버 곡으로 갈아 끼움 어떤 곡인지는 배경음을 들고 있는 게임모드가 정함
@@ -204,6 +207,7 @@ void AMainPlayerController::FinishDeathPresentation()
 
     if (!GI) return;
 
+    UDreamRunSummaryWidget::AttachSummary(MenuWidgetInstance);
     GI->HandleHardGameOver();
 
     if (auto* Info = Cast<UTextBlock>(MenuWidgetInstance->GetWidgetFromName(TEXT("Text_Info"))))
@@ -297,6 +301,7 @@ bool AMainPlayerController::ShowCorruptionGameOver()
     if (auto* GI = GetGameInstance<UDreamVeilGameInstance>()) GI->HandleHardGameOver();
     UUserWidget* Screen = OpenMenuWidgetPaused(GameOverWidgetClass);
     if (!Screen) return false;
+    UDreamRunSummaryWidget::AttachSummary(Screen);
     bCorruptionGameOver = true;
     bGameOverOpen = true;
     if (auto* Title = Cast<UTextBlock>(Screen->GetWidgetFromName(TEXT("Text_Title"))))
@@ -319,7 +324,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
 	//일시정지하면 위젯 틱도 멈추므로 메뉴를 열 때 남아 있는 X 표시를 바로 숨김
 	if (HeadshotFeedbackWidget) HeadshotFeedbackWidget->SetVisibility(ESlateVisibility::Hidden);
     // Do not let pending augment/interaction events replace the terminal screen.
-    if (bGameOverOpen || bEndingOpen || bDeathPresentationActive) return nullptr;
+    if (bGameOverOpen || bEndingOpen || bDeathPresentationActive || bRunSummaryOpen) return nullptr;
     //위젯을 안 넣었으면 띄울 게 없음
     if (!MenuWidgetClass)
     {
@@ -337,6 +342,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
     }
 
     MenuWidgetInstance->AddToViewport(MenuWidgetInstance->IsA<UEndingCreditsWidget>() ? 10000 : (MenuWidgetInstance->IsA<UDreamPauseWidget>() ? 100 : 0));
+    UDreamUIBlueprintLibrary::FitMenuLabels(MenuWidgetInstance);
 
     //입력 모드를 UI로 바꾸기 전에 눌린 키를 버림
     //순서가 중요함 UI로 바꾼 뒤에 버리면 이미 캐릭터가 이동 입력을 들고 있어서 늦음
@@ -414,7 +420,7 @@ void AMainPlayerController::SetGameSuspended(bool bSuspended)
 void AMainPlayerController::CloseMenuWidget()
 {
 	//Only FinishEnding may leave the terminal screen; inventory/augment callbacks cannot resume combat.
-	if (bEndingOpen) return;
+	if (bEndingOpen || bRunSummaryOpen) return;
 	//내가 멈춘 것만 풀어줌
 	//무조건 풀면 증강 선택처럼 다른 쪽이 멈춰둔 게임까지 같이 풀려서 고르는 동안 몬스터가 움직임
 	if (bMenuPaused)
@@ -507,7 +513,7 @@ bool AMainPlayerController::IsPauseMenuOpen() const
 
 void AMainPlayerController::TogglePauseMenu()
 {
-    if (!IsLocalController() || bGameOverOpen || bEndingOpen || bDeathPresentationActive) return;
+    if (!IsLocalController() || bGameOverOpen || bEndingOpen || bDeathPresentationActive || bRunSummaryOpen) return;
     if (IsPauseMenuOpen()) { CloseMenuWidget(); return; }
     const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
     const auto* PawnCharacter = Cast<AMainPlayerCharacter>(GetPawn());

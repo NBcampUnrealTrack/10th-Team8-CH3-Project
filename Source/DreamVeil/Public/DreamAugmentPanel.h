@@ -18,6 +18,7 @@ class UHorizontalBox;
 class UProgressBar;
 class UImage;
 class UBorder;
+class UEditableTextBox;
 class UTexture2D;
 class UFont;
 class UDreamAugmentIconSet;
@@ -59,6 +60,12 @@ protected:
 private:
     void Build();
     void RefreshGuide();
+    UFUNCTION() void SearchChanged(const FText& Text);
+    bool MatchesFilter(EAugmentID ID) const;
+    UPROPERTY() TObjectPtr<UEditableTextBox> Search;
+    FString SearchText;
+    int32 LastGoal=-1;
+
     void RefreshChoice();
     void RefreshHUD();
     void CloseGuide();

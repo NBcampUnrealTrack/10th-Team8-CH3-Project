@@ -31,6 +31,8 @@ private:
     UFUNCTION() void ResumeGame();
     UFUNCTION() void OpenAugmentGuide();
     UFUNCTION() void QuitGame();
+    UFUNCTION() void ToggleEffectMode();
+    UPROPERTY() TObjectPtr<UTextBlock> EffectModeLabel;
     void RefreshAugmentList();
     FString AugmentSummary;
     UPROPERTY() TMap<EAugmentID,TObjectPtr<UHorizontalBox>> CachedAugmentRows;

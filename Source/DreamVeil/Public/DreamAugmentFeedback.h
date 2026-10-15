@@ -66,7 +66,9 @@ public:
     virtual void PrepareForPoolReuse() override;
     virtual void OnPoolAcquired() override;
     virtual void OnPoolReturned() override;
-    bool IsEssential() const { return Shape==EDreamAugmentCueShape::Field||Shape==EDreamAugmentCueShape::Barrier||Shape==EDreamAugmentCueShape::Decoy; }
+    void ThreatTint(const FLinearColor& Color);
+    bool bThreat=false;
+    bool IsEssential() const { return bThreat||Shape==EDreamAugmentCueShape::Field||Shape==EDreamAugmentCueShape::Barrier||Shape==EDreamAugmentCueShape::Decoy; }
     virtual int32 GetPoolCapacity() const override { return 32; }
     virtual float GetPoolReuseDelay() const override { return 0.f; }
 private:

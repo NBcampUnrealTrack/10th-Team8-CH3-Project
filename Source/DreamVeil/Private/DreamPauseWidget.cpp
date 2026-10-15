@@ -1,4 +1,6 @@
 ﻿#include "DreamPauseWidget.h"
+#include "DreamPlayPolish.h"
+#include "Engine/GameInstance.h"
 #include "DreamUIBlueprintLibrary.h"
 #include "DreamAugmentPanel.h"
 #include "DispatchTableComponent.h"
@@ -21,6 +23,7 @@
 #include "Components/VerticalBoxSlot.h"
 #include "Components/TextBlock.h"
 #include "Components/SizeBox.h"
+#include "Components/ScaleBox.h"
 #include "Engine/Texture2D.h"
 #include "Engine/Font.h"
 #include "InputCoreTypes.h"
@@ -52,15 +55,10 @@ void UDreamPauseWidget::NativeOnInitialized()
     Shade->SetBrushColor(FLinearColor(0,0,0,.65f));
     auto* ShadeSlot=Canvas->AddChildToCanvas(Shade);
     ShadeSlot->SetAnchors(FAnchors(0,0,1,1)); ShadeSlot->SetOffsets(FMargin(0));
-    auto* PanelFill=WidgetTree->ConstructWidget<UBorder>();
-    PanelFill->SetBrushColor(FLinearColor(.025f,.02f,.035f,.96f));
-    auto* FillSlot=Canvas->AddChildToCanvas(PanelFill);
-    FillSlot->SetAnchors(FAnchors(.5f,.5f));FillSlot->SetAlignment(FVector2D(.5f,.5f));FillSlot->SetSize(FVector2D(944,560));
-    auto* Panel=WidgetTree->ConstructWidget<UBorder>();
-    FSlateBrush Frame; Frame.SetResourceObject(PanelTexture); Frame.DrawAs=ESlateBrushDrawType::Box; Frame.Margin=FMargin(.0625f);
-    Panel->SetBrush(Frame); Panel->SetPadding(FMargin(32));
-    auto* PanelSlot=Canvas->AddChildToCanvas(Panel);
-    PanelSlot->SetAnchors(FAnchors(.5f,.5f)); PanelSlot->SetAlignment(FVector2D(.5f,.5f)); PanelSlot->SetSize(FVector2D(944,560));
+    auto* Scale=WidgetTree->ConstructWidget<UScaleBox>();Scale->SetStretch(EStretch::ScaleToFit);auto* ScaleSlot=Canvas->AddChildToCanvas(Scale);ScaleSlot->SetAnchors(FAnchors(0,0,1,1));ScaleSlot->SetOffsets(FMargin(24));
+    auto* Fixed=WidgetTree->ConstructWidget<USizeBox>();Fixed->SetWidthOverride(944);Fixed->SetHeightOverride(560);Scale->SetContent(Fixed);
+    auto* PanelFill=WidgetTree->ConstructWidget<UBorder>();PanelFill->SetBrushColor(FLinearColor(.025f,.02f,.035f,.96f));Fixed->SetContent(PanelFill);
+    auto* Panel=WidgetTree->ConstructWidget<UBorder>();FSlateBrush Frame;Frame.SetResourceObject(PanelTexture);Frame.DrawAs=ESlateBrushDrawType::Box;Frame.Margin=FMargin(.0625f);Panel->SetBrush(Frame);Panel->SetPadding(FMargin(32));PanelFill->SetContent(Panel);
     auto* Columns=WidgetTree->ConstructWidget<UHorizontalBox>(); Panel->SetContent(Columns);
     auto* Left=WidgetTree->ConstructWidget<USizeBox>(); Left->SetWidthOverride(400);
     Columns->AddChildToHorizontalBox(Left)->SetPadding(FMargin(0,0,24,0));
@@ -94,7 +92,7 @@ void UDreamPauseWidget::NativeOnInitialized()
     auto* Right=WidgetTree->ConstructWidget<USizeBox>(); Right->SetWidthOverride(456);
     Columns->AddChildToHorizontalBox(Right);
     auto* AugmentRows=WidgetTree->ConstructWidget<UVerticalBox>(); Right->SetContent(AugmentRows);
-    AugmentRows->AddChildToVerticalBox(AddLabel(TEXT("일시정지"),28))->SetPadding(FMargin(0,4,0,18));
+    AugmentRows->AddChildToVerticalBox(AddLabel(TEXT("설정 · 전투 기록"),28))->SetPadding(FMargin(0,4,0,18));
     AugmentScroll=WidgetTree->ConstructWidget<UScrollBox>();AugmentScroll->SetAlwaysShowScrollbar(true);
     auto* ListSize=WidgetTree->ConstructWidget<USizeBox>(); ListSize->SetHeightOverride(416); ListSize->SetContent(AugmentScroll);
     AugmentRows->AddChildToVerticalBox(ListSize);
@@ -123,6 +121,18 @@ void UDreamPauseWidget::NativeConstruct()
         AugmentScroll->ClearChildren();auto* Note=WidgetTree->ConstructWidget<UTextBlock>();
         Note->SetFont(FSlateFontInfo(MenuFont.Get(),18));Note->SetAutoWrapText(true);
         Note->SetText(FText::FromString(TEXT("증강 도감: Q\n보유 중인 증강: E\n스킬: 1 ~ 6\n\n도움말은 메인 메뉴 Help → 조작에서 확인하세요.")));AugmentScroll->AddChild(Note);
+    }
+    if(AugmentScroll)
+    {
+        auto* Pref=GetGameInstance()?GetGameInstance()->GetSubsystem<UDreamPlayPreferences>():nullptr;
+        if(Pref)
+        {
+            auto* Button=WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(),TEXT("SimplifiedEffectsToggle"));
+            FButtonStyle Style;FSlateBrush Brush;Brush.SetResourceObject(NormalTexture);Brush.DrawAs=ESlateBrushDrawType::Box;Brush.Margin=FMargin(.12f);Style.Normal=Style.Hovered=Style.Pressed=Brush;Button->SetStyle(Style);
+            EffectModeLabel=WidgetTree->ConstructWidget<UTextBlock>();EffectModeLabel->SetFont(FSlateFontInfo(MenuFont.Get(),20));EffectModeLabel->SetText(FText::FromString(Pref->IsSimplifiedEffects()?TEXT("증강 연출 · 간소화"):TEXT("증강 연출 · 기본")));EffectModeLabel->SetJustification(ETextJustify::Center);EffectModeLabel->SetAutoWrapText(false);Button->SetToolTipText(FText::FromString(TEXT("클릭하여 기본 / 간소화 전환")));Button->SetContent(EffectModeLabel);auto* ActionSize=WidgetTree->ConstructWidget<USizeBox>();ActionSize->SetHeightOverride(48);ActionSize->SetContent(Button);Button->OnClicked.AddUniqueDynamic(this,&UDreamPauseWidget::ToggleEffectMode);AugmentScroll->AddChild(ActionSize);
+            auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* Details=WidgetTree->ConstructWidget<UTextBlock>();Details->SetFont(FSlateFontInfo(MenuFont.Get(),16));Details->SetAutoWrapText(true);Details->SetColorAndOpacity(FLinearColor(.88f,.8f,.96f));
+            Details->SetText(FText::FromString(TEXT("\n간소화에서도 장판·방어벽·적 공격 경고는 유지됩니다.\n\n")+Pref->GetGoalText(P?P->DispatchTable.Get():nullptr)+TEXT("\n\n최근 전투\n")+Pref->GetLastReportText()));AugmentScroll->AddChild(Details);
+        }
     }
     SetKeyboardFocus();
 }
@@ -225,4 +235,10 @@ void UDreamPauseWidget::RefreshAugmentList()
 void UDreamPauseWidget::OpenAugmentGuide()
 {
     UDreamAugmentPanel::OpenGuide(GetOwningPlayer());
+}
+
+void UDreamPauseWidget::ToggleEffectMode()
+{
+    if(auto* GI=GetGameInstance())if(auto* Pref=GI->GetSubsystem<UDreamPlayPreferences>())
+    {Pref->SetSimplifiedEffects(!Pref->IsSimplifiedEffects());if(EffectModeLabel)EffectModeLabel->SetText(FText::FromString(Pref->IsSimplifiedEffects()?TEXT("증강 연출 · 간소화"):TEXT("증강 연출 · 기본")));}
 }

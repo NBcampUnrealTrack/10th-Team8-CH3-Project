@@ -7,6 +7,8 @@
 
 
 #include "AugmentDamageLibrary.h"
+#include "DreamPlayPolish.h"
+#include "MainPlayerCharacter.h"
 #include "MonsterProgressionLibrary.h"
 
 #include "CombatStatsComponent.h"
@@ -99,6 +101,11 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
         return 0.0f;
     }
 
+    if(auto* Flow=DamagedActor->GetWorld()->GetSubsystem<UDreamEncounterDirector>())
+    {
+        Flow->RecordDamage(DamagedActor,FindAttacker(EventInstigator,DamageCauser),FMath::Max(0.f,HealthBeforeHit-DamagedStats->GetCurrentHealth()),bIsFireDamage,DamagedStats->bIncomingProjectile);
+        if(DamagedStats->IsDead()&&Cast<AMonsterBase>(DamagedActor)&&Cast<AMainPlayerCharacter>(FindAttacker(EventInstigator,DamageCauser)))Flow->RecordKill();
+    }
     if(auto* Table=DamagedActor->FindComponentByClass<UDispatchTableComponent>())if(auto* Runtime=Table->FindRuntime())Runtime->AfterHealthDamage(FindAttacker(EventInstigator,DamageCauser),FMath::Max(0.f,HealthBeforeHit-DamagedStats->GetCurrentHealth()),bIsFireDamage);
 
     //이번 데미지로 죽었으면 잡은 쪽에게 처치 보상(꿈의 조각 확률 파츠)

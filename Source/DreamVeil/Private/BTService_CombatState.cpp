@@ -5,6 +5,7 @@
 #include "Kismet/GameplayStatics.h"
 #include "AIController.h"
 #include "MonsterBase.h"
+#include "MonsterAIController.h"
 #include "DreamCrowdTacticsSubsystem.h"
 #include "DreamAugmentRuntime.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -80,4 +81,5 @@ void UBTService_CombatState::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
             FCollisionObjectQueryParams(ECC_WorldStatic),Params);
     }
     Blackboard->SetValueAsBool(IS_ATTACK_ABLE_KEY,CanAttack);
+    if(auto* Controller=Cast<AMonsterAIController>(AIController))Controller->CheckChaseProgress(PlayerPawn);
 }

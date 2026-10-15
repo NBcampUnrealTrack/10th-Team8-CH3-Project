@@ -1,4 +1,6 @@
 ﻿#include "DreamAugmentFeedback.h"
+#include "DreamPlayPolish.h"
+#include "MonsterBase.h"
 #include "DreamAugmentRuntime.h"
 #include "DreamAugmentCatalog.h"
 #include "DreamObjectPoolSubsystem.h"
@@ -57,6 +59,8 @@ ADreamAugmentCue* UDreamAugmentFeedback::Emit(AActor* Source,EAugmentID ID,EDrea
     auto* World=Source->GetWorld();auto* System=World->GetSubsystem<UDreamAugmentFeedback>();
     const auto* D=Source->FindComponentByClass<UDispatchTableComponent>();
     if(!System||(D&&!D->bAugmentFeedbackEnabled))return nullptr;
+    const auto* Pref=World->GetGameInstance()?World->GetGameInstance()->GetSubsystem<UDreamPlayPreferences>():nullptr;
+    const bool Simple=Pref&&Pref->IsSimplifiedEffects();
     const float Time=World->GetTimeSeconds();
     System->Cues.RemoveAll([](const auto& Cue){return !Cue.IsValid()||!Cue->IsPlaying();});
     // Repeated hits refresh the same marker/aura instead of stacking geometry.
@@ -64,19 +68,21 @@ ADreamAugmentCue* UDreamAugmentFeedback::Emit(AActor* Source,EAugmentID ID,EDrea
     if(Maintained)for(const auto& Cue:System->Cues)if(Cue->Matches(Source,ID,Shape,Follow)){Cue->Refresh(Seconds);return Cue.Get();}
     const auto* Def=DreamAugmentCatalog::Find(ID);const bool Priority=Def&&Def->Evolution;
     if(Time-System->Window>=.1f||Time<System->Window){System->Window=Time;System->WindowCount=0;}
-    const bool Essential=Shape==EDreamAugmentCueShape::Field||Shape==EDreamAugmentCueShape::Barrier||Shape==EDreamAugmentCueShape::Decoy;
+    const bool Essential=Shape==EDreamAugmentCueShape::Field||Shape==EDreamAugmentCueShape::Barrier||Shape==EDreamAugmentCueShape::Decoy||Cast<AMonsterBase>(Source)!=nullptr;
     if(Essential&&System->GetActiveCueCount()>=32)
     {
         for(const auto& Old:System->Cues)if(Old.IsValid()&&!Old->IsEssential()){UDreamObjectPoolSubsystem::ReleaseOrDestroy(Old.Get());break;}
         System->Cues.RemoveAll([](const auto& Old){return !Old.IsValid()||!Old->IsPlaying();});
     }
-    if(System->GetActiveCueCount()>=(Priority||Essential?32:24)||(!Essential&&System->WindowCount>=(Priority?10:6)))return nullptr;
+    if(System->GetActiveCueCount()>=(Priority||Essential?32:(Simple?12:24))||(!Essential&&System->WindowCount>=(Priority?10:Simple?3:6)))return nullptr;
+    if(Simple&&!Priority&&!Essential&&System->ProcReady.FindRef(ID)>Time)return nullptr;
     if(!Priority&&!Maintained&&System->ProcReady.FindRef(ID)>Time)return nullptr;
     auto* Cue=Cast<ADreamAugmentCue>(UDreamObjectPoolSubsystem::Spawn(World,ADreamAugmentCue::StaticClass(),FTransform(Point),Source));
     if(!Cue)return nullptr;
     System->Cues.Add(Cue);++System->WindowCount;
-    if(!Priority&&!Maintained)System->ProcReady.Add(ID,Time+.12f);
-    Cue->Configure(Source,ID,Shape,Point,End,Radius,Seconds,Follow,TrackState,System->RingMaterial,System->EnergyMaterial,D?D->AugmentEffectOpacity:.85f);
+    if(!Priority&&!Maintained)System->ProcReady.Add(ID,Time+(Simple?.3f:.12f));
+    const bool ThreatNearby=System->Cues.ContainsByPredicate([](const auto& C){return C.IsValid()&&C->bThreat&&C->IsPlaying();});
+    Cue->Configure(Source,ID,Shape,Point,End,Radius,Seconds,Follow,TrackState,System->RingMaterial,System->EnergyMaterial,(D?D->AugmentEffectOpacity:.85f)*(Simple&&!Essential?.65f:1.f)*(ThreatNearby&&!Essential?.55f:1.f));
     // Fields and markers are silent; only their original cast/impact has a sound.
     if(!Maintained&&System->SoundReady.FindRef(ID)<=Time)
     {
@@ -197,4 +203,7 @@ void ADreamAugmentCue::UpdateVisual()
 void ADreamAugmentCue::PrepareForPoolReuse(){OnPoolReturned();}
 void ADreamAugmentCue::OnPoolAcquired(){SetActorEnableCollision(false);}
 void ADreamAugmentCue::OnPoolReturned()
-{bPlaying=false;bTrackState=false;Origin.Reset();Attachment.Reset();Sparks->ClearInstances();RingA->SetVisibility(false);RingB->SetVisibility(false);SetActorTickEnabled(false);SetActorEnableCollision(false);}
+{bPlaying=false;bTrackState=false;bThreat=false;Origin.Reset();Attachment.Reset();Sparks->ClearInstances();RingA->SetVisibility(false);RingB->SetVisibility(false);SetActorTickEnabled(false);SetActorEnableCollision(false);}
+
+void ADreamAugmentCue::ThreatTint(const FLinearColor& Color)
+{bThreat=true;if(RingMID)RingMID->SetVectorParameterValue(TEXT("Tint"),Color);if(EnergyMID)EnergyMID->SetVectorParameterValue(TEXT("Tint"),Color);}

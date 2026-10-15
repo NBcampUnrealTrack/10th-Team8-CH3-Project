@@ -2,6 +2,9 @@
 
 
 #include "MonsterBase.h"
+#include "DreamPlayPolish.h"
+#include "DreamVeilGameInstance.h"
+#include "DreamAugmentFeedback.h"
 #include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 #include "DreamObjectPoolSubsystem.h"
@@ -44,6 +47,7 @@ const float DEATH_CORPSE_LINGER_TIME = 1.0f;
 
 AMonsterBase::AMonsterBase()
 {
+    static ConstructorHelpers::FObjectFinderOptional<USoundBase> C(TEXT("/Game/Audio/SFX/S_WarningCharge")),F(TEXT("/Game/Audio/SFX/S_WarningFan")),Z(TEXT("/Game/Audio/SFX/S_WarningZone"));WarningCharge=C.Get();WarningFan=F.Get();WarningZone=Z.Get();
     static ConstructorHelpers::FObjectFinder<USoundBase> HitSound(TEXT("/Game/Audio/SFX/S_MonsterImpact"));
     HitFeedbackSound=HitSound.Object;
     static ConstructorHelpers::FObjectFinder<USoundBase> AttackAudio(TEXT("/Game/Audio/SFX/S_MonsterWhoosh"));AttackWhooshSound=AttackAudio.Object;
@@ -54,6 +58,8 @@ AMonsterBase::AMonsterBase()
     CombatSoundAttenuation->Attenuation.AttenuationShapeExtents=FVector(150,0,0);CombatSoundAttenuation->Attenuation.FalloffDistance=1850;
     static ConstructorHelpers::FObjectFinder<USoundConcurrency> CombatGroup(TEXT("/Game/Audio/Optimization/SC_MonsterCombat_12"));
     CombatSoundConcurrency=CombatGroup.Object;
+    static ConstructorHelpers::FObjectFinder<USoundConcurrency> WarningGroup(TEXT("/Game/Audio/Optimization/SC_MonsterWarnings_4"));
+    WarningSoundConcurrency=WarningGroup.Object;
 	PrimaryActorTick.bCanEverTick = false;
 	// 월드에 스폰됐을 경우 AIController Possess 시키기
 	//PlacedInWorld는 레벨에 손으로 놓아둔 몬스터에게만 컨트롤러를 붙여줌
@@ -442,6 +448,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 	// 원거리 몬스터인데 원거리 투사체 캐싱 안됐으면 실패
 	if (TempAttackType == EMonsterAttackType::Ranged && !RangedProjectile) return false;
 
+	if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())if(!Flow->ReserveAttack(this,false))return false;
 	FVector Dir = Target->GetActorLocation() - GetActorLocation();
 	Dir.Z = 0.0f;
 
@@ -460,7 +467,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 	if (!bUseAttackMontage)
 	{
 		//기존 발사 함수를 재사용하므로 타깃 확인과 투사체 피해량은 몽타주 공격과 동일하게 처리됨
-		PlayCombatSound(AttackWhooshSound,.5f);
+		TelegraphAttack(0,.5f);PlayCombatSound(AttackWhooshSound,.5f);
 		GetWorldTimerManager().SetTimer(AttackHitTimer, this, &AMonsterBase::ExecuteAttack, 0.5f, false);
 		//BT가 종료 알림을 기다리므로 발사 후 후딜레이까지 끝나면 기존 종료 함수로 알림을 보냄
 		//기존 타이머 핸들을 사용해 사망이나 레그돌로 공격이 취소될 때 예약된 발사도 함께 정리됨
@@ -486,6 +493,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 
 		if (!TempAnimInstance || !TempAnimMontage || TempAnimMontage == nullptr)
 		{
+			if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->ReleaseAttack(this);
 			bIsAttacking = false;
 	RefreshAnimationOptimization();
 			AttackTarget.Reset();
@@ -496,6 +504,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 
 		if (TempAnimInstance->Montage_Play(TempAnimMontage) <= 0.0f)
 		{
+			if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->ReleaseAttack(this);
 			bIsAttacking = false;
 	RefreshAnimationOptimization();
 			ActiveAttackMontage = nullptr;
@@ -503,7 +512,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 			return false;
 		}
 		
-        PlayCombatSound(AttackWhooshSound,.5f);
+        TelegraphAttack(0,.5f);PlayCombatSound(AttackWhooshSound,.5f);
 		// 몽타주 정상종료, 중단 등 모두 콜백으로 전달시키기
 		FOnMontageEnded EndDelegate;
 		EndDelegate.BindUObject(
@@ -516,7 +525,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 		return true;
 	}
 	// Static Mesh 안쓸거 같아서 구현은 안 해두는데 이거 만약 쓰면 여따 구현내용 남겨주세요
-
+    if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->ReleaseAttack(this);
 	bIsAttacking = false;
 	RefreshAnimationOptimization();
 	AttackTarget.Reset();
@@ -528,6 +537,7 @@ void AMonsterBase::ExecuteAttack()
 {
 	if (bAugmentStaggered || bIsRagdoll || !bIsAttacking || bAttackExecuted) return;
 
+	ClearTelegraph();
 	bAttackExecuted = true;
 
 	switch (GetAttackType())
@@ -566,6 +576,7 @@ void AMonsterBase::HandleAttackMontageEnded(
 
 void AMonsterBase::FinishAttack(bool bSucceeded)
 {
+    ClearTelegraph();if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->ReleaseAttack(this);
 	if (!bIsAttacking)
 	{
 		return;
@@ -591,6 +602,7 @@ void AMonsterBase::CancelAttack()
 		return;
 	}
 
+	ClearTelegraph();
 	bAttackExecuted = true;
 
 	if (USkeletalMeshComponent* SkeletalMesh =
@@ -1038,6 +1050,7 @@ void AMonsterBase::OnPoolAcquired()
 }
 void AMonsterBase::OnPoolReturned()
 {
+    ClearTelegraph();if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->ReleaseAttack(this);
     if(auto* Status=FindComponentByClass<UDreamAugmentStatus>())Status->Reset();
     FinishAugmentStagger(); NextAugmentStaggerTime=-100.f;
     FinishHitFeedback();LastHitFeedbackTime=LastHitSoundTime=-100.0f;
@@ -1070,6 +1083,20 @@ void AMonsterBase::PlayCombatSound(USoundBase* Sound,float Volume)
     if(!Sound||!GetWorld()||GetNetMode()==NM_DedicatedServer)return;
     const auto* Listener=UGameplayStatics::GetPlayerPawn(this,0);
     if(!Listener||FVector::DistSquared(Listener->GetActorLocation(),GetActorLocation())>FMath::Square(2000.f))return;
-    UGameplayStatics::PlaySoundAtLocation(this,Sound,GetActorLocation(),Volume,FMath::FRandRange(.94f,1.06f),0.f,CombatSoundAttenuation,CombatSoundConcurrency);
+    UGameplayStatics::PlaySoundAtLocation(this,Sound,GetActorLocation(),Volume,FMath::FRandRange(.94f,1.06f),0.f,CombatSoundAttenuation,(Sound==WarningCharge||Sound==WarningFan||Sound==WarningZone)?WarningSoundConcurrency.Get():CombatSoundConcurrency.Get());
 }
 void AMonsterBase::PlayChargeSound(){PlayCombatSound(ChargeWhooshSound,.65f);}
+
+void AMonsterBase::TelegraphAttack(int32 Kind,float Seconds)
+{
+    ClearTelegraph();
+    const auto* GI=GetWorld()?GetWorld()->GetGameInstance<UDreamVeilGameInstance>():nullptr;
+    if(!GI||(!GI->IsInLevelMap()&&!GI->IsInEndless()))return;
+    const FVector Point=GetActorLocation()+FVector(0,0,40);
+    TelegraphCue=UDreamAugmentFeedback::Emit(this,EAugmentID::StopMark,EDreamAugmentCueShape::Mark,Point,Kind==0?35:65,Seconds,this);
+    TelegraphGeneration=UDreamObjectPoolSubsystem::Generation(TelegraphCue);
+    if(TelegraphCue)TelegraphCue->ThreatTint(Kind==1?FLinearColor(1,.12f,.01f):Kind==2?FLinearColor(1,.45f,.01f):Kind==3?FLinearColor(1,.01f,.15f):FLinearColor(1,.5f,.15f));
+    if(Kind>0)PlayCombatSound(Kind==1?WarningCharge:Kind==2?WarningFan:WarningZone,.8f);
+}
+void AMonsterBase::ClearTelegraph()
+{if(IsValid(TelegraphCue)&&TelegraphCue->IsPlaying()&&UDreamObjectPoolSubsystem::Generation(TelegraphCue)==TelegraphGeneration&&TelegraphCue->BelongsTo(this))UDreamObjectPoolSubsystem::ReleaseOrDestroy(TelegraphCue);TelegraphCue=nullptr;}
