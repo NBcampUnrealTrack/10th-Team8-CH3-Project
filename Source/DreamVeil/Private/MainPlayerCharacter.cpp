@@ -1,4 +1,4 @@
-﻿#include "MainPlayerCharacter.h"
+#include "MainPlayerCharacter.h"
 #include "HAL/PlatformTime.h"
 #include "MainPlayerController.h"
 #include "InteractableActorBase.h"
@@ -19,6 +19,7 @@
 #include "RifleWeapon.h"
 #include "WeaponBase.h"
 #include "AugmentTypes.h"
+#include "DreamAugmentRuntime.h"
 #include "Camera/PlayerCameraManager.h"
 #include "TimerManager.h"
 #include "MonsterCollision.h"
@@ -511,7 +512,8 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 	//실제로 뛰는 중에는 쏘지 않음 달리기를 멈추면 누르고 있던 소총은 다음 프레임부터 다시 나감
 	//단발 권총은 달리는 동안 누른 입력이 버려지므로 달리기를 멈춘 뒤 다시 눌러야 함
 	//Shift만 누르고 제자리에 서 있으면 뛰는 게 아니므로 쏠 수 있음 스태미나 소모와 같은 기준(IsSprintMoving)을 씀
-	if (IsSprintMoving())
+	if (DispatchTable&&DispatchTable->FindRuntime()&&DispatchTable->FindRuntime()->BlocksFire())return;
+	if (IsSprintMoving()&&!(DispatchTable&&DispatchTable->FindRuntime()&&DispatchTable->FindRuntime()->AllowsSprintFire()))
 	{
 		return;
 	}
@@ -549,8 +551,8 @@ void AMainPlayerCharacter::FireCurrentWeapon()
 
 	//반동 사격 뒤 카메라를 위로 올림 좌우로도 조금 틀어서 탄착이 세로 일직선이 되지 않게 함
 	//올린 양을 기억해뒀다가 사격이 멈추면 회복 타이머가 제자리로 내림
-	const float ShotRecoilPitch = CurrentWeapon->GetRecoilPitch();
-	const float ShotRecoilYaw = CurrentWeapon->GetRecoilYaw();
+	const float ShotRecoilPitch = CurrentWeapon->GetRecoilPitch()*(DispatchTable&&DispatchTable->FindRuntime()?DispatchTable->FindRuntime()->Recoil():1.f);
+	const float ShotRecoilYaw = CurrentWeapon->GetRecoilYaw()*(DispatchTable&&DispatchTable->FindRuntime()?DispatchTable->FindRuntime()->Recoil():1.f);
 
 	AddControllerPitchInput(-ShotRecoilPitch);
 	AddControllerYawInput(FMath::FRandRange(-ShotRecoilYaw, ShotRecoilYaw));
@@ -703,6 +705,7 @@ void AMainPlayerCharacter::AddExperience(float Amount)
 		return;
 	}
 
+	Amount*=1.f+(DispatchTable?FMath::Min(.6f,DispatchTable->GetStackCount(EAugmentID::Learning)*.03f):0.f);
 	CurrentExperience += Amount;
 
 	NormalizeLevelProgress();
@@ -921,6 +924,7 @@ void AMainPlayerCharacter::DrawNextAugmentChoices()
 			UE_LOG(LogTemp, Warning, TEXT("[Augment] 선택지 %d개 방송 게임 멈춤 여기까지 왔는데 창이 안 뜨면 위젯이 Add to Viewport를 안 한 것"),
 				CurrentAugmentChoices.Num());
 
+			bAugmentRerollUsed=false;
 			AugmentChoiceUnlockTime = FPlatformTime::Seconds() + 1.0;
 		OnAugmentChoicesReady.Broadcast(CurrentAugmentChoices);
 			return;
@@ -1110,7 +1114,7 @@ void AMainPlayerCharacter::SetSprinting(bool bNewSprinting)
 
 	//속도를 바로 바꾸지 않고 목표만 정함 실제 값은 UpdateWalkSpeedBlend가 조금씩 옮김
 	//한 번에 바꾸면 이동 애니메이션(블렌드 스페이스)이 뚝 끊겨서 부자연스러움
-	SetTargetWalkSpeed(bIsSprinting ? SprintSpeed : NoramalSpeed);
+	SetTargetWalkSpeed(bIsSprinting?(AugmentSprintSpeed>0?AugmentSprintSpeed:SprintSpeed):(AugmentWalkSpeed>0?AugmentWalkSpeed:NoramalSpeed));
 
 	//달리기를 시작하면 줄이기 시작하고 멈추면 회복을 시작해야 하므로 타이머가 쉬고 있으면 깨움
 	if (!GetWorldTimerManager().IsTimerActive(StaminaTimerHandle))
@@ -1140,12 +1144,12 @@ void AMainPlayerCharacter::UpdateStamina()
 	}
 
 	//뛰다 멈춘 직후에는 잠깐 쉬었다가 참
-	if (CurrentTime - LastStaminaUseTime < STAMINA_REGEN_DELAY)
+	if (CurrentTime - LastStaminaUseTime < FMath::Max(.25f,STAMINA_REGEN_DELAY-(DispatchTable?DispatchTable->GetStackCount(EAugmentID::RegenDelay)*.05f:0.f)))
 	{
 		return;
 	}
 
-	SetCurrentStamina(CurrentStamina + STAMINA_REGEN_PER_SECOND * STAMINA_UPDATE_INTERVAL);
+	SetCurrentStamina(CurrentStamina + STAMINA_REGEN_PER_SECOND * STAMINA_UPDATE_INTERVAL*(1+(DispatchTable?FMath::Min(.4f,DispatchTable->GetStackCount(EAugmentID::StaminaRegen)*.02f):0.f)));
 
 	//가득 찼고 달리지도 않으면 더 할 일이 없으니 타이머를 멈춤 다음 달리기 때 SetSprinting이 다시 켬
 	if (CurrentStamina >= MaxStamina && !bIsSprinting)
@@ -1324,7 +1328,7 @@ void AMainPlayerCharacter::CheatGiveAugment(int32 AugmentID)
 	}
 
 	//enum 범위를 벗어난 값이 들어오면 엉뚱한 스킬이 걸리므로 막음
-	const int32 MaxAugmentID = static_cast<int32>(EAugmentID::ContinuousAttack);
+	const int32 MaxAugmentID = static_cast<int32>(EAugmentID::MobileSupport);
 
 	if (AugmentID < 0 || AugmentID > MaxAugmentID)
 	{
@@ -1351,7 +1355,7 @@ void AMainPlayerCharacter::CheatGiveAllAugments()
 	}
 
 	//enum 맨 끝까지 도는 이유 증강이 늘어나도 이 함수를 고칠 필요가 없게
-	const int32 MaxAugmentID = static_cast<int32>(EAugmentID::ContinuousAttack);
+	const int32 MaxAugmentID = static_cast<int32>(EAugmentID::MobileSupport);
 
 	int32 AppliedCount = 0;
 
@@ -1545,61 +1549,34 @@ void AMainPlayerCharacter::CheatShowStatus()
 	}
 }
 
+AInteractableActorBase* AMainPlayerCharacter::FindInteractionTarget() const
+{
+    UWorld* World=GetWorld();
+    if(!World||World->IsPaused()||(CombatStats&&CombatStats->IsDead())||HasAugmentChoices())return nullptr;
+    if(const auto* PC=Cast<AMainPlayerController>(GetController());PC&&PC->IsMenuWidgetOpen())return nullptr;
+    TArray<FOverlapResult> Results;
+    FCollisionQueryParams Params(SCENE_QUERY_STAT(PlayerInteraction),false,this);
+    World->OverlapMultiByObjectType(Results,GetActorLocation(),FQuat::Identity,
+        FCollisionObjectQueryParams(ECC_WorldDynamic),FCollisionShape::MakeSphere(InteractionRadius),Params);
+    AInteractableActorBase* Closest=nullptr;double Best=TNumericLimits<double>::Max();TSet<AActor*> Visited;
+    for(const auto& Result:Results)
+    {
+        auto* Candidate=Cast<AInteractableActorBase>(Result.GetActor());
+        if(!IsValid(Candidate)||Visited.Contains(Candidate))continue;Visited.Add(Candidate);
+        const double Distance=FVector::DistSquared(GetActorLocation(),Candidate->GetActorLocation());
+        if(Distance>=Best)continue;
+        // Trace at body height; the furniture itself must not block its own prompt.
+        FVector End=Candidate->GetActorLocation();End.Z=GetActorLocation().Z;
+        FCollisionQueryParams Sight(SCENE_QUERY_STAT(InteractionWall),false,this);Sight.AddIgnoredActor(Candidate);
+        if(World->LineTraceTestByObjectType(GetActorLocation(),End,FCollisionObjectQueryParams(ECC_WorldStatic),Sight))continue;
+        Closest=Candidate;Best=Distance;
+    }
+    return Closest;
+}
+
 void AMainPlayerCharacter::TryInteract(const FInputActionValue& Value)
 {
-	UWorld* World = GetWorld();
-	// 월드 확인
-	if (!World)
-	{
-		return;
-	}
-	// 캐릭터 중심 위치
-	const FVector InteractionCenter = GetActorLocation();
-	// 주변에서 감지된 결과
-	TArray<FOverlapResult> OverlapResults;
-	// WorldDynamic 액터만 검색
-	FCollisionObjectQueryParams ObjectQueryParams;
-	ObjectQueryParams.AddObjectTypesToQuery(ECC_WorldDynamic);
-	// 플레이어 자신은 제외
-	FCollisionQueryParams QueryParams;
-	QueryParams.AddIgnoredActor(this);
-	// 캐릭터 주변 검색 범위
-	const FCollisionShape InteractionShape = FCollisionShape::MakeSphere(InteractionRadius);
-	// 캐릭터 주변 오브젝트 검색
-	const bool bFoundActor = World->OverlapMultiByObjectType(OverlapResults, InteractionCenter, FQuat::Identity, ObjectQueryParams, InteractionShape, QueryParams);
-	// 감지된 액터가 없으면 종료
-	if (!bFoundActor)
-	{
-		return;
-	}
-	AInteractableActorBase* ClosestActor = nullptr;
-	float ClosestDistanceSquared = TNumericLimits<float>::Max();
-	// 가장 가까운 상호작용 액터 검색
-	for (const FOverlapResult& OverlapResult : OverlapResults)
-	{
-		AInteractableActorBase* InteractableActor = Cast<AInteractableActorBase>(OverlapResult.GetActor());
-		// 일반 액터는 제외
-		if (!InteractableActor)
-		{
-			continue;
-		}
-		// 캐릭터와 액터의 거리 계산
-		const float DistanceSquared = FVector::DistSquared(InteractionCenter, InteractableActor->GetActorLocation());
-		// 기존 대상보다 멀면 제외
-		if (DistanceSquared >= ClosestDistanceSquared)
-		{
-			continue;
-		}
-		ClosestActor = InteractableActor;
-		ClosestDistanceSquared = DistanceSquared;
-	}
-	// 상호작용 대상이 없으면 종료
-	if (!ClosestActor)
-	{
-		return;
-	}
-	// 가장 가까운 액터와 상호작용
-	ClosestActor->Interact(this);
+    if(auto* Target=FindInteractionTarget())Target->Interact(this);
 }
 
 void AMainPlayerCharacter::EndPlay(const EEndPlayReason::Type Reason)
@@ -1625,4 +1602,11 @@ void AMainPlayerCharacter::ApplyLevelGrowth()
         CombatStats->OnCurrentHealthChanged.Broadcast(Health, Health);
     }
     // Increasing max health does not refill current health or revive the player.
+}
+
+void AMainPlayerCharacter::ApplyAugmentMovement(float Walk,float Sprint,float Jump)
+{
+    if(!FMath::IsNearlyEqual(AugmentWalkSpeed,Walk)||!FMath::IsNearlyEqual(AugmentSprintSpeed,Sprint))
+    {AugmentWalkSpeed=Walk;AugmentSprintSpeed=Sprint;SetTargetWalkSpeed(bIsSprinting?Sprint:Walk);}
+    GetCharacterMovement()->JumpZVelocity=Jump;
 }

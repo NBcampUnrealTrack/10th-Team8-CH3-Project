@@ -22,6 +22,8 @@
 #include "GameFramework/Character.h"
 #include "GameFramework/CharacterMovementComponent.h"
 #include "TimerManager.h"
+#include "MonsterBase.h"
+#include "DreamAugmentRuntime.h"
 
 //감속 중인 대상과 상태 모든 감속 스킬 객체가 공유
 //감속 대상이 3초 안에 죽을 수 있어서 약한 참조 사용
@@ -48,31 +50,8 @@ void UKnockbackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         return;
     }
 
-    UCharacterMovementComponent* MovementComponent = TargetCharacter->GetCharacterMovement();
-
-    if (!MovementComponent)
-    {
-        return;
-    }
-
-    //쏜 사람에서 대상으로 가는 방향으로 밀어냄
-    //충돌 법선을 쓰지 않는 이유 둥근 캡슐이라 어디를 맞혔느냐에 따라 옆으로 밀리기도 함
-    FVector KnockbackDirection = TargetCharacter->GetActorLocation() - OwnerActor->GetActorLocation();
-
-    //위아래 성분을 버림 띄우려는 게 아니라 뒤로 밀어내려는 것이고
-    //위로 밀면 공중에 뜬 동안 마찰이 없어서 훨씬 멀리 날아감
-    KnockbackDirection.Z = 0.0f;
-    KnockbackDirection = KnockbackDirection.GetSafeNormal();
-
-    //바로 위나 아래에서 쏴서 수평 방향이 안 나오면 밀 곳이 없음
-    if (KnockbackDirection.IsNearlyZero())
-    {
-        return;
-    }
-
-    //bVelocityChange를 true로 두는 이유 질량을 무시하고 속도를 그대로 더함
-    //false면 힘을 질량으로 나눠서 무거운 적은 거의 안 밀리는데 몬스터마다 질량이 달라 예측이 안 됨
-    MovementComponent->AddImpulse(KnockbackDirection * KNOCKBACK_IMPULSE, true);
+    auto* Monster=Cast<AMonsterBase>(TargetCharacter);
+    if (!Monster || !Monster->TryApplyAugmentStagger(.2f)) return;
     const float Now=GetWorld()?GetWorld()->GetTimeSeconds():0.f;
     if (ElectricHit && GetWorld() && GetWorld()->GetNetMode()!=NM_DedicatedServer && (LastElectricTime<0.f || Now-LastElectricTime>=.1f))
     {
@@ -92,7 +71,9 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         return;
     }
 
-    const float SplashDamage = HitDamage * AREA_ATTACK_DAMAGE_RATIO;
+    auto* Runtime=GetOwnerComponent()?GetOwnerComponent()->FindRuntime():nullptr;
+    if(Runtime&&Runtime->ShotSkill==EAugmentID::SkillExplosion)return;
+    const float SplashDamage = HitDamage * AREA_ATTACK_DAMAGE_RATIO*(Runtime?Runtime->Power():1.f);
 
     if (SplashDamage <= 0.0f)
     {
@@ -113,7 +94,7 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 
     TArray<AActor*> FoundTargets;
 
-    UAugmentDamageLibrary::FindTargetsAtLocation(OwnerActor, HitResult.ImpactPoint, AREA_ATTACK_RADIUS, ActorsToIgnore, FoundTargets);
+    UAugmentDamageLibrary::FindTargetsAtLocation(OwnerActor, HitResult.ImpactPoint, AREA_ATTACK_RADIUS * (GetOwnerComponent()?GetOwnerComponent()->GetEffectRangeMultiplier():1.f), ActorsToIgnore, FoundTargets);
 
     //쏜 사람의 아군은 범위 공격에 맞지 않음 보스의 범위 공격이 주변 몬스터를 때리지 않도록
     FoundTargets.RemoveAll([OwnerActor](AActor* FoundTarget)
@@ -126,7 +107,7 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
     if (AREA_ATTACK_DRAW_DEBUG)
     {
         //데미지가 들어가는 범위를 그대로 그림 빨간 구체 안에 있는 적이 맞는 것
-        DrawDebugSphere(OwnerActor->GetWorld(), HitResult.ImpactPoint, AREA_ATTACK_RADIUS, 16, FColor::Red, false, 0.4f);
+        DrawDebugSphere(OwnerActor->GetWorld(), HitResult.ImpactPoint, AREA_ATTACK_RADIUS*(GetOwnerComponent()?GetOwnerComponent()->GetEffectRangeMultiplier():1.f), 16, FColor::Red, false, 0.4f);
 
         UE_LOG(LogTemp, Warning, TEXT("[AreaAttack] 반경 %.0f 안에서 %d명 적중 대상당 데미지 %.1f"),
             AREA_ATTACK_RADIUS, FoundTargets.Num(), SplashDamage);
@@ -152,7 +133,7 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
         //거리를 반경으로 나눠서 0~1을 만들고 1에서 빼면 가까울수록 큰 값이 됨
         //균일하게 넣으면 가장자리에 걸친 적도 똑같이 아파서 어디에 쏠지 고민할 이유가 없어짐
         const float DistanceToCenter = FVector::Dist(FoundTarget->GetActorLocation(), HitResult.ImpactPoint);
-        const float CenterRatio = 1.0f - FMath::Clamp(DistanceToCenter / AREA_ATTACK_RADIUS, 0.0f, 1.0f);
+        const float CenterRatio = 1.0f - FMath::Clamp(DistanceToCenter / (AREA_ATTACK_RADIUS * (GetOwnerComponent()?GetOwnerComponent()->GetEffectRangeMultiplier():1.f)), 0.0f, 1.0f);
 
         //0까지 떨어뜨리지 않고 최소 비율을 깔아둠 가장자리도 맞았다는 느낌은 나야 함
         const float FalloffRatio = FMath::Lerp(AREA_ATTACK_MIN_FALLOFF, 1.0f, CenterRatio);
@@ -166,6 +147,11 @@ void UAreaAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 //지속 공격 총에 맞은 대상에게 불을 붙임 이미 걸린 대상이면 시간과 데미지만 갱신
 void UContinuousAttackSkill::OnWeaponHit(const FHitResult& HitResult, float HitDamage)
 {
+    if(auto* Runtime=GetOwnerComponent()?GetOwnerComponent()->FindRuntime():nullptr)
+    {
+        if(HitResult.GetActor()&&UAugmentDamageLibrary::IsEnemy(GetOwnerActor(),HitResult.GetActor()))Runtime->Burn(HitResult.GetActor(),HitDamage,CONTINUOUS_ATTACK_DURATION*Runtime->Duration());
+        return;
+    }
     UWorld* World = GetWorld();
 
     if (!World)

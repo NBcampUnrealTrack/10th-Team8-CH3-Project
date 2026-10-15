@@ -1,4 +1,4 @@
-#include "AugmentPool.h"
+﻿#include "AugmentPool.h"
 
 #include "DispatchTableComponent.h"
 
@@ -67,6 +67,7 @@ void FAugmentPool::FillDisplayTexts()
     //이름과 설명은 한곳에서 관리하고 여기서 복사해옴 블루프린트에서 따로 고칠 수도 있음
     for (FAugmentData& AugmentData : Augments)
     {
+        AugmentData.Category = UDispatchTableComponent::GetAugmentCategory(AugmentData.AugmentID);
         AugmentData.DisplayName = UDispatchTableComponent::GetAugmentDisplayName(AugmentData.AugmentID);
         AugmentData.Description = UDispatchTableComponent::GetAugmentDescription(AugmentData.AugmentID);
     }

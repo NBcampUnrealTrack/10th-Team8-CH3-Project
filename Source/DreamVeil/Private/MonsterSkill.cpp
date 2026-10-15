@@ -1,4 +1,5 @@
 ﻿#include "MonsterSkill.h"
+#include "DreamAugmentRuntime.h"
 #include "DreamObjectPoolSubsystem.h"
 
 #include "MonsterBase.h"
@@ -96,7 +97,8 @@ bool UMonsterSkill::CanUseSkill(EMonsterSkillType Skill) const
     const AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner());
     const FMonsterSkillSettings* Settings = FindSettings(Skill);
     return GetWorld() && IsValid(Monster) && Settings
-        && !bIsUsingSkill && !Monster->IsAttacking()
+        && !bIsUsingSkill && !Monster->IsAttacking() && !Monster->IsRagdoll()
+        && !(Monster->FindComponentByClass<UDreamAugmentStatus>()&&Monster->FindComponentByClass<UDreamAugmentStatus>()->IsSealed())
         && Monster->MonsterCombatStats && !Monster->MonsterCombatStats->IsDead()
         //맵 진행 방식에서는 체력 페이즈와 관계없이 해당 레벨에 열린 스킬을 사용할 수 있음
         && (!bCheckRequiredPhase || CurrentPhase >= Settings->RequiredPhase)
@@ -313,7 +315,7 @@ void UMonsterSkill::CleanupCharge()
     bChargePrepared = false;
     bCharging = false;
     SetComponentTickEnabled(false);
-    GetWorld()->GetTimerManager().ClearTimer(ChargeReadyTimer);
+    if(UWorld* World=GetWorld())World->GetTimerManager().ClearTimer(ChargeReadyTimer);
     if (AMonsterBase* Monster = Cast<AMonsterBase>(GetOwner()))
     {
         Monster->HideAttackWarning();
@@ -338,7 +340,7 @@ void UMonsterSkill::CleanupCharge()
 void UMonsterSkill::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
     //제거된 컴포넌트가 예약된 준비 동작이나 거리 검사를 실행하지 않도록 정리한다.
-    GetWorld()->GetTimerManager().ClearTimer(ChargeCheckTimer);
+    if(UWorld* World=GetWorld())World->GetTimerManager().ClearTimer(ChargeCheckTimer);
     CleanupCharge();
     CleanupFanShot();
     CleanupBlackHole();

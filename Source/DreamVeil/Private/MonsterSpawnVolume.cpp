@@ -1,8 +1,9 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "MonsterSpawnVolume.h"
 #include "DreamObjectPoolSubsystem.h"
+#include "DreamCrowdTacticsSubsystem.h"
 #include "MainGameModeBase.h"
 #include "Kismet/GameplayStatics.h"
 
@@ -62,7 +63,7 @@ AMonsterSpawnVolume::AMonsterSpawnVolume()
 
 void AMonsterSpawnVolume::ExecuteSpawnActor()
 {
-	TrySpawnMonster();
+	bHasGroupOrigin=false;TrySpawnMonster();bHasGroupOrigin=false;
 }
 
 bool AMonsterSpawnVolume::TrySpawnMonster()
@@ -90,14 +91,26 @@ bool AMonsterSpawnVolume::TrySpawnMonster()
     const int32 EliteLimit=Profile?(GI->IsInEndless()?FMath::Max(0,Profile->EndlessEliteLimit):
         (Profile->StageEliteLimits.IsValidIndex(StageIndex)?FMath::Max(0,Profile->StageEliteLimits[StageIndex]):FMath::Clamp(Stage+2,3,6))):
         (GI && GI->IsInEndless()?8:FMath::Clamp(Stage+2,3,6));
-    int32 LivingElites = 0;
-    for (TActorIterator<AEliteMonster> It(GetWorld()); It; ++It)
+    // Refresh once per pack, incrementing only after a successful elite acquisition.
+    int32 LivingElites=CachedGroupEliteCount;
+    if(LivingElites<0)
     {
-        if (!It->IsHidden() && It->MonsterCombatStats && !It->MonsterCombatStats->IsDead()) ++LivingElites;
+        LivingElites=0;
+        for(TActorIterator<AEliteMonster> It(GetWorld());It;++It)
+            if(!It->IsHidden()&&It->MonsterCombatStats&&!It->MonsterCombatStats->IsDead())++LivingElites;
+        if(bInsideSpawnGroup)CachedGroupEliteCount=LivingElites;
+    }
+    if (bPreferRangedMember)
+    {
+        TArray<TSubclassOf<AMonsterBase>> Ranged;
+        for (auto Class : BaseMonsters) if (Class && Class->GetDefaultObject<AMonsterBase>()->GetAttackType()==EMonsterAttackType::Ranged) Ranged.Add(Class);
+        if (Ranged.Num()) return SpawnOneMonster(Ranged,SpawnLocation)!=nullptr;
     }
     if (LivingElites < EliteLimit && FMath::FRandRange(0.0f, 100.0f) <= EliteSpawnRate && AllowedElites.Num() > 0)
 	{
-		return SpawnOneMonster(AllowedElites, SpawnLocation) != nullptr;
+		auto* Elite=SpawnOneMonster(AllowedElites,SpawnLocation);
+        if(Elite&&bInsideSpawnGroup)++CachedGroupEliteCount;
+        return Elite!=nullptr;
 	}
 
 	return SpawnOneMonster(BaseMonsters, SpawnLocation) != nullptr;
@@ -144,31 +157,56 @@ bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
         const FVector PlayerNav = PawnCharacter->GetNavAgentLocation();
         const ANavigationData* NavData = Nav->GetNavDataForProps(PawnCharacter->GetNavAgentPropertiesRef(), PlayerNav);
         APlayerController* PC = Cast<APlayerController>(PawnCharacter->GetController());
-        const int32 FirstSector = SpawnSectorSequence++ + int32(GetUniqueID() % 6);
-        for (int32 Attempt = 0; Attempt < 6; ++Attempt)
+        auto SafePoint = [&](const FVector& Candidate, FVector& Result)
         {
-            const float Angle = FMath::DegreesToRadians(float((FirstSector + Attempt) % 6) * 60.0f + FMath::FRandRange(-20.0f, 20.0f));
-            const float Radius = FMath::FRandRange(Inner, Outer);
             FNavLocation Point;
-            if (!Nav->ProjectPointToNavigation(PlayerNav + FVector(FMath::Cos(Angle), FMath::Sin(Angle), 0) * Radius,
-                Point, FVector(150,150,300), NavData)) continue;
-            if (FVector::DistSquared2D(Point.Location, PlayerNav) < FMath::Square(Inner)) continue;
+            if (!NavData || !Nav->ProjectPointToNavigation(Candidate,Point,FVector(150,150,300),NavData)) return false;
+            if (FVector::DistSquared2D(Point.Location,PlayerNav)<FMath::Square(Inner)) return false;
             if (PC)
             {
-                FVector Eye; FRotator View; PC->GetPlayerViewPoint(Eye, View);
-                FVector2D Screen; int32 Width=0, Height=0; PC->GetViewportSize(Width, Height);
-                const FVector BodyPoint = Point.Location + FVector(0,0,80);
-                if (PC->ProjectWorldLocationToScreen(BodyPoint, Screen, true) && Width > 0 && Height > 0
-                    && Screen.X >= 0 && Screen.Y >= 0 && Screen.X <= Width && Screen.Y <= Height)
+                FVector Eye;FRotator View;PC->GetPlayerViewPoint(Eye,View);
+                FVector2D Screen;int32 Width=0,Height=0;PC->GetViewportSize(Width,Height);
+                const FVector BodyPoint=Point.Location+FVector(0,0,80);
+                if(PC->ProjectWorldLocationToScreen(BodyPoint,Screen,true)&&Width>0&&Height>0
+                    &&Screen.X>=0&&Screen.Y>=0&&Screen.X<=Width&&Screen.Y<=Height)
                 {
-                    FHitResult Hit; FCollisionQueryParams Params(SCENE_QUERY_STAT(SpawnVisibility), false, PawnCharacter);
-                    // A visible point is deferred; cover can hide an otherwise on-screen spawn.
-                    if (!GetWorld()->LineTraceSingleByChannel(Hit, Eye, BodyPoint, ECC_Visibility, Params)) continue;
+                    FHitResult Hit;FCollisionQueryParams Params(SCENE_QUERY_STAT(SpawnVisibility),false,PawnCharacter);
+                    if(!GetWorld()->LineTraceSingleByChannel(Hit,Eye,BodyPoint,ECC_Visibility,Params)) return false;
                 }
             }
-            if (!NavData || !Nav->TestPathSync(FPathFindingQuery(PawnCharacter, *NavData, Point.Location, PlayerNav))) continue;
-            OutLocation = Point.Location; return true;
+            if(!Nav->TestPathSync(FPathFindingQuery(PawnCharacter,*NavData,Point.Location,PlayerNav))) return false;
+            Result=Point.Location;return true;
+        };
+        // Keep a pack together. Do not silently scatter a failed member elsewhere.
+        if(bHasGroupOrigin)
+        {
+            for(int32 I=0;I<8;++I)
+            {
+                const float Angle=FMath::FRandRange(0,2*PI);
+                const FVector Candidate=GroupOrigin+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*FMath::FRandRange(180.f,450.f);
+                if(SafePoint(Candidate,OutLocation)&&FVector::DistSquared2D(OutLocation,GroupOrigin)<=FMath::Square(500.f)) return true;
+            }
+            return false;
         }
+        const int32 FirstSector=SpawnSectorSequence++ + int32(GetUniqueID()%6);
+        // Prefer less occupied approach directions. This query runs per pack, never per frame.
+        TArray<FVector> Occupied;
+        for(TActorIterator<AMonsterBase> It(GetWorld());It;++It)
+            if(!It->IsHidden()&&It->MonsterCombatStats&&!It->MonsterCombatStats->IsDead()) Occupied.Add(It->GetActorLocation());
+        float BestScore=TNumericLimits<float>::Max();bool Found=false;
+        for(int32 Attempt=0;Attempt<6;++Attempt)
+        {
+            const float Angle=FMath::DegreesToRadians(float((FirstSector+Attempt)%6)*60.f+FMath::FRandRange(-20.f,20.f));
+            FVector Point;
+            if(!SafePoint(PlayerNav+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*FMath::FRandRange(Inner,Outer),Point))continue;
+            const FVector Direction=(Point-PlayerNav).GetSafeNormal2D();float Score=0;
+            for(const FVector& Other:Occupied)
+                if(FVector::DotProduct((Other-PlayerNav).GetSafeNormal2D(),Direction)>.7f)Score+=1.f;
+            if(!Found||Score<BestScore){BestScore=Score;OutLocation=Point;Found=true;}
+            // Zero occupied approaches is the optimal score; later path queries cannot improve it.
+            if(BestScore==0.f)break;
+        }
+        if(Found){GroupOrigin=OutLocation;bHasGroupOrigin=true;return true;}
         // No safe, reachable point: retry later, never fall back to a visible pop-in.
         return false;
     }
@@ -343,12 +381,17 @@ void AMonsterSpawnVolume::SpawnTick()
 		return;
 	}
 
-	SpawnWave(MonstersPerSpawnTick, SpawnTickGap);
+	// A blocked continuous request expires at this cadence; never accumulate a burst backlog.
+    PendingSpawnCount=0;GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
+    const int32 Min=FMath::Clamp(SpawnGroupMin,2,4);
+    SpawnWave(FMath::RandRange(Min,FMath::Clamp(SpawnGroupMax,Min,4)),SpawnTickGap);
+    bContinuousPack=true;
 }
 
 //웨이브 시작 남은 수를 더하고 타이머를 깨움
 void AMonsterSpawnVolume::SpawnWave(int32 MonsterCount, float SpawnInterval)
 {
+    bContinuousPack=false;
 	if (MonsterCount <= 0)
 	{
 		return;
@@ -371,27 +414,24 @@ void AMonsterSpawnVolume::SpawnWave(int32 MonsterCount, float SpawnInterval)
 	GetWorldTimerManager().SetTimer(WaveSpawnTimerHandle, this, &AMonsterSpawnVolume::SpawnOneFromWave, SafeInterval, true);
 }
 
-//타이머가 돌 때마다 한 마리 내보냄
+// Consume a pack in one timer callback, preserving the shared alive budget.
 void AMonsterSpawnVolume::SpawnOneFromWave()
 {
-	if (PendingSpawnCount <= 0)
-	{
-		GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
-		return;
-	}
-
-	// Recheck at actual spawn time: queued waves from several volumes share one budget.
-	if (const AMainGameModeBase* Mode = GetWorld()->GetAuthGameMode<AMainGameModeBase>())
-	{
-		if (!Mode->CanSpawnRegularMonster()) return;
-	}
-
-	if (!TrySpawnMonster()) return;
-	PendingSpawnCount--;
-
-	//마지막 한 마리를 냈으면 더 돌 이유가 없음
-	if (PendingSpawnCount <= 0)
-	{
-		GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
-	}
+    LastSpawnedGroupCount=0;bHasGroupOrigin=false;CachedGroupEliteCount=INDEX_NONE;bInsideSpawnGroup=true;
+    // Never split a normal 2..4 request into a pair followed by a lone straggler.
+    const int32 Count=PendingSpawnCount<=4?PendingSpawnCount:(PendingSpawnCount==5?3:4);
+    FVector OpenDirection;
+    auto* Tactics=GetWorld()->GetSubsystem<UDreamCrowdTacticsSubsystem>();
+    const bool Corner=Tactics&&Tactics->IsCornered(GetPlayerCharacter(),OpenDirection);
+    for(int32 I=0;I<Count;++I)
+    {
+        if(const auto* Mode=GetWorld()->GetAuthGameMode<AMainGameModeBase>();Mode&&!Mode->CanSpawnRegularMonster())break;
+        bPreferRangedMember=Corner&&LastSpawnedGroupCount==0;
+        if(!TrySpawnMonster())break;
+        --PendingSpawnCount;++LastSpawnedGroupCount;
+    }
+    bPreferRangedMember=false;bHasGroupOrigin=false;bInsideSpawnGroup=false;CachedGroupEliteCount=INDEX_NONE;
+    // Continuous pressure follows the game-mode clock, not a rapid retry/refill loop.
+    if(bContinuousPack)PendingSpawnCount=0;
+    if(PendingSpawnCount<=0)GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
 }

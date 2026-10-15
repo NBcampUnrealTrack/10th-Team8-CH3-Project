@@ -19,6 +19,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "Kismet/KismetSystemLibrary.h"
 #include "MonsterBase.h"
+#include "DreamAugmentRuntime.h"
+#include "MonsterProjectile.h"
 
 //데미지를 일으킨 컨트롤러를 찾음 킬 판정이나 어그로에 쓰라고 같이 넘김
 AController* UAugmentDamageLibrary::FindEventInstigator(AActor* DamageCauser)
@@ -85,12 +87,16 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
 
     //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴
     const float HealthBeforeHit=DamagedStats->GetCurrentHealth();
+    TGuardValue<bool> ProjectileContext(DamagedStats->bIncomingProjectile,DamageCauser&&DamageCauser->IsA<AMonsterProjectile>());
+    TGuardValue<bool> FireContext(DamagedStats->bIncomingFire,bIsFireDamage);
     const float FinalDamage = DamagedStats->ApplyIncomingDamage(Damage, bIsFireDamage);
 
     if (FinalDamage <= 0.0f)
     {
         return 0.0f;
     }
+
+    if(auto* Table=DamagedActor->FindComponentByClass<UDispatchTableComponent>())if(auto* Runtime=Table->FindRuntime())Runtime->AfterHealthDamage(FindAttacker(EventInstigator,DamageCauser),FMath::Max(0.f,HealthBeforeHit-DamagedStats->GetCurrentHealth()),bIsFireDamage);
 
     //이번 데미지로 죽었으면 잡은 쪽에게 처치 보상(꿈의 조각 확률 파츠)
     //이미 죽어 있던 대상은 위에서 0이 돌아와 여기까지 못 오므로 여기서 죽어 있으면 이번 한 방에 죽은 것
@@ -359,7 +365,13 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
     const float HeadshotDamage = (HitMonster && HitMonster->IsHeadshotHit(HitResult)) ? Damage * HEADSHOT_DAMAGE_MULTIPLIER : Damage;
 
     //맞은 대상에게 먼저 데미지 벽이나 바닥을 맞혔으면 스탯이 없어서 0
-    const float AppliedDamage = ApplyAugmentDamageToTarget(DamageCauser, HitActor, HeadshotDamage);
+    auto* DirectTable=Shooter?Shooter->FindComponentByClass<UDispatchTableComponent>():nullptr;
+    auto* DirectRuntime=DirectTable?DirectTable->FindRuntime():nullptr;
+    const bool IsHeadshot=Cast<AMonsterBase>(HitActor)&&Cast<AMonsterBase>(HitActor)->IsHeadshotHit(WeaponHitResult);
+    const float ModifiedDamage=DirectRuntime?DirectRuntime->ModifyDirectDamage(HitActor,HeadshotDamage,IsHeadshot):HeadshotDamage;
+    const bool PreviousContext=DirectRuntime?DirectRuntime->bDirectDamageContext:false;if(DirectRuntime)DirectRuntime->bDirectDamageContext=true;
+    const float AppliedDamage=ApplyAugmentDamageToTarget(DamageCauser,HitActor,ModifiedDamage);
+    if(DirectRuntime)DirectRuntime->bDirectDamageContext=PreviousContext;
 
     if (!Shooter)
     {
@@ -375,6 +387,11 @@ float UAugmentDamageLibrary::ApplyWeaponHit(AActor* DamageCauser, const FHitResu
 
     //벽을 맞혀도 적중 지점 주변에 범위 공격이 터지도록 대상 유무와 상관없이 부름
     //헤드샷 배율을 뺀 원래 데미지를 넘김 범위 공격의 폭발 데미지까지 머리 배율을 타면 안 됨
+    if(AppliedDamage>0&&DirectRuntime)
+    {
+        auto* TargetStats=HitActor?HitActor->FindComponentByClass<UCombatStatsComponent>():nullptr;
+        DirectRuntime->AfterDirectHit(HitActor,Damage,TargetStats&&TargetStats->IsDead(),WeaponHitResult);
+    }
     ShooterTable->ProcessWeaponHit(WeaponHitResult, Damage);
 
     return AppliedDamage;

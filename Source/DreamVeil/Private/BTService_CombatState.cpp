@@ -5,6 +5,8 @@
 #include "Kismet/GameplayStatics.h"
 #include "AIController.h"
 #include "MonsterBase.h"
+#include "DreamCrowdTacticsSubsystem.h"
+#include "DreamAugmentRuntime.h"
 #include "BehaviorTree/BlackboardComponent.h"
 
 //공격 가능 여부를 적어 둘 블랙보드 칸 이름
@@ -52,6 +54,11 @@ void UBTService_CombatState::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
 		return;
 	}
 
+    PlayerPawn=ADreamAugmentField::FindDecoyFor(Cast<AMonsterBase>(AIPawn),PlayerPawn);
+    Blackboard->SetValueAsObject(TEXT("PlayerActor"),PlayerPawn);
+    FVector Approach=PlayerPawn->GetActorLocation();
+    if(auto* Tactics=GetWorld()->GetSubsystem<UDreamCrowdTacticsSubsystem>())Tactics->FindApproach(Cast<AMonsterBase>(AIPawn),PlayerPawn,Approach);
+    Blackboard->SetValueAsVector(TEXT("PlayerVec"),Approach);
 	//플레이어와 몬스터 사이의 거리 계산
 	const double DistanceSquared = FVector::DistSquared(AIPawn->GetActorLocation(), PlayerPawn->GetActorLocation());
 
@@ -65,5 +72,12 @@ void UBTService_CombatState::TickNode(UBehaviorTreeComponent& OwnerComp, uint8* 
 
 	// 해당 근접공격 때리기 가능하면 IsAttackAble 변수 변경
 	//매 틱 같은 값을 적어도 괜찮음 SetValueAsBool은 값이 바뀔 때만 관찰자에게 알림
-	Blackboard->SetValueAsBool(IS_ATTACK_ABLE_KEY, DistanceSquared <= FMath::Square(static_cast<double>(CombatDistance)));
+	bool CanAttack=DistanceSquared<=FMath::Square(static_cast<double>(CombatDistance));
+    if(CanAttack)
+    {
+        FCollisionQueryParams Params(SCENE_QUERY_STAT(MonsterAttackWall),false,AIPawn);Params.AddIgnoredActor(PlayerPawn);
+        CanAttack=!GetWorld()->LineTraceTestByObjectType(AIPawn->GetActorLocation(),PlayerPawn->GetActorLocation(),
+            FCollisionObjectQueryParams(ECC_WorldStatic),Params);
+    }
+    Blackboard->SetValueAsBool(IS_ATTACK_ABLE_KEY,CanAttack);
 }

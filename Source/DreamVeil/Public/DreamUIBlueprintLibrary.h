@@ -11,7 +11,7 @@ class UPanelWidget;
 class UWidget;
 class APlayerController;
 
-// Hard asset references ensure all twelve icons are included when cooking the UI.
+// Hard asset references ensure every augment icon is included when cooking the UI.
 UCLASS(BlueprintType)
 class DREAMVEIL_API UDreamAugmentIconSet : public UDataAsset
 {

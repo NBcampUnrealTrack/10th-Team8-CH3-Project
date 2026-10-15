@@ -1,6 +1,8 @@
 ﻿#include "CombatStatsComponent.h"
 
 #include "AugmentTypes.h"
+#include "DispatchTableComponent.h"
+#include "DreamAugmentRuntime.h"
 #include "Kismet/GameplayStatics.h"
 #include "Particles/ParticleSystem.h"
 #include "Particles/ParticleSystemComponent.h"
@@ -105,11 +107,12 @@ void UCombatStatsComponent::SetMaxHealth(float NewMaxHealth)
     if (OldMaxHealth != Stats.MaxHealth)
     {
         OnMaxHealthChanged.Broadcast(OldMaxHealth, Stats.MaxHealth);
+        OnCurrentHealthChanged.Broadcast(Stats.CurrentHealth,Stats.CurrentHealth);
     }
 
-    if (Stats.CurrentHealth > Stats.MaxHealth)
+    if (Stats.CurrentHealth > GetCurrentHealthLimit())
     {
-        SetCurrentHealth(Stats.MaxHealth);
+        SetCurrentHealth(GetCurrentHealthLimit());
     }
 }
 
@@ -119,7 +122,7 @@ void UCombatStatsComponent::SetCurrentHealth(float NewCurrentHealth)
     const float OldCurrentHealth = Stats.CurrentHealth;
     const bool bWasDead = Stats.bIsDead;
 
-    Stats.CurrentHealth = FMath::Clamp(NewCurrentHealth, 0.0f, Stats.MaxHealth);
+    Stats.CurrentHealth = FMath::Clamp(NewCurrentHealth, 0.0f, GetCurrentHealthLimit());
 
     if (OldCurrentHealth == Stats.CurrentHealth)
     {
@@ -145,7 +148,9 @@ void UCombatStatsComponent::Heal(float HealAmount)
         return;
     }
 
-    SetCurrentHealth(Stats.CurrentHealth + HealAmount);
+    const auto* Table=GetOwner()?GetOwner()->FindComponentByClass<UDispatchTableComponent>():nullptr;
+    const float Bonus=Table&&Table->FindRuntime()?Table->FindRuntime()->Healing():1.f;
+    SetCurrentHealth(Stats.CurrentHealth + HealAmount*Bonus);
 }
 
 //죽음 상태를 풀고 체력을 가득 채움
@@ -182,7 +187,10 @@ float UCombatStatsComponent::ApplyIncomingDamage(float IncomingDamage, bool bIgn
     const float DamageMultiplier = DEFENCE_REDUCTION_CONSTANT / (DEFENCE_REDUCTION_CONSTANT + DefencePower);
 
     //비율로 깎되 최소 보장치는 남김 남은 체력보다 커도 자르지 않음(오버킬 허용)
-    const float FinalDamage = FMath::Max(IncomingDamage * DamageMultiplier, MIN_DAMAGE);
+    float FinalDamage = FMath::Max(IncomingDamage * DamageMultiplier, MIN_DAMAGE);
+    if(auto* Table=GetOwner()?GetOwner()->FindComponentByClass<UDispatchTableComponent>():nullptr)
+        if(auto* Runtime=Table->FindRuntime())FinalDamage=Runtime->AbsorbDamage(FinalDamage,bIncomingProjectile,bIncomingFire);
+    if(FinalDamage<=0)return 0;
 
     SetCurrentHealth(Stats.CurrentHealth - FinalDamage);
 
@@ -206,6 +214,8 @@ void UCombatStatsComponent::BeginPlay()
 //불타는 상태를 켜고 끔
 void UCombatStatsComponent::SetOnFire(bool bNewOnFire, UParticleSystem* FireEffect)
 {
+    if(bNewOnFire)if(auto* Table=GetOwner()?GetOwner()->FindComponentByClass<UDispatchTableComponent>():nullptr)
+        if(Table->FindRuntime()&&Table->FindRuntime()->IsFireImmune())return;
     //같은 상태로 또 부르면 아무것도 하지 않음 불꽃이 여러 개 겹치는 것을 막음
     if (bOnFire == bNewOnFire)
     {
@@ -265,6 +275,7 @@ bool UCombatStatsComponent::IsOnFire() const
 void UCombatStatsComponent::ResetForPool()
 {
     SetOnFire(false, nullptr);
+    HealthCapRatio=1.f;
     Stats = PoolInitialStats;
     Stats.bIsDead = false; Stats.CurrentHealth = Stats.MaxHealth;
 }

@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -28,6 +28,10 @@ class DREAMVEIL_API UFireDamageType : public UDamageType
 {
 	GENERATED_BODY()
 };
+
+// Secondary effects grant kill rewards but never recurse into hit/reflect/lifesteal hooks.
+UCLASS()
+class DREAMVEIL_API UAugmentSecondaryDamageType : public UThornReflectDamageType { GENERATED_BODY() };
 
 //헤드샷 데미지 배율 머리를 맞히면 데미지가 이만큼 곱해짐
 //총 적중(ApplyWeaponHit)만 이 배율을 받음 범위 공격 화염 가시 갑옷 반사는 머리를 겨눌 수 있는 공격이 아니라서 그냥 평타로 들어감

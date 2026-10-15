@@ -1,5 +1,6 @@
 ﻿#include "DreamUIBlueprintLibrary.h"
 #include "MainPlayerCharacter.h"
+#include "DreamAugmentPanel.h"
 #include "Containers/Ticker.h"
 #include "DreamSuperEasyButton.h"
 #include "DreamEnhancePreviewWidget.h"
@@ -101,6 +102,7 @@ void UDreamUIBlueprintLibrary::ApplyAugmentIcons(UUserWidget* Widget, const TArr
         Image->SetBrushFromTexture(Texture, false);
         Image->SetVisibility(Texture ? ESlateVisibility::HitTestInvisible : ESlateVisibility::Hidden);
     }
+    UDreamAugmentPanel::InstallChoiceToolbar(Widget);
 }
 
 void UDreamUIBlueprintLibrary::ContinueDreamGameOver(UUserWidget* Widget)

@@ -67,7 +67,14 @@ public:
 
 	// 레그돌 상태이거나 일어나는 중이면 true
 	UFUNCTION(BlueprintPure, Category = "Monster|Ragdoll")
-	bool IsRagdoll() const { return bIsRagdoll; }
+    bool IsRagdoll() const { return bIsRagdoll || bAugmentStaggered; }
+    UFUNCTION(BlueprintCallable, Category="Monster|Combat") bool TryApplyAugmentStagger(float Duration,float Immunity=1.5f);
+    UFUNCTION(BlueprintPure, Category="Monster|Combat") bool IsAugmentStaggered() const { return bAugmentStaggered; }
+    void FinishAugmentStagger();
+    bool bAugmentStaggered=false;
+    float NextAugmentStaggerTime=-100.f;
+    uint8 PreStaggerMovementMode=1;
+    FTimerHandle AugmentStaggerTimer;
 
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Monster|Skill")
 	TObjectPtr<UMonsterSkill> MonsterSkill;

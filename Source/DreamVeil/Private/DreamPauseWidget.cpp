@@ -1,5 +1,6 @@
 ﻿#include "DreamPauseWidget.h"
 #include "DreamUIBlueprintLibrary.h"
+#include "DreamAugmentPanel.h"
 #include "DispatchTableComponent.h"
 #include "Components/HorizontalBox.h"
 #include "Components/HorizontalBoxSlot.h"
@@ -81,18 +82,19 @@ void UDreamPauseWidget::NativeOnInitialized()
     FButtonStyle Style; Style.Normal=Brush(NormalTexture); Style.Hovered=Brush(HoverTexture); Style.Pressed=Brush(PressTexture);
     auto AddButton=[this,Rows,&Style,&AddLabel](const TCHAR* Name,const TCHAR* Caption)
     {
-        auto* Size=WidgetTree->ConstructWidget<USizeBox>(); Size->SetHeightOverride(64);
+        auto* Size=WidgetTree->ConstructWidget<USizeBox>(); Size->SetHeightOverride(52);
         Rows->AddChildToVerticalBox(Size)->SetPadding(FMargin(0,6));
         auto* Button=WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(),Name);
-        Button->SetStyle(Style); Button->SetContent(AddLabel(Caption,23)); Size->SetContent(Button); return Button;
+        Button->SetStyle(Style); Button->SetContent(AddLabel(Caption,20)); Size->SetContent(Button); return Button;
     };
     AddButton(TEXT("Pause_Resume"),TEXT("게임으로 돌아가기"))->OnClicked.AddUniqueDynamic(this,&UDreamPauseWidget::ResumeGame);
+    Rows->AddChildToVerticalBox(AddLabel(TEXT("증강 도감 Q  /  보유 증강 E"),18))->SetPadding(FMargin(0,10));
     AddButton(TEXT("Pause_Quit"),TEXT("게임 종료"))->OnClicked.AddUniqueDynamic(this,&UDreamPauseWidget::QuitGame);
-    Rows->AddChildToVerticalBox(AddLabel(TEXT("ESC · 게임으로 돌아가기"),16))->SetPadding(FMargin(0,18,0,0));
+    Rows->AddChildToVerticalBox(AddLabel(TEXT("ESC / Z · 게임으로 돌아가기"),16))->SetPadding(FMargin(0,18,0,0));
     auto* Right=WidgetTree->ConstructWidget<USizeBox>(); Right->SetWidthOverride(456);
     Columns->AddChildToHorizontalBox(Right);
     auto* AugmentRows=WidgetTree->ConstructWidget<UVerticalBox>(); Right->SetContent(AugmentRows);
-    AugmentRows->AddChildToVerticalBox(AddLabel(TEXT("보유 증강"),28))->SetPadding(FMargin(0,4,0,18));
+    AugmentRows->AddChildToVerticalBox(AddLabel(TEXT("일시정지"),28))->SetPadding(FMargin(0,4,0,18));
     AugmentScroll=WidgetTree->ConstructWidget<UScrollBox>();AugmentScroll->SetAlwaysShowScrollbar(true);
     auto* ListSize=WidgetTree->ConstructWidget<USizeBox>(); ListSize->SetHeightOverride(416); ListSize->SetContent(AugmentScroll);
     AugmentRows->AddChildToVerticalBox(ListSize);
@@ -116,12 +118,17 @@ void UDreamPauseWidget::NativeConstruct()
         }
         else StatText->SetText(FText::GetEmpty());
     }
-    RefreshAugmentList();
+    if(AugmentScroll)
+    {
+        AugmentScroll->ClearChildren();auto* Note=WidgetTree->ConstructWidget<UTextBlock>();
+        Note->SetFont(FSlateFontInfo(MenuFont.Get(),18));Note->SetAutoWrapText(true);
+        Note->SetText(FText::FromString(TEXT("증강 도감: Q\n보유 중인 증강: E\n스킬: 1 ~ 6\n\n도움말은 메인 메뉴 Help → 조작에서 확인하세요.")));AugmentScroll->AddChild(Note);
+    }
     SetKeyboardFocus();
 }
 FReply UDreamPauseWidget::NativeOnPreviewKeyDown(const FGeometry& Geometry,const FKeyEvent& Event)
 {
-    if (Event.GetKey()==EKeys::Escape)
+    if ((Event.GetKey()==EKeys::Escape || Event.GetKey()==EKeys::Z))
     {
         if (!Event.IsRepeat()) ResumeGame();
         return FReply::Handled();
@@ -130,7 +137,7 @@ FReply UDreamPauseWidget::NativeOnPreviewKeyDown(const FGeometry& Geometry,const
 }
 FReply UDreamPauseWidget::NativeOnKeyDown(const FGeometry& Geometry,const FKeyEvent& Event)
 {
-    if (Event.GetKey()==EKeys::Escape)
+    if ((Event.GetKey()==EKeys::Escape || Event.GetKey()==EKeys::Z))
     {
         if (!Event.IsRepeat()) ResumeGame();
         return FReply::Handled();
@@ -172,17 +179,24 @@ void UDreamPauseWidget::RefreshAugmentList()
     { AugmentSummary=TEXT("아직 획득한 증강이 없습니다.");if (!EmptyAugmentLabel) EmptyAugmentLabel=Label(AugmentSummary,18,FLinearColor(.75f,.72f,.8f));AugmentScroll->AddChild(EmptyAugmentLabel); return; }
     for (EAugmentID ID:Unique)
     {
-        FString Name=UDispatchTableComponent::GetAugmentDisplayName(ID).ToString();
+        FString Name=UDispatchTableComponent::IsEvolution(ID)?TEXT("[진화] "):
+            UDispatchTableComponent::GetAugmentCategory(ID)==EAugmentCategory::Passive?TEXT("[패시브] "):TEXT("[액티브] ");
+        Name+=UDispatchTableComponent::GetAugmentDisplayName(ID).ToString();
         if (Counts[ID]>1) Name+=FString::Printf(TEXT(" × %d"),Counts[ID]);
         FString State;
         if (Pawn && Pawn->CombatStats)
         {
             const float Ratio=Pawn->CombatStats->GetCurrentHealth()/FMath::Max(1.f,Pawn->CombatStats->GetMaxHealth());
-            if (ID==EAugmentID::Berserker) State=Ratio<=.1f?TEXT("현재 공격력 2배"):Ratio<=.4f?TEXT("현재 공격력 1.5배"):TEXT("현재 비활성");
+            if (ID==EAugmentID::Berserker)
+            {
+                const auto* D=Pawn->DispatchTable.Get();const bool Evolved=D && D->HasAcquiredAugment(EAugmentID::LastBreath);
+                const float Mult=Ratio<=.1f?(Evolved?D->LastBreathCriticalMultiplier:BERSERKER_CRITICAL_MULTIPLIER):Ratio<=.4f?(Evolved?D->LastBreathAttackMultiplier:BERSERKER_MULTIPLIER):1.f;
+                State=FString::Printf(TEXT("현재 공격력 %.1f배"),Mult);
+            }
             if (ID==EAugmentID::LastFortress) State=Ratio<=LAST_FORTRESS_THRESHOLD?TEXT("현재 활성"):TEXT("현재 비활성");
         }
         if (!State.IsEmpty()) Name+=TEXT(" · ")+State;
-        const FString Description=UDispatchTableComponent::GetAugmentDescription(ID).ToString();
+        const FString Description=Pawn && Pawn->DispatchTable?Pawn->DispatchTable->GetCurrentAugmentDescription(ID).ToString():UDispatchTableComponent::GetAugmentDescription(ID).ToString();
         AugmentSummary+=Name+TEXT("\n")+Description+TEXT("\n");
         auto* Box=CachedAugmentRows.FindRef(ID).Get();
         if (!Box)
@@ -206,4 +220,9 @@ void UDreamPauseWidget::RefreshAugmentList()
         CastChecked<UTextBlock>(TextRows->GetChildAt(1))->SetText(FText::FromString(Description));
         Cast<UScrollBoxSlot>(AugmentScroll->AddChild(Box))->SetPadding(FMargin(0,0,12,14));
     }
+}
+
+void UDreamPauseWidget::OpenAugmentGuide()
+{
+    UDreamAugmentPanel::OpenGuide(GetOwningPlayer());
 }

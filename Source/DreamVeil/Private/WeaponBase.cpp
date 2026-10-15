@@ -1,4 +1,6 @@
 ﻿#include "WeaponBase.h"
+#include "DreamAugmentRuntime.h"
+#include "DispatchTableComponent.h"
 #include "AugmentDamageLibrary.h"
 #include "AugmentTypes.h"
 #include "CombatStatsComponent.h"
@@ -89,7 +91,10 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 	LastFireTime = GetWorld()->GetTimeSeconds();
 
 	//발사가 확정된 뒤에 재생 연사 간격에 막힌 호출에서 소리가 나면 안 되므로 CanFire 검사 아래에 둠
-	PlayMuzzleEffects(MuzzleLocation);
+    PlayMuzzleEffects(MuzzleLocation);
+    auto* Table=GetOwner()?GetOwner()->FindComponentByClass<UDispatchTableComponent>():nullptr;
+    auto* Runtime=Table?Table->FindRuntime():nullptr;
+    if(Runtime&&Runtime->BeginShot(MuzzleLocation,FireDirection,GetFinalDamage(),Range,TraceChannel)){Runtime->EndShot();return;}
 
 	FVector TraceEnd = MuzzleLocation + (FireDirection * Range);
 
@@ -130,6 +135,7 @@ void UWeaponBase::Fire(const FVector& MuzzleLocation, const FVector& FireDirecti
 			OnHitConfirmed.Broadcast(HitStats && HitStats->IsDead(), bHeadshot);
 		}
 	}
+    if(Runtime)Runtime->EndShot();
 }
 
 //총구 불꽃과 발사음을 재생
@@ -284,5 +290,7 @@ float UWeaponBase::GetFireInterval() const
 	}
 
 	//연사력 파츠를 많이 끼워도 줄이는 비율에 상한을 둬서 발사 간격이 0에 가까워지지 않게 함
-	return FireInterval * (1.0f - FMath::Min(FireRateBonus, MAX_PART_FIRE_RATE_BONUS));
+	const auto* Table=GetOwner()?GetOwner()->FindComponentByClass<UDispatchTableComponent>():nullptr;
+    const float AugmentRate=Table&&Table->FindRuntime()?Table->FindRuntime()->FireRate():1.f;
+    return FMath::Max(.05f,FireInterval * (1.0f - FMath::Min(FireRateBonus, MAX_PART_FIRE_RATE_BONUS))/AugmentRate);
 }

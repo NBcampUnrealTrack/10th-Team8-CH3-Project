@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/Character.h"
@@ -9,6 +9,7 @@ class UCameraComponent;
 class UCombatStatsComponent;
 class UDispatchTableComponent;
 class UInventoryComponent;
+class AInteractableActorBase;
 class UWeaponBase;
 class UAnimMontage;
 class UAnimSequence;
@@ -72,6 +73,8 @@ class DREAMVEIL_API AMainPlayerCharacter : public ACharacter
 public:
 
 	AMainPlayerCharacter();
+    UFUNCTION(BlueprintPure, Category="Interaction")
+    AInteractableActorBase* FindInteractionTarget() const;
 
     UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category = "Stats|Growth", meta=(ClampMin="0"))
     float HealthPerLevel = 2.0f;
@@ -203,7 +206,12 @@ public:
 	float GetMaxStamina() const;
 
 	//최대 스태미나를 늘리고 늘어난 만큼 채움 스태미나 증가 증강(UStaminaUpSkill)이 부름
-	void IncreaseMaxStamina(float Amount);
+    void IncreaseMaxStamina(float Amount);
+    float GetAugmentBaseWalkSpeed()const{return NoramalSpeed;}
+    float GetAugmentBaseSprintSpeed()const{return SprintSpeed;}
+    bool IsActuallySprinting()const{return IsSprintMoving();}
+    void ApplyAugmentMovement(float Walk,float Sprint,float Jump);
+    float AugmentWalkSpeed=0,AugmentSprintSpeed=0;
 
 	// 레벨
 
@@ -277,7 +285,11 @@ public:
 	bool SelectAugmentChoice(EAugmentID AugmentID);
 
 	UFUNCTION(BlueprintPure, Category="Augment")
-	bool IsAugmentChoiceInputReady() const;
+    bool IsAugmentChoiceInputReady() const;
+    UFUNCTION(BlueprintCallable, Category="Augment") bool RerollAugmentChoices();
+    UFUNCTION(BlueprintPure, Category="Augment") bool CanRerollAugmentChoices() const;
+    UFUNCTION(BlueprintPure, Category="Augment") int32 GetAugmentRerollsRemaining() const { return bAugmentRerollUsed?0:1; }
+    UFUNCTION(BlueprintCallable, Category="Stamina") bool TrySpendSkillStamina(float Amount);
 
 	//증강 선택 보상을 하나 줌 레벨업 한 번과 같은 효과
 	//몬스터가 떨군 증강 아이템을 주웠을 때 아이템 쪽에서 부를 것 죽은 상태면 무시
@@ -438,6 +450,7 @@ private:
 	//아직 띄우지 못한 레벨업 보상 수 선택지를 고르는 동안 또 레벨이 오르면 쌓임
 	int32 PendingAugmentChoiceCount = 0;
 	double AugmentChoiceUnlockTime = 0.0;
+    bool bAugmentRerollUsed=false;
 
 	//현재 스태미나 뛰는 동안 줄고 멈추면 잠깐 쉬었다가 다시 참
 	float CurrentStamina;

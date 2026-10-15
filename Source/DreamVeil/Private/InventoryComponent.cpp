@@ -1,4 +1,6 @@
 ﻿#include "InventoryComponent.h"
+#include "DreamAugmentRuntime.h"
+#include "DispatchTableComponent.h"
 #include "DreamObjectPoolSubsystem.h"
 #include "Engine/World.h"
 #include "MonsterProgressionLibrary.h"
@@ -222,18 +224,19 @@ void UInventoryComponent::ReceiveKillRewards(AActor* KilledActor)
 	const bool bBoss = Grade == EMonsterGrade::Boss;
 	const bool bElite = Grade == EMonsterGrade::Elite;
 
-	//꿈의 조각은 잡을 때마다 받음
+    auto CombatReward=[this](int32 Amount){auto* T=GetOwner()->FindComponentByClass<UDispatchTableComponent>();AddDreamShards(T&&T->FindRuntime()?T->FindRuntime()->CombatReward(Amount):Amount);};
+    //꿈의 조각은 잡을 때마다 받음
 	if (bBoss)
 	{
-		AddDreamShards(BOSS_SHARD_REWARD);
+		CombatReward(BOSS_SHARD_REWARD);
 	}
 	else if (bElite)
 	{
-		AddDreamShards(FMath::RandRange(ELITE_SHARD_MIN, ELITE_SHARD_MAX));
+		CombatReward(FMath::RandRange(ELITE_SHARD_MIN, ELITE_SHARD_MAX));
 	}
 	else
 	{
-		AddDreamShards(FMath::RandRange(NORMAL_SHARD_MIN, NORMAL_SHARD_MAX));
+		CombatReward(FMath::RandRange(NORMAL_SHARD_MIN, NORMAL_SHARD_MAX));
 	}
 
 	//보스는 보스 파츠를 무조건 떨굼 엔드리스를 대비해 L4를 계속 돌게 만드는 보상

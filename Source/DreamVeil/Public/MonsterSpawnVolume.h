@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -20,17 +20,17 @@ public:
 	UFUNCTION()
 	void ExecuteSpawnActor() override; //호출을 이벤트로 하면 재밌을듯?
 
-	//웨이브가 시작될 때 게임모드가 부름 이 볼륨에서 MonsterCount 마리를 SpawnInterval 간격으로 냄
-	//한꺼번에 쏟아내지 않고 끊어 내려고 타이머를 씀 실제로 한 마리를 내는 건 ExecuteSpawnActor가 함
-	//이미 내보내는 중에 또 불리면 남은 수에 더해져서 겹치지 않음
+    // MonsterCount는 전체 요청 수이며 SpawnInterval마다 최대 4마리 무리로 나눠 생성합니다.
+    // 앞선 요청이 있으면 합치되 공통 생존 수 상한과 안전 위치 검사를 매 구성원에 적용합니다.
 	UFUNCTION(BlueprintCallable, Category = "Monster To Spawn")
 	void SpawnWave(int32 MonsterCount, float SpawnInterval);
 
 	//게임모드가 일정 주기마다 부름 이 볼륨이 한 번에 몇 마리를 낼지는 볼륨이 정함
 	//게임모드가 수를 정하지 않는 이유 좁은 방과 넓은 마당에 같은 수를 내면 한쪽은 텅 비고 한쪽은 꽉 막힘
-	//볼륨마다 MonstersPerSpawnTick을 다르게 두면 맵을 만들면서 밀도를 조절할 수 있음
+	//양수인 볼륨은 SpawnGroupMin~Max 크기의 무리를 요청하고, 0인 볼륨은 비활성화합니다.
 	UFUNCTION(BlueprintCallable, Category = "Monster To Spawn")
 	void SpawnTick();
+    bool IsContinuousSpawnEnabled() const { return MonstersPerSpawnTick>0; }
 
 protected:
 	virtual void BeginPlay() override;
@@ -48,13 +48,18 @@ protected:
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	TArray<TSubclassOf<AMonsterBase>> EliteMonsters;
 
-	//이 볼륨이 한 번 스폰 신호를 받을 때 낼 몬스터 수
-	//0으로 두면 이 볼륨은 아무것도 안 냄 장식용 볼륨이나 보스방에서 씀
+    // 기존 레벨 호환용 스폰 활성 값. 0은 비활성, 양수는 2~4마리 무리 요청입니다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	int32 MonstersPerSpawnTick = 1;
 
-	//한 번에 여러 마리를 낼 때 마리 사이 간격 초
-	//한 프레임에 다 쏟으면 같은 자리에 겹쳐서 나와 서로 밀어내느라 튕김
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Monster To Spawn|Group", meta=(ClampMin="2",ClampMax="4"))
+    int32 SpawnGroupMin = 2;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Monster To Spawn|Group", meta=(ClampMin="2",ClampMax="4"))
+    int32 SpawnGroupMax = 4;
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Monster To Spawn|Group")
+    int32 LastSpawnedGroupCount = 0;
+
+    // 무리 사이의 간격. 같은 무리의 구성원은 서로 떨어진 위치에 같은 프레임에 생성합니다.
 	UPROPERTY(EditAnywhere, BlueprintReadWrite, Category = "Monster To Spawn")
 	float SpawnTickGap = 0.3f;
 
@@ -84,7 +89,13 @@ protected:
 	float DifficultyCurve;
 
 private:
-	bool TrySpawnMonster();
+    bool bContinuousPack=false;
+    bool bInsideSpawnGroup=false;
+    int32 CachedGroupEliteCount=INDEX_NONE;
+    bool TrySpawnMonster();
+    bool bHasGroupOrigin = false;
+    bool bPreferRangedMember = false;
+    FVector GroupOrigin = FVector::ZeroVector;
 	int32 SpawnSectorSequence = 0;
 
 	//아직 내보내지 못하고 남은 몬스터 수 웨이브 타이머가 하나씩 줄임
@@ -93,7 +104,7 @@ private:
 	//남은 몬스터를 한 마리씩 내보내는 타이머 다 내면 스스로 멈춤
 	FTimerHandle WaveSpawnTimerHandle;
 
-	//타이머가 돌 때마다 한 마리 내보냄 남은 수가 0이 되면 타이머를 멈춤
+	//타이머가 돌 때마다 2~4마리 무리를 내보냅니다. 상한/안전 위치 부족 시 남은 몫은 재시도합니다.
 	void SpawnOneFromWave();
 
 	float GetEliteRate();

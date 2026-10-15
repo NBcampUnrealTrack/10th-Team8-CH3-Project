@@ -8,6 +8,7 @@
 #include "DispatchTableComponent.generated.h"
 
 class UAugmentSkillBase;
+class UDreamAugmentRuntime;
 class UCombatStatsComponent;
 class AThornSpikeEffect;
 class UParticleSystem;
@@ -21,7 +22,46 @@ class DREAMVEIL_API UDispatchTableComponent : public UActorComponent
 	GENERATED_BODY()
 
 public:
+    UFUNCTION(BlueprintPure,Category="Augment") static EAugmentID FindAugmentByCode(const FString& Code);
     void ResetForPool();
+    UDreamAugmentRuntime* GetRuntime();
+    UDreamAugmentRuntime* FindRuntime() const { return CatalogRuntime; }
+    UFUNCTION(BlueprintPure, Category="Augment") bool CanEvolve(EAugmentID ID) const;
+    UFUNCTION(BlueprintPure, Category="Augment") TArray<EAugmentID> GetSkillIDs() const;
+    UFUNCTION(BlueprintPure, Category="Augment") EAugmentID GetSkillAtSlot(int32 Slot) const;
+    UFUNCTION(BlueprintPure, Category="Augment") float GetSkillCost(int32 Slot) const;
+    UFUNCTION(BlueprintPure, Category="Augment") float GetSkillCooldown(int32 Slot) const;
+    UFUNCTION(BlueprintPure, Category="Augment") FString GetSkillStateText(int32 Slot) const;
+    FAugmentPool GetEligiblePool() const;
+    UPROPERTY(Transient) TObjectPtr<UDreamAugmentRuntime> CatalogRuntime;
+    // Limits count distinct base augments; repeated stat stacks use their original slot.
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Augment|Limits", meta=(ClampMin="1",ClampMax="6")) int32 PassiveLimit=6;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Augment|Limits", meta=(ClampMin="1",ClampMax="6")) int32 ActiveLimit=6;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Augment|Limits", meta=(ClampMin="1",ClampMax="6")) int32 SkillLimit=6;
+    UFUNCTION(BlueprintPure, Category="Augment") static EAugmentCategory GetAugmentCategory(EAugmentID ID);
+    UFUNCTION(BlueprintPure, Category="Augment") static bool IsEvolution(EAugmentID ID);
+    UFUNCTION(BlueprintPure, Category="Augment") int32 GetOwnedCount(EAugmentCategory Category) const;
+    UFUNCTION(BlueprintPure, Category="Augment") int32 GetStackCount(EAugmentID ID) const;
+    UFUNCTION(BlueprintPure, Category="Augment") int32 GetSkillCount() const;
+    UFUNCTION(BlueprintPure, Category="Augment") bool CanAcquireAugment(EAugmentID ID) const;
+    bool DrawReplacementChoices(const TArray<EAugmentID>& Previous,TArray<EAugmentID>& Out) const;
+    UFUNCTION(BlueprintPure, Category="Augment|Evolution") FString GetEvolutionStatus(EAugmentID ID) const;
+    UFUNCTION(BlueprintCallable, Category="Augment|Evolution") bool TryEvolve(EAugmentID ID);
+    UFUNCTION(BlueprintCallable, Category="Augment|Skill") bool TryUseSkill(int32 Slot);
+    UFUNCTION(BlueprintPure, Category="Augment|Skill") float GetSkillCooldownRemaining(int32 Slot) const;
+    UFUNCTION(BlueprintPure, Category="Augment|Skill") float GetEffectRangeMultiplier() const;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Augment|Evolution", meta=(ClampMin="0.01",ClampMax="0.2")) float LastBreathHealthRatio=.2f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Augment|Evolution") float LastBreathAttackMultiplier=1.8f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Augment|Evolution") float LastBreathCriticalMultiplier=2.3f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Augment|Evolution") float LastBreathDefenceBonus=10.f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Augment|Skill", meta=(ClampMin="0")) float PulseStaminaCost=30.f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Augment|Skill", meta=(ClampMin="0.1")) float PulseCooldown=10.f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Augment|Skill", meta=(ClampMin="1")) float PulseRadius=300.f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Augment|Skill", meta=(ClampMin="0.01",ClampMax="1")) float PulseStaggerDuration=.5f;
+    UFUNCTION(BlueprintPure, Category="Augment") FText GetCurrentAugmentDescription(EAugmentID ID) const;
+    bool bRestoringAugments=false;
+    float PulseReadyTime=0.f;
+    bool bLastBreathApplied=false;
 	//생성자
 	UDispatchTableComponent();
 

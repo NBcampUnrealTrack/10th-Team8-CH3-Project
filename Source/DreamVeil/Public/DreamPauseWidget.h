@@ -29,6 +29,7 @@ protected:
     virtual FReply NativeOnPreviewKeyDown(const FGeometry& Geometry, const FKeyEvent& Event) override;
 private:
     UFUNCTION() void ResumeGame();
+    UFUNCTION() void OpenAugmentGuide();
     UFUNCTION() void QuitGame();
     void RefreshAugmentList();
     FString AugmentSummary;

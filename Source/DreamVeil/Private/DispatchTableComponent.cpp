@@ -2,6 +2,15 @@
 #include "DreamObjectPoolSubsystem.h"
 
 #include "ActiveAugmentSkills.h"
+#include "MainPlayerCharacter.h"
+#include "DreamAugmentCatalog.h"
+#include "DreamAugmentRuntime.h"
+#include "MainPlayerController.h"
+#include "MonsterBase.h"
+#include "AugmentDamageLibrary.h"
+#include "Kismet/GameplayStatics.h"
+#include "Particles/ParticleSystem.h"
+#include "UObject/ConstructorHelpers.h"
 #include "AugmentSkillBase.h"
 #include "CombatStatsComponent.h"
 #include "PassiveAugmentSkills.h"
@@ -59,13 +68,20 @@ UCombatStatsComponent* UDispatchTableComponent::GetStatsComponent() const
 //보상 UI 선택지를 겹치지 않게 뽑음
 bool UDispatchTableComponent::DrawAugmentChoices(TArray<EAugmentID>& OutAugmentIDs)
 {
-    return AugmentPool.DrawChoices(AUGMENT_CHOICE_COUNT, OutAugmentIDs);
+    return DrawReplacementChoices({}, OutAugmentIDs);
 }
 
 //증강을 적용하고 반복 획득이 안 되면 풀에서 제거
 bool UDispatchTableComponent::ApplyAugment(EAugmentID AugmentID)
 {
-    if (!ExecuteAugment(AugmentID))
+    if (IsEvolution(AugmentID)) return TryEvolve(AugmentID);
+    if (!bRestoringAugments && !CanAcquireAugment(AugmentID)) return false;
+    if (GetAugmentCategory(AugmentID)==EAugmentCategory::Active && HasAcquiredAugment(AugmentID)) return false;
+    if (const auto* Def=DreamAugmentCatalog::Find(AugmentID);Def && !Def->Evolution && static_cast<uint8>(AugmentID)>=12)
+    {
+        if (!Cast<AMainPlayerCharacter>(GetOwner()) || !HasBegunPlay()) return false;
+    }
+    else if (!ExecuteAugment(AugmentID))
     {
         return false;
     }
@@ -73,6 +89,7 @@ bool UDispatchTableComponent::ApplyAugment(EAugmentID AugmentID)
     AugmentPool.RemoveIfNotRepeatable(AugmentID);
 
     AugmentHistory.Add(AugmentID);
+    if(auto* Runtime=GetRuntime())Runtime->Start();
 
     return true;
 }
@@ -134,14 +151,18 @@ void UDispatchTableComponent::ExecuteAugmentRepeat(EAugmentID AugmentID, int32 R
 //이미 얻은 증강인지 여부
 bool UDispatchTableComponent::HasAcquiredAugment(EAugmentID AugmentID) const
 {
-    return AcquiredSkills.Contains(AugmentID);
+    return AcquiredSkills.Contains(AugmentID) || AugmentHistory.Contains(AugmentID);
 }
 
 //증강 이름 보상 UI와 보유 증강 목록에서 씀
 FText UDispatchTableComponent::GetAugmentDisplayName(EAugmentID AugmentID)
 {
+    if(const auto* Def=DreamAugmentCatalog::Find(AugmentID))return FText::FromString(Def->Name);
     switch (AugmentID)
     {
+    case EAugmentID::EffectRange: return FText::FromString(TEXT("효과 범위 증가"));
+    case EAugmentID::LastBreath: return FText::FromString(TEXT("마지막 한숨"));
+    case EAugmentID::SuppressionPulse: return FText::FromString(TEXT("진압파"));
     case EAugmentID::AttackUp:
         return NSLOCTEXT("Augment", "AttackUpName", "공격력 증가");
     case EAugmentID::DefenceUp:
@@ -161,7 +182,7 @@ FText UDispatchTableComponent::GetAugmentDisplayName(EAugmentID AugmentID)
     case EAugmentID::Regeneration:
         return NSLOCTEXT("Augment", "RegenerationName", "재생력");
     case EAugmentID::Knockback:
-        return NSLOCTEXT("Augment", "KnockbackName", "정상수");
+        return NSLOCTEXT("Augment", "KnockbackName", "경직탄");
     case EAugmentID::AreaAttack:
         return NSLOCTEXT("Augment", "AreaAttackName", "폭발탄");
     case EAugmentID::ContinuousAttack:
@@ -188,8 +209,12 @@ static FText FormatPercentText(float Ratio)
 //증강 설명 수치는 AugmentTypes.h 값을 넣어서 밸런스를 바꾸면 설명도 같이 바뀜
 FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
 {
+    if(const auto* Def=DreamAugmentCatalog::Find(AugmentID);Def && static_cast<uint8>(AugmentID)>=12)return FText::FromString(Def->Description);
     switch (AugmentID)
     {
+    case EAugmentID::EffectRange: return FText::FromString(TEXT("폭발탄·진압파의 반경 +3%p. 중첩 가능, 최대 +60%. 경직 시간과 피해량은 늘지 않습니다."));
+    case EAugmentID::LastBreath: return FText::FromString(TEXT("광전사 + 최후의 요새. 실제 최대 체력은 유지하고 현재 체력·모든 회복을 최대 체력의 20%로 제한합니다. 공격 배율 1.8배(체력 10% 이하 2.3배), 추가 방어력 +10 후 요새 배율 적용. 영구 효과이며 버튼·스태미나 소모가 없습니다."));
+    case EAugmentID::SuppressionPulse: return FText::FromString(TEXT("경직탄 + 방어력 증가 1중첩 + 효과 범위 증가 1중첩. 기본 경직탄을 유지합니다. 버튼으로 주변 3m 일반 적을 0.5초 경직. 엘리트 절반·보스 면역, 피해·무적 없음. 스태미나 30, 재사용 10초. 사용 후 최소 20 스태미나를 남겨야 합니다."));
     case EAugmentID::AttackUp:
         return FText::Format(
             NSLOCTEXT("Augment", "AttackUpDesc", "공격력이 {0} 늘어납니다. 여러 번 얻을 수 있습니다."),
@@ -230,7 +255,7 @@ FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
             FText::AsNumber(REGENERATION_INTERVAL),
             FormatPercentText(REGENERATION_LOST_HEALTH_RATIO));
     case EAugmentID::Knockback:
-        return NSLOCTEXT("Augment", "KnockbackElectricDesc", "총에 맞은 적을 밀어내며 전기 효과가 발생합니다.");
+        return NSLOCTEXT("Augment", "KnockbackElectricDesc", "총에 맞은 일반 적을 0.2초 경직시킵니다. 같은 적은 1.5초마다 적용되며, 엘리트는 절반·보스는 면역입니다.");
     case EAugmentID::AreaAttack:
         return FText::Format(
             NSLOCTEXT("Augment", "AreaAttackDesc", "총알이 맞은 지점 주변 {0}m 안의 적에게 피해의 {1}%가 함께 들어갑니다. 멀수록 약해집니다."),
@@ -286,6 +311,7 @@ bool UDispatchTableComponent::RestoreAugments(const TArray<EAugmentID>& History)
     }
 
     //ApplyAugment를 거쳐야 반복 획득이 안 되는 증강이 풀에서도 빠지고 기록도 다시 쌓임
+    TGuardValue<bool> RestoreGuard(bRestoringAugments,true);
     for (EAugmentID AugmentID : History)
     {
         ApplyAugment(AugmentID);
@@ -412,6 +438,8 @@ void UDispatchTableComponent::BeginPlay()
     //그러면 레벨업을 해도 뽑을 증강이 없어서 보상만 조용히 사라짐
     //BuildDefault는 이미 차 있으면 건너뛰므로 블루프린트에서 일부러 채운 목록은 그대로 둠
     AugmentPool.BuildDefault();
+    if(Cast<AMainPlayerCharacter>(GetOwner())) for(const auto& Def:DreamAugmentCatalog::All())
+        if(!Def.Evolution && !AugmentPool.Find(Def.ID)) AugmentPool.Augments.Add(FAugmentData(Def.ID,Def.Category,Def.Category==EAugmentCategory::Passive?12.f:6.f,Def.Category==EAugmentCategory::Passive));
     AugmentPool.FillDisplayTexts();
     PoolInitialAugments = AugmentPool;
 
@@ -439,6 +467,7 @@ void UDispatchTableComponent::BeginPlay()
 
 void UDispatchTableComponent::EndPlay(const EEndPlayReason::Type EndPlayReason)
 {
+    if(CatalogRuntime)CatalogRuntime->Reset();
     if (StatsComponent)
     {
         StatsComponent->OnCurrentHealthChanged.RemoveDynamic(this, &UDispatchTableComponent::HandleCurrentHealthChanged);
@@ -487,11 +516,14 @@ void UDispatchTableComponent::PlayThornReflectEffect(AActor* ReflectTarget)
 
 void UDispatchTableComponent::ResetForPool()
 {
+    if(CatalogRuntime)CatalogRuntime->Reset();
     for (auto& SkillPair : AcquiredSkills) if (SkillPair.Value)
     {
         SkillPair.Value->ResetForPool();
         GetWorld()->GetTimerManager().ClearAllTimersForObject(SkillPair.Value);
         RecycledSkills.Add(SkillPair.Key, SkillPair.Value);
     }
+    if (bLastBreathApplied && StatsComponent) { StatsComponent->AddDefencePower(-LastBreathDefenceBonus); StatsComponent->SetHealthCapRatio(1.f); }
+    bLastBreathApplied=false; PulseReadyTime=0;
     AcquiredSkills.Empty(); AugmentHistory.Empty(); AugmentPool = PoolInitialAugments;
 }

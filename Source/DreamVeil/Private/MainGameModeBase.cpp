@@ -1,4 +1,4 @@
-﻿#include "MainGameModeBase.h"
+#include "MainGameModeBase.h"
 #include "DreamObjectPoolSubsystem.h"
 
 #include "Components/AudioComponent.h"
@@ -33,15 +33,15 @@ const int32 MAX_ALIVE_MONSTERS_BY_STAGE[] = { 40, 50, 60, 70 };
 const int32 ENDLESS_MAX_ALIVE_MONSTERS = 100;
 
 //레벨마다 스폰 볼륨에게 내라고 신호를 보내는 주기 초 뒤 레벨일수록 짧아져서 더 빨리 나옴
-const float SPAWN_INTERVAL_BY_STAGE[] = { 3.0f, 2.5f, 2.0f, 1.5f };
+const float SPAWN_INTERVAL_BY_STAGE[] = { 5.0f, 4.5f, 4.0f, 3.5f };
 
 //Endless에서 1분이 지날 때마다 스폰 주기가 줄어드는 초
 //시작 주기는 마지막 레벨 값을 그대로 씀 L4를 깨고 이어지는 곳이라 숫자를 따로 두지 않음
-const float ENDLESS_SPAWN_INTERVAL_DECAY_PER_MINUTE = 0.15f;
+const float ENDLESS_SPAWN_INTERVAL_DECAY_PER_MINUTE = 0.05f;
 
 //Endless에서 아무리 오래 버텨도 이보다 짧아지지는 않음
 //0에 가까워지면 타이머가 거의 매 프레임 돌면서 스폰이 폭주해 게임이 멈춤
-const float ENDLESS_MIN_SPAWN_INTERVAL = 0.5f;
+const float ENDLESS_MIN_SPAWN_INTERVAL = 2.5f;
 
 //레벨마다 잠식도가 0에서 100퍼센트까지 차오르는 데 걸리는 시간 초
 //한 마리도 안 잡고 가만히 있으면 이 시간 뒤에 죽는다는 뜻 뒤 레벨일수록 짧아서 더 바쁘게 잡아야 함
@@ -201,18 +201,14 @@ void AMainGameModeBase::RequestContinuousSpawn()
 		return;
 	}
 
-	//볼륨을 미리 모아두지 않고 매번 찾는 이유
-	//도중에 볼륨이 생기거나 사라져도 알아서 반영되고 목록을 관리할 필요가 없음
-	//몇 마리를 낼지 여기서 정하지 않는 이유 좁은 방과 넓은 마당의 적정 밀도가 다름 볼륨이 스스로 정함
-	for (TActorIterator<AMonsterSpawnVolume> VolumeIterator(GetWorld()); VolumeIterator; ++VolumeIterator)
-	{
-	        if (const auto* GI = GetGameInstance<UDreamVeilGameInstance>())
-        {
-            // About 10% fewer requests, while existing world population limits still apply.
-            if (GI->GetDifficulty() == EGameDifficulty::SuperEasy && FMath::FRand() < (GI->GetBalanceProfile()?FMath::Clamp(GI->GetBalanceProfile()->SuperEasySpawnSkipChance,0.0f,1.0f):.10f)) continue;
-        }
-	VolumeIterator->SpawnTick();
-	}
+    // One shared pack budget per signal, independent of how many volumes the map has.
+    TArray<AMonsterSpawnVolume*> Volumes;
+    for(TActorIterator<AMonsterSpawnVolume> It(GetWorld());It;++It)if(It->IsContinuousSpawnEnabled())Volumes.Add(*It);
+    if(Volumes.IsEmpty())return;
+    Volumes.Sort([](const AMonsterSpawnVolume& A,const AMonsterSpawnVolume& B){return A.GetFName().LexicalLess(B.GetFName());});
+    const auto* GI=GetGameInstance<UDreamVeilGameInstance>();
+    if(GI&&GI->GetDifficulty()==EGameDifficulty::SuperEasy&&FMath::FRand()<(GI->GetBalanceProfile()?FMath::Clamp(GI->GetBalanceProfile()->SuperEasySpawnSkipChance,0.f,1.f):.1f))return;
+    Volumes[NextContinuousSpawnVolume++%Volumes.Num()]->SpawnTick();
 }
 
 //다음 스폰 신호를 예약함
@@ -259,11 +255,14 @@ float AMainGameModeBase::GetContinuousSpawnInterval() const
 		//월드 시간을 쓰는 이유 맵을 연 순간 0에서 시작하고 게임을 멈추면 같이 멈춤
 		//증강을 고르는 동안 스폰이 빨라지지 않게 하려는 것 몬스터 스펙 계산도 같은 기준을 씀
 		const float ElapsedMinutes = GetWorld() ? GetWorld()->GetTimeSeconds() / 60.0f : 0.0f;
-		const float StartInterval = SPAWN_INTERVAL_BY_STAGE[UE_ARRAY_COUNT(SPAWN_INTERVAL_BY_STAGE) - 1];
+		const auto* Profile=DreamVeilGameInstance->GetBalanceProfile();
+        const float StartInterval=Profile?FMath::Max(.5f,Profile->EndlessSpawnStartInterval):4.f;
+        const float Minimum=FMath::Min(StartInterval,Profile?FMath::Max(.5f,Profile->EndlessSpawnMinimumInterval):ENDLESS_MIN_SPAWN_INTERVAL);
+        const float Decay=Profile?FMath::Max(0.f,Profile->EndlessSpawnDecayPerMinute):ENDLESS_SPAWN_INTERVAL_DECAY_PER_MINUTE;
 
 		return FMath::Max(
-			StartInterval - ENDLESS_SPAWN_INTERVAL_DECAY_PER_MINUTE * ElapsedMinutes,
-			ENDLESS_MIN_SPAWN_INTERVAL);
+			StartInterval - Decay * ElapsedMinutes,
+			Minimum);
 	}
 
     const auto* Profile=DreamVeilGameInstance?DreamVeilGameInstance->GetBalanceProfile():nullptr;

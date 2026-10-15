@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "GameFramework/GameModeBase.h"
@@ -172,6 +172,7 @@ private:
 	//웨이브마다 몰아서 내지 않고 주기로 꾸준히 내보냄
 	//웨이브는 몰아내기가 아니라 시간이 얼마나 지났는지 보여주는 눈금으로 남음
 	void RequestContinuousSpawn();
+    uint32 NextContinuousSpawnVolume=0;
 
 	//다음 스폰 신호를 예약함 주기가 상황마다 달라서 반복 타이머 대신 한 번짜리를 매번 다시 검
 	void ScheduleContinuousSpawn();

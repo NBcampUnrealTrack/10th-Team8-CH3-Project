@@ -3,6 +3,8 @@
 #include "AugmentTypes.h"
 #include "CombatStatsComponent.h"
 #include "MainPlayerCharacter.h"
+#include "DispatchTableComponent.h"
+#include "DreamAugmentRuntime.h"
 #include "Engine/World.h"
 #include "TimerManager.h"
 
@@ -85,8 +87,11 @@ void UBerserkerSkill::UpdateState()
     }
 
     const float HealthRatio=Stats->GetHealthPercentage();
-    const float DesiredMultiplier=HealthRatio<=BERSERKER_CRITICAL_THRESHOLD?BERSERKER_CRITICAL_MULTIPLIER:
-        (HealthRatio<=BERSERKER_THRESHOLD?BERSERKER_MULTIPLIER:1.0f);
+    const auto* Dispatch=GetOwnerComponent();
+    const bool LastBreath=Dispatch && Dispatch->HasAcquiredAugment(EAugmentID::LastBreath);
+    const float DesiredMultiplier=HealthRatio<=BERSERKER_CRITICAL_THRESHOLD?
+        (LastBreath?Dispatch->LastBreathCriticalMultiplier:BERSERKER_CRITICAL_MULTIPLIER):
+        (HealthRatio<=BERSERKER_THRESHOLD?(LastBreath?Dispatch->LastBreathAttackMultiplier:BERSERKER_MULTIPLIER):1.0f);
     if(!FMath::IsNearlyEqual(DesiredMultiplier,AppliedMultiplier))
     {
         // Replace only this skill's factor, preserving growth and other attack modifiers.
@@ -147,7 +152,7 @@ float UThornArmorSkill::CalculateReflectDamage(float FinalDamage)
     }
 
     //증강으로 더해진 방어력과 최후의 요새 배율까지 반영된 최종 방어력을 씀
-    return Stats->GetDefencePower() * THORN_ARMOR_DEFENCE_RATIO;
+    return Stats->GetDefencePower() * THORN_ARMOR_DEFENCE_RATIO*(GetOwnerComponent()&&GetOwnerComponent()->FindRuntime()?GetOwnerComponent()->FindRuntime()->ThornsMultiplier():1.f);
 }
 
 //흡혈 입힌 데미지의 일정 비율만큼 회복 죽은 상태면 Heal 안에서 무시됨
@@ -167,7 +172,9 @@ void UVampireSkill::OnDamageDealt(float FinalDamage)
         HealWindowStart=Now;WindowHealing=0;
     }
     const float Remaining=FMath::Max(0.0f,Stats->GetMaxHealth()*VAMPIRE_MAX_HEALTH_RATIO_PER_SECOND-WindowHealing);
-    const float Amount=FMath::Min(FinalDamage*VAMPIRE_HEAL_RATIO,Remaining);
+    const auto* Runtime=GetOwnerComponent()?GetOwnerComponent()->FindRuntime():nullptr;
+    const float HealMultiplier=Runtime?Runtime->Healing():1.f;
+    const float Amount=FMath::Min(FinalDamage*(Runtime?Runtime->VampireRatio():VAMPIRE_HEAL_RATIO)*HealMultiplier,Remaining)/HealMultiplier;
     const float Before=Stats->GetCurrentHealth();
     Stats->Heal(Amount);
     WindowHealing+=FMath::Max(0.0f,Stats->GetCurrentHealth()-Before);

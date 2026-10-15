@@ -5,6 +5,9 @@
 #include "Sound/SoundBase.h"
 #include "UObject/ConstructorHelpers.h"
 #include "DreamObjectPoolSubsystem.h"
+#include "DreamAugmentRuntime.h"
+#include "BossMonster.h"
+#include "EliteMonster.h"
 #include "MainGameModeBase.h"
 #include "BrainComponent.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -351,9 +354,10 @@ void AMonsterBase::PerformMeleeCheck()
 	for (const FOverlapResult& Result : OverlapResults)
 	{
 		// 님 플레이어임?
-		AMainPlayerCharacter* ResultActor = Cast<AMainPlayerCharacter>(Result.GetActor());
-		// 아니면 비켜 방해된다
-		if (!IsValid(ResultActor)) return;
+		AActor* ResultActor = Result.GetActor();
+        if(!IsValid(ResultActor)||(!Cast<AMainPlayerCharacter>(ResultActor)&&!Cast<ADreamAugmentField>(ResultActor)))continue;
+        // A taunted melee attack hits its decoy instead of damaging a bystander.
+        if(Cast<ADreamAugmentField>(AttackTarget.Get())&&ResultActor!=AttackTarget.Get())continue;
 
 		//플레이어면 데미지 준다잇
 		UGameplayStatics::ApplyDamage(
@@ -412,7 +416,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 	if (bIsRagdoll) return false;
 	if (MonsterSkill && MonsterSkill->IsUsingSkill()) return false;
 	// 공격 조건 충족 여부 확인
-	if (bIsAttacking || !IsValid(Target) || Target == this) return false;
+	if (bAugmentStaggered || bIsAttacking || !IsValid(Target) || Target == this) return false;
 	
 	// 타입이 안 정해진 놈이면 비켜라
 	const EMonsterAttackType TempAttackType = GetAttackType();
@@ -508,7 +512,7 @@ bool AMonsterBase::StartAttack(AActor* Target)
 // 공격판정 여기서 
 void AMonsterBase::ExecuteAttack()
 {
-	if (bIsRagdoll || !bIsAttacking || bAttackExecuted) return;
+	if (bAugmentStaggered || bIsRagdoll || !bIsAttacking || bAttackExecuted) return;
 
 	bAttackExecuted = true;
 
@@ -984,6 +988,7 @@ void AMonsterBase::RefreshAnimationOptimization()
 
 void AMonsterBase::PrepareForPoolReuse()
 {
+    bAugmentStaggered=false; NextAugmentStaggerTime=-100.f; GetWorldTimerManager().ClearTimer(AugmentStaggerTimer);
     bIsRagdoll = bIsGettingUp = bIsAttacking = bAttackExecuted = false;
     RagdollSettleWaitTime = 0; AttackTarget.Reset(); ActiveGetUpMontage = nullptr; ActiveAttackMontage = nullptr;
     GetMesh()->SetSimulatePhysics(false);
@@ -1018,6 +1023,8 @@ void AMonsterBase::OnPoolAcquired()
 }
 void AMonsterBase::OnPoolReturned()
 {
+    if(auto* Status=FindComponentByClass<UDreamAugmentStatus>())Status->Reset();
+    FinishAugmentStagger(); NextAugmentStaggerTime=-100.f;
     FinishHitFeedback();LastHitFeedbackTime=LastHitSoundTime=-100.0f;
     CancelAttack(); if (MonsterSkill) MonsterSkill->ResetForPool(false);
     if (MonsterDispatchTable) MonsterDispatchTable->ResetForPool();

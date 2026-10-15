@@ -1,5 +1,9 @@
-﻿#include "MainPlayerController.h"
+#include "MainPlayerController.h"
 #include "DreamPauseWidget.h"
+#include "DreamInteractionPrompt.h"
+#include "DreamAugmentPanel.h"
+#include "DispatchTableComponent.h"
+#include "InputMappingContext.h"
 #include "DreamTimeWarningWidget.h"
 #include "CombatStatsComponent.h"
 #include "Camera/PlayerCameraManager.h"
@@ -38,6 +42,7 @@ EquipRifleAction(nullptr),
 InteractAction(nullptr)
 {
 	//기본 확인음을 제공하면서 BP에서는 원하는 헤드샷 효과음으로 교체할 수 있게 함
+    AugmentSkillKeys={EKeys::One,EKeys::Two,EKeys::Three,EKeys::Four,EKeys::Five,EKeys::Six};
 	EndingWidgetClass = UEndingCreditsWidget::StaticClass();
 	static ConstructorHelpers::FObjectFinder<USoundBase> DefaultHeadshotSound(TEXT("/Game/Audio/SFX/S_HeadshotConfirm.S_HeadshotConfirm"));
 	if (DefaultHeadshotSound.Succeeded()) HeadshotSound = DefaultHeadshotSound.Object;
@@ -67,6 +72,7 @@ void AMainPlayerController::BeginPlay()
         {
             if (InputMappingContext)
             {
+                ApplyAugmentInputMappings();
                 Subsystem->AddMappingContext(InputMappingContext, 0);
             }
         }
@@ -78,10 +84,14 @@ void AMainPlayerController::BeginPlay()
     //로비는 거르지 않는 이유 HUD 위젯이 스스로 접혀서 이미 안 보임
     const UDreamVeilGameInstance* DreamVeilGameInstance = GetGameInstance<UDreamVeilGameInstance>();
 
-    if (DreamVeilGameInstance && DreamVeilGameInstance->IsInLevelMap())
+    if (DreamVeilGameInstance && (DreamVeilGameInstance->IsInLevelMap() || DreamVeilGameInstance->IsInEndless()))
     {
         if (auto* Warning = CreateWidget<UDreamTimeWarningWidget>(this)) Warning->AddToViewport(5);
+        UDreamAugmentPanel::InstallSkillHUD(this);
     }
+
+    if(IsLocalController()&&DreamVeilGameInstance&&!DreamVeilGameInstance->IsInMainMenu())
+        if(auto* Prompt=CreateWidget<UDreamInteractionPrompt>(this))Prompt->AddToViewport(6);
 
     if (HUDWidgetClass && !(DreamVeilGameInstance && DreamVeilGameInstance->IsInMainMenu()))
     {
@@ -445,6 +455,14 @@ void AMainPlayerController::SetupInputComponent()
     InputComponent->BindKey(EKeys::Up, IE_Pressed, this, &AMainPlayerController::HandleBGMVolumeKey);
     InputComponent->BindKey(EKeys::Down, IE_Pressed, this, &AMainPlayerController::HandleBGMVolumeKey);
     InputComponent->BindKey(EKeys::M, IE_Pressed, this, &AMainPlayerController::ToggleBGMMute);
+    ApplyAugmentInputMappings();
+    InputComponent->BindKey(EKeys::Q,IE_Pressed,this,&AMainPlayerController::OpenAugmentGuide).bExecuteWhenPaused=true;
+    InputComponent->BindKey(EKeys::E,IE_Pressed,this,&AMainPlayerController::OpenOwnedAugments).bExecuteWhenPaused=true;
+    AugmentSkillKeys={EKeys::One,EKeys::Two,EKeys::Three,EKeys::Four,EKeys::Five,EKeys::Six};
+    for(auto Key:AugmentSkillKeys)InputComponent->BindKey(Key,IE_Pressed,this,&AMainPlayerController::HandleAugmentSkillKey);
+    InputComponent->BindKey(EKeys::MouseScrollUp,IE_Pressed,this,&AMainPlayerController::HandleWeaponWheel);
+    InputComponent->BindKey(EKeys::MouseScrollDown,IE_Pressed,this,&AMainPlayerController::HandleWeaponWheel);
+    InputComponent->BindKey(EKeys::Z,IE_Pressed,this,&AMainPlayerController::TogglePauseMenu).bExecuteWhenPaused=true;
     FInputKeyBinding& PauseBinding = InputComponent->BindKey(EKeys::Escape, IE_Pressed, this, &AMainPlayerController::TogglePauseMenu);
     PauseBinding.bExecuteWhenPaused = true;
 #if !UE_BUILD_SHIPPING
@@ -498,4 +516,38 @@ void AMainPlayerController::TogglePauseMenu()
         || UGameplayStatics::IsGamePaused(this) || PawnCharacter->HasAugmentChoices()
         || (PawnCharacter->CombatStats && PawnCharacter->CombatStats->IsDead()) || bShowMouseCursor) return;
     OpenMenuWidgetPaused(UDreamPauseWidget::StaticClass());
+}
+
+FString AMainPlayerController::GetAugmentSkillKeyText(int32 Slot) const
+{
+    return AugmentSkillKeys.IsValidIndex(Slot)?AugmentSkillKeys[Slot].GetDisplayName().ToString():TEXT("미지정");
+}
+void AMainPlayerController::HandleAugmentSkillKey(FKey Key)
+{
+    auto* P=Cast<AMainPlayerCharacter>(GetPawn());
+    if(P && P->DispatchTable) P->DispatchTable->TryUseSkill(AugmentSkillKeys.IndexOfByKey(Key));
+}
+void AMainPlayerController::OpenAugmentGuide()
+{
+    if(auto* Panel=Cast<UDreamAugmentPanel>(MenuWidgetInstance)) { Panel->HandleAction(0);return; }
+    const auto* GI=GetGameInstance<UDreamVeilGameInstance>();auto* P=Cast<AMainPlayerCharacter>(GetPawn());
+    if(!IsLocalController()||!P||!GI||!GI->IsInLevelMap()||bGameOverOpen||bEndingOpen||bDeathPresentationActive||IsMenuWidgetOpen()||P->HasAugmentChoices()||!P->CombatStats||P->CombatStats->IsDead())return;
+    UDreamAugmentPanel::OpenGuide(this);
+}
+void AMainPlayerController::OpenOwnedAugments()
+{
+    if(auto* Panel=Cast<UDreamAugmentPanel>(MenuWidgetInstance)){Panel->HandleAction(4);return;}
+    OpenAugmentGuide();if(auto* Panel=Cast<UDreamAugmentPanel>(MenuWidgetInstance))Panel->HandleAction(4);
+}
+void AMainPlayerController::ApplyAugmentInputMappings()
+{
+    if(!InputMappingContext)return;
+    auto Remap=[this](UInputAction* Action,FKey Key){if(Action){InputMappingContext->UnmapAllKeysFromAction(Action);InputMappingContext->MapKey(Action,Key);}};
+    Remap(InteractAction,EKeys::F);Remap(EquipPistolAction,EKeys::F1);Remap(EquipRifleAction,EKeys::F2);
+}
+void AMainPlayerController::HandleWeaponWheel(FKey Key)
+{
+    auto* P=Cast<AMainPlayerCharacter>(GetPawn());
+    if(!P||IsMenuWidgetOpen()||UGameplayStatics::IsGamePaused(this)||!P->CombatStats||P->CombatStats->IsDead())return;
+    P->EquipWeapon(Key==EKeys::MouseScrollUp?EWeaponSlot::Pistol:EWeaponSlot::Rifle);
 }

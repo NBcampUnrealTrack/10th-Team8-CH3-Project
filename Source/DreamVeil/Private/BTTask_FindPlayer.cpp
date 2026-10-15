@@ -2,6 +2,10 @@
 
 
 #include "BTTask_FindPlayer.h"
+#include "DreamAugmentRuntime.h"
+#include "MonsterBase.h"
+#include "DreamCrowdTacticsSubsystem.h"
+#include "AIController.h"
 #include <Kismet/GameplayStatics.h>
 #include "BehaviorTree/BehaviorTree.h"
 #include "BehaviorTree/BlackboardComponent.h"
@@ -21,9 +25,14 @@ EBTNodeResult::Type UBTTask_FindPlayer::ExecuteTask(UBehaviorTreeComponent& Owne
 	// 플레이어 가져오기
 	APawn* PlayerPawn = UGameplayStatics::GetPlayerPawn(GetWorld(), 0);
 
-	if (!PlayerPawn) return EBTNodeResult::Failed;
+    if(auto* AI=OwnerComp.GetAIOwner())PlayerPawn=ADreamAugmentField::FindDecoyFor(Cast<AMonsterBase>(AI->GetPawn()),PlayerPawn);
+    if (!PlayerPawn) return EBTNodeResult::Failed;
+    BlackboardComp->SetValueAsObject(TEXT("PlayerActor"),PlayerPawn);
 
 
-	BlackboardComp->SetValueAsVector(TEXT("PlayerVec"), PlayerPawn->GetActorLocation());
+	FVector Approach=PlayerPawn->GetActorLocation();
+    if(auto* AI=OwnerComp.GetAIOwner())
+        if(auto* Tactics=GetWorld()->GetSubsystem<UDreamCrowdTacticsSubsystem>())Tactics->FindApproach(Cast<AMonsterBase>(AI->GetPawn()),PlayerPawn,Approach);
+    BlackboardComp->SetValueAsVector(TEXT("PlayerVec"),Approach);
 	return EBTNodeResult::Succeeded;
 }

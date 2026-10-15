@@ -19,7 +19,14 @@ class DREAMVEIL_API AMainPlayerController : public APlayerController
 {
 	GENERATED_BODY()
 public:
-	AMainPlayerController();
+    AMainPlayerController();
+    UPROPERTY(EditDefaultsOnly, BlueprintReadOnly, Category="Input|Augment") TArray<FKey> AugmentSkillKeys;
+    UFUNCTION(BlueprintPure, Category="Input|Augment") FString GetAugmentSkillKeyText(int32 Slot) const;
+    UFUNCTION(BlueprintCallable, Category="UI|Augment") void OpenAugmentGuide();
+    void HandleAugmentSkillKey(FKey Key);
+    UFUNCTION(BlueprintCallable, Category="UI|Augment") void OpenOwnedAugments();
+    void HandleWeaponWheel(FKey Key);
+    void ApplyAugmentInputMappings();
 
 	UFUNCTION(BlueprintCallable, Category = "UI|Pause")
 	void TogglePauseMenu();

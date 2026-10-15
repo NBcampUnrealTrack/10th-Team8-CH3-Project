@@ -18,13 +18,19 @@ public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stage")
     TArray<int32> StageMonsterLimits = {40,50,60,70};
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stage")
-    TArray<float> StageSpawnIntervals = {3.0f,2.5f,2.0f,1.5f};
+    TArray<float> StageSpawnIntervals = {5.0f,4.5f,4.0f,3.5f};
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stage")
     TArray<float> StageRangedShares = {.20f,.30f,.40f,.35f};
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stage")
     TArray<int32> StageEliteLimits = {3,4,5,6};
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Endless", meta=(ClampMin="1"))
     int32 EndlessMonsterLimit=100;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Endless|Spawn", meta=(ClampMin="0.5"))
+    float EndlessSpawnStartInterval=4.f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Endless|Spawn", meta=(ClampMin="0.5"))
+    float EndlessSpawnMinimumInterval=2.5f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Endless|Spawn", meta=(ClampMin="0"))
+    float EndlessSpawnDecayPerMinute=.05f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Endless", meta=(ClampMin="0"))
     int32 EndlessEliteLimit=8;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Endless", meta=(ClampMin="0"))

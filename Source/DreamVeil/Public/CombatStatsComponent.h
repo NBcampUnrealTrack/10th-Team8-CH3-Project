@@ -69,7 +69,11 @@ public:
 
 	//최대 체력
 	UFUNCTION(BlueprintPure, Category = "Stats")
-	float GetMaxHealth() const;
+    float GetMaxHealth() const;
+    UFUNCTION(BlueprintPure, Category="Stats") float GetCurrentHealthLimit() const { return GetMaxHealth()*HealthCapRatio; }
+    void SetHealthCapRatio(float Ratio);
+    bool bIncomingProjectile=false,bIncomingFire=false;
+    float GetHealthCapRatio() const { return HealthCapRatio; }
 
 	//체력 비율 0~1
 	UFUNCTION(BlueprintPure, Category = "Stats")
@@ -159,4 +163,5 @@ private:
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Stats", meta = (AllowPrivateAccess = "true"))
 	FCombatStats Stats;
     FCombatStats PoolInitialStats;
+    float HealthCapRatio=1.f;
 };
