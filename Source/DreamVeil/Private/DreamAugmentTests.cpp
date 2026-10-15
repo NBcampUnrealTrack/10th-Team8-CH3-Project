@@ -125,14 +125,16 @@ bool FDreamPulse::RunTest(const FString&)
 {
     DreamAugmentTests::FWorld W;auto* P=W.World->SpawnActor<AMainPlayerCharacter>();auto* PC=W.World->SpawnActor<AMainPlayerController>();PC->Possess(P);auto* D=P->DispatchTable.Get();
     TestFalse(TEXT("No skill before evolution"),D->TryUseSkill(0));
-    for(auto ID:{EAugmentID::Knockback,EAugmentID::DefenceUp,EAugmentID::EffectRange})D->ApplyAugment(ID);
+    for(auto ID:{EAugmentID::Knockback,EAugmentID::DefenceUp,EAugmentID::EffectRange})TestTrue(TEXT("Pulse ingredient applies"),D->ApplyAugment(ID));
     DreamAugmentTests::SetChoices(P,{EAugmentID::SuppressionPulse});TestTrue(TEXT("Recipe evolves from reward"),P->SelectAugmentChoice(EAugmentID::SuppressionPulse));TestEqual(TEXT("One skill slot"),D->GetSkillCount(),1);TestEqual(TEXT("Ingredients kept"),D->GetOwnedCount(EAugmentCategory::Active),1);
     TestFalse(TEXT("No immediate travel or evolution cast"),D->TryUseSkill(0));W.Advance(10.1f);
     const float Before=P->GetCurrentStamina();TestTrue(TEXT("Ready skill casts"),D->TryUseSkill(0));TestTrue(TEXT("One stamina charge"),FMath::IsNearlyEqual(P->GetCurrentStamina(),Before-30));TestFalse(TEXT("Repeat cast blocked"),D->TryUseSkill(0));
     TestFalse(TEXT("Empty slot does not cast"),D->TryUseSkill(1));const float Remaining=D->GetSkillCooldownRemaining(0);TestTrue(TEXT("Cooldown starts"),Remaining>9.9f);
     W.Advance(10.1f);TestTrue(TEXT("Cooldown expires"),D->GetSkillCooldownRemaining(0)==0);
     TestTrue(TEXT("Can spend while keeping escape reserve"),P->TrySpendSkillStamina(80));TestFalse(TEXT("Below reserve cannot cast"),D->TryUseSkill(0));TestEqual(TEXT("Failure spends nothing"),P->GetCurrentStamina(),20.f);
-    TestTrue(TEXT("Range passive works"),FMath::IsNearlyEqual(D->GetEffectRangeMultiplier(),1.03f));for(int32 I=0;I<30;++I)D->ApplyAugment(EAugmentID::EffectRange);TestTrue(TEXT("Range has safety cap"),FMath::IsNearlyEqual(D->GetEffectRangeMultiplier(),1.6f,.0001f));
+    TestEqual(TEXT("Range ingredient remains one stack"),D->GetStackCount(EAugmentID::EffectRange),1);
+    // Use the same float tolerance as the range-cap check; the gameplay value is unchanged.
+    TestTrue(TEXT("Range passive works"),FMath::IsNearlyEqual(D->GetEffectRangeMultiplier(),1.03f,.0001f));for(int32 I=0;I<30;++I)D->ApplyAugment(EAugmentID::EffectRange);TestTrue(TEXT("Range has safety cap"),FMath::IsNearlyEqual(D->GetEffectRangeMultiplier(),1.6f,.0001f));
     return true;
 }
 #endif

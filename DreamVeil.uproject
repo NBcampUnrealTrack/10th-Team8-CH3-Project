@@ -17,10 +17,18 @@
   "Plugins": [
     {
       "Name": "ModelingToolsEditorMode",
-      "Enabled": true,
+      "Enabled": false,
       "TargetAllowList": [
         "Editor"
       ]
+    },
+    {
+      "Name": "PythonScriptPlugin",
+      "Enabled": false
+    },
+    {
+      "Name": "EditorScriptingUtilities",
+      "Enabled": false
     }
   ]
 }
