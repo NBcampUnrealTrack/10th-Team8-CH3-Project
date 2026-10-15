@@ -47,7 +47,7 @@ public:
     static UDreamAugmentPanel* OpenGuide(APlayerController* PC,UUserWidget* ReturnTo=nullptr);
     static void InstallSkillHUD(APlayerController* PC);
     UFUNCTION(BlueprintCallable, Category="UI|Augment") void HandleAction(int32 Action);
-    UFUNCTION(BlueprintPure, Category="UI") FString GetSummary() const { return Summary; }
+    UFUNCTION(BlueprintPure, Category="UI") FString GetSummary() const;
     UPROPERTY() EDreamAugmentPanelMode Mode=EDreamAugmentPanelMode::Guide;
     UPROPERTY() TObjectPtr<UUserWidget> ReturnWidget;
 protected:
@@ -88,6 +88,11 @@ private:
     int32 Selection=-1;
     int32 PendingConfirmation=-1;
     TArray<EAugmentID> LastChoices;
+    TWeakObjectPtr<APawn> LastHUDPawn;
+    int32 LastHUDRevision=INDEX_NONE;
+    double NextHUDDescriptionRefresh=0;
+    int32 DisplayedCooldownSeconds[6]={-1,-1,-1,-1,-1,-1};
+    TArray<FKey> DisplayedSkillKeys;
 };
 
 // Keeps catalog hotkeys available while the reward widget owns UI-only focus.

@@ -322,7 +322,12 @@ void UDreamAugmentPanel::RefreshHUD()
     auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* PC=Cast<AMainPlayerController>(GetOwningPlayer());auto* GI=GetGameInstance<UDreamVeilGameInstance>();
     const bool Visible=P && PC && GI && (GI->IsInLevelMap() || GI->IsInEndless()) && P->CombatStats && !P->CombatStats->IsDead() && !PC->IsMenuWidgetOpen() && !P->HasAugmentChoices();
     SetRenderOpacity(Visible?1.f:0.f);if(!Visible || !P->DispatchTable) return;
-    auto* D=P->DispatchTable.Get();FString New=TEXT("");
+    auto* D=P->DispatchTable.Get();
+    const double Now=GetWorld()?GetWorld()->GetRealTimeSeconds():0;
+    const bool DescriptionChanged=LastHUDPawn.Get()!=P||LastHUDRevision!=D->GetAugmentRevision()||Now>=NextHUDDescriptionRefresh;
+    if(DescriptionChanged){LastHUDPawn=P;LastHUDRevision=D->GetAugmentRevision();NextHUDDescriptionRefresh=Now+1;}
+    const bool KeysChanged=DisplayedSkillKeys!=PC->AugmentSkillKeys;
+    if(KeysChanged)DisplayedSkillKeys=PC->AugmentSkillKeys;
     const bool LastBreath=D->HasAcquiredAugment(EAugmentID::LastBreath);
     if(LastBreath && !HealthCapMarker)
     {
@@ -344,26 +349,42 @@ void UDreamAugmentPanel::RefreshHUD()
     for(int32 I=0;I<6;++I)
     {
         const auto ID=D->GetSkillAtSlot(I);const auto* Def=DreamAugmentCatalog::Find(ID);const bool Owned=Def!=nullptr;
-        const float Cooldown=D->GetSkillCooldownRemaining(I);const FString State=Owned?D->GetSkillStateText(I):TEXT("미해금");
-        const FString Caption=FString::Printf(TEXT("[%s] %s\n%s"),*PC->GetAugmentSkillKeyText(I),Owned?*Def->Name:TEXT("빈 칸"),*State);New+=Caption;
+        const float Cooldown=D->GetSkillCooldownRemaining(I);
         if(SkillLabels.IsValidIndex(I))
         {
             const bool Cooling=Owned&&Cooldown>0.f;
-            SkillLabels[I]->SetText(Cooling?FText::AsNumber(FMath::Max(1,FMath::CeilToInt(Cooldown))):FText::GetEmpty());
+            const int32 Seconds=Cooling?FMath::Max(1,FMath::CeilToInt(Cooldown)):0;
+            if(DisplayedCooldownSeconds[I]!=Seconds)
+            {SkillLabels[I]->SetText(Cooling?FText::AsNumber(Seconds):FText::GetEmpty());DisplayedCooldownSeconds[I]=Seconds;}
             SkillLabels[I]->SetVisibility(Cooling?ESlateVisibility::HitTestInvisible:ESlateVisibility::Hidden);
             const auto* Texture=Owned&&Icons?Icons->Icons.Find(ID):nullptr;
             if(!Texture&&Owned&&Icons)Texture=Icons->Icons.Find(Def->Icon);
-            SkillIcons[I]->SetBrushFromTexture(Texture?Texture->Get():nullptr);
+            if(SkillIcons[I]->GetBrush().GetResourceObject()!=(Texture?Texture->Get():nullptr))SkillIcons[I]->SetBrushFromTexture(Texture?Texture->Get():nullptr);
             SkillIcons[I]->SetVisibility(Texture?ESlateVisibility::HitTestInvisible:ESlateVisibility::Hidden);
             SkillIcons[I]->SetColorAndOpacity(Cooling?FLinearColor(.38f,.38f,.42f,.9f):FLinearColor::White);
-            SkillKeyLabels[I]->SetText(FText::FromString(PC->GetAugmentSkillKeyText(I)));
+            if(KeysChanged)SkillKeyLabels[I]->SetText(FText::FromString(PC->GetAugmentSkillKeyText(I)));
             SkillKeyLabels[I]->SetColorAndOpacity(Owned?FLinearColor(.93f,.86f,.69f):FLinearColor(.45f,.43f,.47f,.6f));
-            SkillIcons[I]->SetToolTipText(Owned?D->GetCurrentAugmentDescription(ID):FText::FromString(TEXT("진화 스킬 미해금")));
+            if(DescriptionChanged)SkillIcons[I]->SetToolTipText(Owned?D->GetCurrentAugmentDescription(ID):FText::FromString(TEXT("진화 스킬 미해금")));
         }
     }
-    Summary=New;
+
 
 }
+FString UDreamAugmentPanel::GetSummary() const
+{
+    if(Mode!=EDreamAugmentPanelMode::SkillHUD)return Summary;
+    const auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());
+    const auto* PC=Cast<AMainPlayerController>(GetOwningPlayer());
+    if(!P||!P->DispatchTable||!PC)return FString();
+    const auto* D=P->DispatchTable.Get();FString Result;
+    for(int32 I=0;I<6;++I)
+    {
+        const auto* Definition=DreamAugmentCatalog::Find(D->GetSkillAtSlot(I));
+        Result+=FString::Printf(TEXT("[%s] %s\n%s"),*PC->GetAugmentSkillKeyText(I),Definition?*Definition->Name:TEXT("빈 칸"),Definition?*D->GetSkillStateText(I):TEXT("미해금"));
+    }
+    return Result;
+}
+
 
 
 

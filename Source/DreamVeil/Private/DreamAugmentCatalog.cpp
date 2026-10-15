@@ -1,4 +1,4 @@
-﻿#include "DreamAugmentCatalog.h"
+#include "DreamAugmentCatalog.h"
 const TArray<FDreamAugmentDefinition>& DreamAugmentCatalog::All()
 {
     static const TArray<FDreamAugmentDefinition> Rows=[] { TArray<FDreamAugmentDefinition> R;
@@ -88,5 +88,14 @@ const TArray<FDreamAugmentDefinition>& DreamAugmentCatalog::All()
     R.Add({EAugmentID::LastBreath,TEXT("S18"),TEXT("마지막 한숨"),TEXT("광전사 + 최후의 요새. 현재 체력·회복 상한 20%, 실제 최대 체력 유지. 공격 1.8배, 체력 10% 이하 2.3배, 고정 방어력 +10 후 요새 배율. 영구 효과."),TEXT("현재 체력·회복 상한 20%. 공격 1.8배 / 체력 10% 이하 2.3배. 방어력 +10 후 요새 배율. 영구 진화 · 되돌릴 수 없음."),EAugmentCategory::Active,true,true,{EAugmentID::Berserker,EAugmentID::LastFortress},0,0,EAugmentID::Berserker});
     return R; }();return Rows;
 }
-const FDreamAugmentDefinition* DreamAugmentCatalog::Find(EAugmentID ID){return All().FindByPredicate([ID](const auto& R){return R.ID==ID;});}
+const FDreamAugmentDefinition* DreamAugmentCatalog::Find(EAugmentID ID)
+{
+    static const TArray<const FDreamAugmentDefinition*> Lookup=[]
+    {
+        TArray<const FDreamAugmentDefinition*> Index;Index.SetNumZeroed(256);
+        for(const auto& Definition:All())Index[static_cast<uint8>(Definition.ID)]=&Definition;
+        return Index;
+    }();
+    return Lookup[static_cast<uint8>(ID)];
+}
 EAugmentID DreamAugmentCatalog::FromCode(const FString& Code){const auto* R=All().FindByPredicate([&Code](const auto& V){return V.Code==Code;});return R?R->ID:static_cast<EAugmentID>(255);}

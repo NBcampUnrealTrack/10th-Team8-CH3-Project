@@ -1,4 +1,4 @@
-﻿#include "DispatchTableComponent.h"
+#include "DispatchTableComponent.h"
 #include "DreamObjectPoolSubsystem.h"
 
 #include "ActiveAugmentSkills.h"
@@ -88,7 +88,7 @@ bool UDispatchTableComponent::ApplyAugment(EAugmentID AugmentID)
 
     AugmentPool.RemoveIfNotRepeatable(AugmentID);
 
-    AugmentHistory.Add(AugmentID);
+    RecordAcquisition(AugmentID);
     if(auto* Runtime=GetRuntime())Runtime->Start();
 
     return true;
@@ -151,7 +151,7 @@ void UDispatchTableComponent::ExecuteAugmentRepeat(EAugmentID AugmentID, int32 R
 //이미 얻은 증강인지 여부
 bool UDispatchTableComponent::HasAcquiredAugment(EAugmentID AugmentID) const
 {
-    return AcquiredSkills.Contains(AugmentID) || AugmentHistory.Contains(AugmentID);
+    return AcquiredSkills.Contains(AugmentID) || GetStackCount(AugmentID)>0;
 }
 
 //증강 이름 보상 UI와 보유 증강 목록에서 씀
@@ -525,5 +525,6 @@ void UDispatchTableComponent::ResetForPool()
     }
     if (bLastBreathApplied && StatsComponent) { StatsComponent->AddDefencePower(-LastBreathDefenceBonus); StatsComponent->SetHealthCapRatio(1.f); }
     bLastBreathApplied=false; PulseReadyTime=0;
-    AcquiredSkills.Empty(); AugmentHistory.Empty(); AugmentPool = PoolInitialAugments;
+    AcquiredSkills.Empty(); AugmentHistory.Empty(); StackCounts.Empty(); SkillOrder.Empty();
+    PassiveSpecies=ActiveSpecies=0; ++AugmentRevision; AugmentPool = PoolInitialAugments;
 }

@@ -21,6 +21,9 @@
 #include "MonsterBase.h"
 #include "DreamAugmentRuntime.h"
 #include "MonsterProjectile.h"
+#include "Engine/Engine.h"
+#include "Engine/World.h"
+#include "Engine/OverlapResult.h"
 
 //데미지를 일으킨 컨트롤러를 찾음 킬 판정이나 어그로에 쓰라고 같이 넘김
 AController* UAugmentDamageLibrary::FindEventInstigator(AActor* DamageCauser)
@@ -416,30 +419,22 @@ void UAugmentDamageLibrary::FindTargetsInRadius(AActor* OwnerActor, float Radius
 //원하는 위치 기준 범위 안의 대상을 찾음 ActorsToIgnore에 넣은 대상은 제외
 void UAugmentDamageLibrary::FindTargetsAtLocation(UObject* WorldContextObject, FVector Location, float Radius, const TArray<AActor*>& ActorsToIgnore, TArray<AActor*>& OutTargets)
 {
-    OutTargets.Empty();
-
-    if (!WorldContextObject)
-    {
-        return;
-    }
-
-    TArray<TEnumAsByte<EObjectTypeQuery>> ObjectTypes;
-
-    //플레이어는 Pawn이지만 몬스터는 전용 채널을 씀 Pawn만 넣으면 몬스터가 한 마리도 안 잡힘
-    //MonsterBase가 이동 캡슐의 오브젝트 타입을 MonsterCollision::Monster로 바꿔둠
-    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(ECC_Pawn));
-    ObjectTypes.Add(UEngineTypes::ConvertToObjectType(MonsterCollision::Monster));
-
-    //양쪽을 다 잡음 아군 적군 구분이 필요하면 받은 쪽에서 IsEnemy로 거를 것
-    UKismetSystemLibrary::SphereOverlapActors(
-        WorldContextObject,
-        Location,
-        Radius,
-        ObjectTypes,
-        AActor::StaticClass(),
-        ActorsToIgnore,
-        OutTargets
-    );
+    OutTargets.Reset();
+    if(!WorldContextObject||!GEngine)return;
+    UWorld* World=GEngine->GetWorldFromContextObject(WorldContextObject,EGetWorldErrorMode::LogAndReturnNull);
+    if(!World)return;
+    FCollisionObjectQueryParams ObjectTypes;
+    ObjectTypes.AddObjectTypesToQuery(ECC_Pawn);
+    ObjectTypes.AddObjectTypesToQuery(MonsterCollision::Monster);
+    FCollisionQueryParams Query(SCENE_QUERY_STAT(AugmentTargets),false);
+    Query.AddIgnoredActors(ActorsToIgnore);
+    TArray<FOverlapResult> Results;
+    World->OverlapMultiByObjectType(Results,Location,FQuat::Identity,ObjectTypes,FCollisionShape::MakeSphere(Radius),Query);
+    // A monster can have several overlapping primitives. Avoid quadratic AddUnique scans.
+    TSet<AActor*,DefaultKeyFuncs<AActor*>,TInlineSetAllocator<16>> Seen;
+    for(const auto& Result:Results)
+        if(AActor* Actor=Result.GetActor();Actor&&!Seen.Contains(Actor))
+        {Seen.Add(Actor);OutTargets.Add(Actor);}
 }
 
 //두 액터가 서로 적인지 확인

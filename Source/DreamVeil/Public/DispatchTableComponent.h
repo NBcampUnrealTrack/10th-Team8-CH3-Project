@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -42,6 +42,7 @@ public:
     UFUNCTION(BlueprintPure, Category="Augment") static bool IsEvolution(EAugmentID ID);
     UFUNCTION(BlueprintPure, Category="Augment") int32 GetOwnedCount(EAugmentCategory Category) const;
     UFUNCTION(BlueprintPure, Category="Augment") int32 GetStackCount(EAugmentID ID) const;
+    int32 GetAugmentRevision() const { return AugmentRevision; }
     UFUNCTION(BlueprintPure, Category="Augment") int32 GetSkillCount() const;
     UFUNCTION(BlueprintPure, Category="Augment") bool CanAcquireAugment(EAugmentID ID) const;
     bool DrawReplacementChoices(const TArray<EAugmentID>& Previous,TArray<EAugmentID>& Out) const;
@@ -186,6 +187,14 @@ private:
 	//레벨을 넘길 때 GameInstance가 이걸 저장했다가 새 레벨의 플레이어에게 RestoreAugments로 다시 적용함
 	UPROPERTY(Transient)
 	TArray<EAugmentID> AugmentHistory;
+
+    // Derived data is updated only when history changes; runtime queries never scan stacks.
+    void RecordAcquisition(EAugmentID ID);
+    TMap<EAugmentID,int32> StackCounts;
+    TArray<EAugmentID> SkillOrder;
+    int32 PassiveSpecies=0;
+    int32 ActiveSpecies=0;
+    int32 AugmentRevision=0;
 
 	//증강 번호와 스킬 클래스를 테이블에 등록
 	void RegisterSkillClasses();

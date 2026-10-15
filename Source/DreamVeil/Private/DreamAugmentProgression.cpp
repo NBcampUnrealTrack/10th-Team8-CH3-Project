@@ -1,4 +1,4 @@
-﻿#include "DispatchTableComponent.h"
+#include "DispatchTableComponent.h"
 #include "DreamAugmentCatalog.h"
 #include "DreamAugmentRuntime.h"
 #include "MainPlayerCharacter.h"
@@ -23,11 +23,27 @@ UDreamAugmentRuntime* UDispatchTableComponent::GetRuntime()
 }
 EAugmentCategory UDispatchTableComponent::GetAugmentCategory(EAugmentID ID){const auto* D=DreamAugmentCatalog::Find(ID);return D?D->Category:EAugmentCategory::Active;}
 bool UDispatchTableComponent::IsEvolution(EAugmentID ID){const auto* D=DreamAugmentCatalog::Find(ID);return D&&D->Evolution;}
-int32 UDispatchTableComponent::GetStackCount(EAugmentID ID)const{int32 Count=0;for(auto V:AugmentHistory)if(V==ID)++Count;return Count;}
-int32 UDispatchTableComponent::GetOwnedCount(EAugmentCategory Category)const{TSet<EAugmentID> Unique;for(auto V:AugmentHistory)if(!IsEvolution(V)&&GetAugmentCategory(V)==Category)Unique.Add(V);return Unique.Num();}
-TArray<EAugmentID> UDispatchTableComponent::GetSkillIDs()const{TArray<EAugmentID> Out;for(auto V:AugmentHistory)if(const auto* D=DreamAugmentCatalog::Find(V);D&&D->Evolution&&!D->Permanent)Out.AddUnique(V);return Out;}
-int32 UDispatchTableComponent::GetSkillCount()const{return GetSkillIDs().Num();}
-EAugmentID UDispatchTableComponent::GetSkillAtSlot(int32 Slot)const{auto IDs=GetSkillIDs();return IDs.IsValidIndex(Slot)?IDs[Slot]:static_cast<EAugmentID>(255);}
+void UDispatchTableComponent::RecordAcquisition(EAugmentID ID)
+{
+    AugmentHistory.Add(ID);
+    int32& Count=StackCounts.FindOrAdd(ID);
+    if(++Count==1)
+    {
+        if(IsEvolution(ID))
+        {
+            const auto* Definition=DreamAugmentCatalog::Find(ID);
+            if(Definition&&!Definition->Permanent)SkillOrder.Add(ID);
+        }
+        else if(GetAugmentCategory(ID)==EAugmentCategory::Passive)++PassiveSpecies;
+        else ++ActiveSpecies;
+    }
+    ++AugmentRevision;
+}
+int32 UDispatchTableComponent::GetStackCount(EAugmentID ID)const{return StackCounts.FindRef(ID);}
+int32 UDispatchTableComponent::GetOwnedCount(EAugmentCategory Category)const{return Category==EAugmentCategory::Passive?PassiveSpecies:ActiveSpecies;}
+TArray<EAugmentID> UDispatchTableComponent::GetSkillIDs()const{return SkillOrder;}
+int32 UDispatchTableComponent::GetSkillCount()const{return SkillOrder.Num();}
+EAugmentID UDispatchTableComponent::GetSkillAtSlot(int32 Slot)const{return SkillOrder.IsValidIndex(Slot)?SkillOrder[Slot]:static_cast<EAugmentID>(255);}
 bool UDispatchTableComponent::CanEvolve(EAugmentID ID)const
 {
     const auto* D=DreamAugmentCatalog::Find(ID);if(!HasBegunPlay()||!Cast<AMainPlayerCharacter>(GetOwner())||!StatsComponent||StatsComponent->IsDead()||!D||!D->Evolution||HasAcquiredAugment(ID))return false;
@@ -79,7 +95,7 @@ bool UDispatchTableComponent::TryEvolve(EAugmentID ID)
 {
     if(!CanEvolve(ID))return false;auto* P=Cast<AMainPlayerCharacter>(GetOwner());
     if(!bRestoringAugments&&(!P||!P->GetCurrentAugmentChoices().Contains(ID)))return false;
-    AugmentHistory.Add(ID);
+    RecordAcquisition(ID);
     if(ID==EAugmentID::LastBreath&&!bLastBreathApplied){bLastBreathApplied=true;StatsComponent->AddDefencePower(LastBreathDefenceBonus);StatsComponent->SetHealthCapRatio(FMath::Clamp(LastBreathHealthRatio,.01f,.2f));HandleCurrentHealthChanged(StatsComponent->GetCurrentHealth(),StatsComponent->GetCurrentHealth());}
     if(auto* R=GetRuntime()){R->Start();if(ID!=EAugmentID::LastBreath)R->UnlockSkill(ID);}return true;
 }
@@ -87,7 +103,7 @@ float UDispatchTableComponent::GetSkillCooldownRemaining(int32 Slot)const{return
 float UDispatchTableComponent::GetSkillCost(int32 Slot)const{return CatalogRuntime?CatalogRuntime->GetCost(GetSkillAtSlot(Slot)):0;}
 float UDispatchTableComponent::GetSkillCooldown(int32 Slot)const{return CatalogRuntime?CatalogRuntime->GetCooldown(GetSkillAtSlot(Slot)):0;}
 FString UDispatchTableComponent::GetSkillStateText(int32 Slot)const{return CatalogRuntime?CatalogRuntime->SkillState(GetSkillAtSlot(Slot)):TEXT("미해금");}
-bool UDispatchTableComponent::TryUseSkill(int32 Slot){const auto IDs=GetSkillIDs();return IDs.IsValidIndex(Slot)&&GetRuntime()&&CatalogRuntime->Use(IDs[Slot]);}
+bool UDispatchTableComponent::TryUseSkill(int32 Slot){return SkillOrder.IsValidIndex(Slot)&&GetRuntime()&&CatalogRuntime->Use(SkillOrder[Slot]);}
 
 void UCombatStatsComponent::SetHealthCapRatio(float Ratio)
 {
