@@ -1,4 +1,4 @@
-﻿    //L4까지 다 깼으면 열 레벨이 없음 이때 로비 UI는 Endless 버튼을 보여줘야 함
+    //L4까지 다 깼으면 열 레벨이 없음 이때 로비 UI는 Endless 버튼을 보여줘야 함
     //깬 레벨 수가 곧 다음 레벨의 인덱스 하나도 안 깼으면 0번인 L1
     //실수로 두 번 불려도 레벨 개수를 넘지 않게 막음
 #include "DreamVeilGameInstance.h"
@@ -726,4 +726,15 @@ void UDreamVeilGameInstance::ClearPlayerInventory()
     SavedParts.Empty();
     SavedDreamShards = 0;
     SavedWeaponSlots.Empty();
+}
+
+float UDreamVeilGameInstance::CampaignRewardScale(int32 Level,int32 Cleared,bool Endless)
+{return !Endless&&Level>=1&&Level<=4&&Cleared>=Level?.5f:1.f;}
+float UDreamVeilGameInstance::GetCampaignRewardMultiplier()const
+{
+    if(!IsInLevelMap()||IsInEndless())return 1.f;
+    // Snapshot before combat, so first-clear boss payouts are not retroactively halved.
+    if(RewardWorld.Get()!=GetWorld())
+    {RewardWorld=GetWorld();CampaignRewardMultiplier=CampaignRewardScale(GetCurrentLevelNumber(),ClearedLevelCount,false);}
+    return CampaignRewardMultiplier;
 }

@@ -1,4 +1,4 @@
-﻿#include "InventoryComponent.h"
+#include "InventoryComponent.h"
 #include "DreamAugmentRuntime.h"
 #include "DispatchTableComponent.h"
 #include "DreamObjectPoolSubsystem.h"
@@ -224,7 +224,15 @@ void UInventoryComponent::ReceiveKillRewards(AActor* KilledActor)
 	const bool bBoss = Grade == EMonsterGrade::Boss;
 	const bool bElite = Grade == EMonsterGrade::Elite;
 
-    auto CombatReward=[this](int32 Amount){auto* T=GetOwner()->FindComponentByClass<UDispatchTableComponent>();AddDreamShards(T&&T->FindRuntime()?T->FindRuntime()->CombatReward(Amount):Amount);};
+    const auto* RewardGI=GetOwner()->GetGameInstance<UDreamVeilGameInstance>();
+    const float RewardScale=RewardGI?RewardGI->GetCampaignRewardMultiplier():1.f;
+    auto CombatReward=[this,RewardScale](int32 Amount)
+    {
+        auto* T=GetOwner()->FindComponentByClass<UDispatchTableComponent>();
+        const int32 Modified=T&&T->FindRuntime()?T->FindRuntime()->CombatReward(Amount):Amount;
+        const double Total=Modified*double(RewardScale)+CampaignShardRemainder;
+        const int32 Whole=FMath::FloorToInt(Total);CampaignShardRemainder=Total-Whole;AddDreamShards(Whole);
+    };
     //꿈의 조각은 잡을 때마다 받음
 	if (bBoss)
 	{
@@ -242,12 +250,12 @@ void UInventoryComponent::ReceiveKillRewards(AActor* KilledActor)
 	//보스는 보스 파츠를 무조건 떨굼 엔드리스를 대비해 L4를 계속 돌게 만드는 보상
 	if (bBoss)
 	{
-		AddPart(MakeRandomPart(EWeaponPartTier::Boss));
+		if(FMath::FRand()<RewardScale)AddPart(MakeRandomPart(EWeaponPartTier::Boss));
 		return;
 	}
 
 	//일반과 엘리트는 아주 낮은 확률로 지금 레벨 등급의 파츠를 떨굼
-	const float PartDropChance = bElite ? ELITE_PART_DROP_CHANCE : NORMAL_PART_DROP_CHANCE;
+	const float PartDropChance = (bElite ? ELITE_PART_DROP_CHANCE : NORMAL_PART_DROP_CHANCE)*RewardScale;
 
 	if (FMath::FRand() < PartDropChance)
 	{

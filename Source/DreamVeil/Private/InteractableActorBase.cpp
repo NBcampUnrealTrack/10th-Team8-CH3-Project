@@ -5,6 +5,7 @@
 
 AInteractableActorBase::AInteractableActorBase()
 {
+    InteractionLabel=FText::FromString(TEXT("F 상호작용"));
 	// Tick 사용 중지
 	PrimaryActorTick.bCanEverTick = false;
 	// 상호작용 충돌 영역 생성
@@ -32,4 +33,9 @@ UStaticMeshComponent*AInteractableActorBase::GetObjectMesh() const
 }
 void AInteractableActorBase::Interact_Implementation(AActor* Interactor)
 {
+}
+
+FVector AInteractableActorBase::GetInteractionPoint(const FVector& From) const
+{
+    return ObjectMesh&&ObjectMesh->GetStaticMesh()?ObjectMesh->Bounds.GetBox().GetClosestPointTo(From):GetActorLocation();
 }

@@ -1,4 +1,4 @@
-﻿#include "DreamUIBlueprintLibrary.h"
+#include "DreamUIBlueprintLibrary.h"
 #include "MainPlayerCharacter.h"
 #include "DreamAugmentPanel.h"
 #include "Containers/Ticker.h"
@@ -92,7 +92,7 @@ void UDreamUIBlueprintLibrary::RefreshDreamSelection(UUserWidget* Widget)
         if (auto* Label = Cast<UTextBlock>(Widget->GetWidgetFromName(*FString::Printf(TEXT("Text_Level%d"), Level))))
         {
             FString Caption = bEndless ? TEXT("Endless") : FString::Printf(TEXT("L%d"), Level);
-            if (bCleared) Caption += TEXT(" · 클리어");
+            if (bCleared) Caption += TEXT(" · 보상 50%");
             else if (!bUnlocked) Caption += TEXT(" · 잠김");
             Label->SetText(FText::FromString(Caption));
         }

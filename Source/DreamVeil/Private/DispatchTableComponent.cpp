@@ -314,9 +314,13 @@ bool UDispatchTableComponent::RestoreAugments(const TArray<EAugmentID>& History)
 
     //ApplyAugment를 거쳐야 반복 획득이 안 되는 증강이 풀에서도 빠지고 기록도 다시 쌓임
     TGuardValue<bool> RestoreGuard(bRestoringAugments,true);
-    for (EAugmentID AugmentID : History)
+    // Restore ingredients first, then only valid acquired evolutions. Old saves cannot keep orphaned skills.
+    for(auto ID:History)if(!IsEvolution(ID))ApplyAugment(ID);
+    for(int32 Pass=0;Pass<History.Num();++Pass)
     {
-        ApplyAugment(AugmentID);
+        bool Changed=false;
+        for(auto ID:History)if(IsEvolution(ID)&&!HasAcquiredAugment(ID)&&CanEvolve(ID))Changed|=ApplyAugment(ID);
+        if(!Changed)break;
     }
 
     return true;

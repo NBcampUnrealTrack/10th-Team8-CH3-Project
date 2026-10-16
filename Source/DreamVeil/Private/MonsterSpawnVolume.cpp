@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "MonsterSpawnVolume.h"
@@ -158,11 +158,19 @@ bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
         const FVector PlayerFeet=PawnCharacter->GetNavAgentLocation();
         auto* NavData=Nav->GetNavDataForProps(PawnCharacter->GetNavAgentPropertiesRef(),PlayerFeet);
         FNavLocation PlayerPoint;
-        if(!NavData||!Nav->ProjectPointToNavigation(PlayerFeet,PlayerPoint,FVector(300,300,350),NavData)){++SpawnLocationFailures;return false;}
+        if(!NavData){++SpawnLocationFailures;return false;}
+        if(!Nav->ProjectPointToNavigation(PlayerFeet,PlayerPoint,FVector(300,300,350),NavData)
+            &&!Nav->ProjectPointToNavigation(PlayerFeet,PlayerPoint,FVector(1200,1200,1200),NavData))
+        {++SpawnLocationFailures;return false;}
         const float Inner=FMath::Max(MinPlayerDistance,Endless?1800.f:800.f);
         auto* PC=Cast<APlayerController>(PawnCharacter->GetController());FVector Eye;FRotator View;int32 Width=0,Height=0;
         if(PC){PC->GetPlayerViewPoint(Eye,View);PC->GetViewportSize(Width,Height);}
         int32 PathQueries=0;
+        bool AllowVisibleFallback=false;
+        float BodyRadius=50.f,BodyHalfHeight=95.f;
+        TArray<TSubclassOf<AMonsterBase>> BodyClasses=BaseMonsters;BodyClasses.Append(GetEliteMonstersForCurrentLevel());
+        for(const auto& Class:BodyClasses)if(Class)if(const auto* Capsule=Class->GetDefaultObject<AMonsterBase>()->GetCapsuleComponent())
+        {BodyRadius=FMath::Max(BodyRadius,Capsule->GetScaledCapsuleRadius());BodyHalfHeight=FMath::Max(BodyHalfHeight,Capsule->GetScaledCapsuleHalfHeight());}
         auto SafePoint=[&](const FVector& Candidate,FVector& Result,const FVector& Extent)
         {
             FNavLocation Point;if(!Nav->ProjectPointToNavigation(Candidate,Point,Extent,NavData))return false;
@@ -176,15 +184,20 @@ bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
                 if(Edge<150||Edge>4000)return false;
             }
             FCollisionQueryParams Q(SCENE_QUERY_STAT(SafeMonsterSpawn),false,PawnCharacter);
-            const FVector Body=Point.Location+FVector(0,0,105);
-            if(GetWorld()->OverlapBlockingTestByChannel(Body,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(50,95),Q))return false;
+            const FVector Body=Point.Location+FVector(0,0,BodyHalfHeight+10);
+            if(GetWorld()->OverlapBlockingTestByChannel(Body,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(BodyRadius,BodyHalfHeight),Q))return false;
             // Distant edge packs may be seen approaching. Nearby spawns must remain occluded.
             if(PC&&Width>0&&Height>0&&Distance<FMath::Square(Endless?6000.f:3500.f))
             {
                 FVector2D Screen;
                 if(PC->ProjectWorldLocationToScreen(Body,Screen,true)&&Screen.X>=-80&&Screen.Y>=-80&&Screen.X<=Width+80&&Screen.Y<=Height+80)
                 {
-                    FHitResult Hit;if(!GetWorld()->LineTraceSingleByChannel(Hit,Eye,Body,ECC_Visibility,Q))return false;
+                    FHitResult Hit;if(!GetWorld()->LineTraceSingleByChannel(Hit,Eye,Body,ECC_Visibility,Q))
+                    {
+                        // Prefer occluded points. A fully visible room must not disable spawning forever.
+                        const bool Central=Screen.X>Width*.25f&&Screen.X<Width*.75f&&Screen.Y>Height*.2f&&Screen.Y<Height*.8f;
+                        if(!AllowVisibleFallback||Distance<FMath::Square(FMath::Max(Inner,1200.f))||(Central&&Distance<FMath::Square(2200.f)))return false;
+                    }
                 }
             }
             if(++PathQueries>12)return false;
@@ -198,6 +211,12 @@ bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
             {
                 const float A=I*UE_TWO_PI/12+FMath::FRandRange(-.15f,.15f);
                 if(SafePoint(GroupOrigin+FVector(FMath::Cos(A),FMath::Sin(A),0)*FMath::FRandRange(160.f,400.f),OutLocation,FVector(140,140,200))&&FVector::DistSquared2D(OutLocation,GroupOrigin)<=FMath::Square(500.f))return true;
+            }
+            // Preserve the pack origin, but probe additional neighbouring offsets if another pawn occupies it.
+            for(int32 I=0;I<12;++I)
+            {
+                const float Angle=I*UE_TWO_PI/12;PathQueries=0;
+                if(SafePoint(GroupOrigin+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*FMath::FRandRange(400.f,650.f),OutLocation,FVector(200,200,300)))return true;
             }
             ++SpawnLocationFailures;return false;
         }
@@ -253,6 +272,27 @@ bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
                 if(Nav->GetRandomReachablePointInRadius(PlayerPoint.Location,4500,Random,NavData)&&SafePoint(Random.Location,OutLocation,FVector(100,100,200)))
                 {GroupOrigin=LastGroupOrigin=OutLocation;bHasGroupOrigin=true;return true;}
             }
+        }
+        AllowVisibleFallback=true;PathQueries=0;
+        for(int32 I=0;I<32;++I)
+        {
+            FVector Candidate;
+            if(Endless)
+            {
+                if(!PerimeterBounds.IsValid)break;
+                const int32 Side=(Sequence+I)%4;const float Along=((I/4)+.5f)/8.f;const float Inset=800.f+(I%3)*900.f;
+                const FVector Low=PerimeterBounds.Min+FVector(Inset,Inset,0),High=PerimeterBounds.Max-FVector(Inset,Inset,0);
+                Candidate=Side<2?FVector(Side==0?Low.X:High.X,FMath::Lerp(Low.Y,High.Y,Along),PlayerPoint.Location.Z)
+                    :FVector(FMath::Lerp(Low.X,High.X,Along),Side==2?Low.Y:High.Y,PlayerPoint.Location.Z);
+            }
+            else
+            {
+                const float Angle=FMath::DegreesToRadians((Sequence*137+I*137)%360);const float Radius=I<16?FMath::Max(Inner+400,1600.f):FMath::Max(Inner+800,2800.f);
+                Candidate=PlayerFeet+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*Radius;
+            }
+            if(SafePoint(Candidate,OutLocation,FVector(650,650,700)))
+            {GroupOrigin=LastGroupOrigin=OutLocation;bHasGroupOrigin=true;return true;}
+            if(PathQueries>=12)break;
         }
         ++SpawnLocationFailures;return false;
     }
@@ -418,18 +458,19 @@ float AMonsterSpawnVolume::GetEliteRate()
 //게임모드가 주기마다 부르는 스폰 신호
 //한 마리씩 내는 절차는 웨이브와 같으므로 SpawnWave를 그대로 씀
 //간격을 주기의 절반으로 나눈 이유 다음 신호가 오기 전에 이번 몫을 다 내보내야 밀리지 않음
-void AMonsterSpawnVolume::SpawnTick()
+bool AMonsterSpawnVolume::IsSpawnPointCoolingDown()const
+{return GetWorld()&&GetWorld()->GetTimeSeconds()<NextPackRequestTime;}
+void AMonsterSpawnVolume::SpawnTick(){SpawnPackNow();}
+int32 AMonsterSpawnVolume::SpawnPackNow()
 {
-	if (MonstersPerSpawnTick <= 0)
-	{
-		return;
-	}
-
-	// A blocked continuous request expires at this cadence; never accumulate a burst backlog.
-    PendingSpawnCount=0;GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
-    const int32 Min=FMath::Clamp(SpawnGroupMin,2,4);
-    SpawnWave(FMath::RandRange(Min,FMath::Clamp(SpawnGroupMax,Min,4)),SpawnTickGap);
-    bContinuousPack=true;
+    if(MonstersPerSpawnTick<=0||!GetWorld()||IsSpawnPointCoolingDown())return 0;
+    NextPackRequestTime=GetWorld()->GetTimeSeconds()+.5f;
+    GetWorldTimerManager().ClearTimer(WaveSpawnTimerHandle);
+    const int32 Minimum=FMath::Clamp(SpawnGroupMin,2,4);
+    PendingSpawnCount=FMath::RandRange(Minimum,FMath::Clamp(SpawnGroupMax,Minimum,4));
+    bContinuousPack=true;SpawnOneFromWave();
+    ConsecutivePositionFailures=LastSpawnedGroupCount>0?0:ConsecutivePositionFailures+1;
+    return LastSpawnedGroupCount;
 }
 
 //웨이브 시작 남은 수를 더하고 타이머를 깨움

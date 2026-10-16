@@ -31,7 +31,7 @@ bool FDreamInteractionTargetTest::RunTest(const FString& Parameters)
         Computer->SetActorLocation(FVector(110,0,10000));
         TestTrue(TEXT("Prompt and F will choose closest usable furniture"),Player->FindInteractionTarget()==Computer);
         auto* Wall=World->SpawnActor<AActor>();auto* Box=NewObject<UBoxComponent>(Wall);Wall->SetRootComponent(Box);
-        Box->SetBoxExtent(FVector(10,600,300));Box->SetCollisionEnabled(ECollisionEnabled::QueryOnly);Box->SetCollisionObjectType(ECC_WorldStatic);Box->SetCollisionResponseToAllChannels(ECR_Block);Box->RegisterComponent();Wall->SetActorLocation(FVector(65,0,10000));
+        Box->SetBoxExtent(FVector(10,600,300));Box->SetCollisionEnabled(ECollisionEnabled::QueryOnly);Box->SetCollisionObjectType(ECC_WorldStatic);Box->SetCollisionResponseToAllChannels(ECR_Block);Box->RegisterComponent();Wall->SetActorLocation(FVector(15,0,10000));
         TestNull(TEXT("A wall blocks both prompt and interaction"),Player->FindInteractionTarget());
         Wall->Destroy();Computer->SetActorLocation(FVector(4000,0,10000));Bed->SetActorLocation(FVector(3000,0,10000));
         TestNull(TEXT("Moving away removes target again"),Player->FindInteractionTarget());

@@ -1,4 +1,5 @@
 #include "MonsterProgressionLibrary.h"
+#include "Kismet/GameplayStatics.h"
 
 #include "DreamVeilGameInstance.h"
 #include "DreamBalanceProfile.h"
@@ -150,7 +151,8 @@ float UMonsterProgressionLibrary::GetExperienceReward(const UObject* WorldContex
 	//제곱근을 쓰면 L4에서도 L1의 1.5배쯤이라 레벨을 계속 돌 이유는 남고 폭주하지는 않음
 	const float StageBonus = FMath::Sqrt(GetStageStatScale(WorldContextObject));
 
-	return BaseExperience * StageBonus;
+    const auto* GI=Cast<UDreamVeilGameInstance>(UGameplayStatics::GetGameInstance(WorldContextObject));
+    return BaseExperience*StageBonus*(GI?GI->GetCampaignRewardMultiplier():1.f);
 }
 
 //잡은 만큼 잠식도를 내림

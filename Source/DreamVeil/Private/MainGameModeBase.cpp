@@ -98,6 +98,7 @@ void AMainGameModeBase::BeginPlay()
 	//맵에 맞는 배경음부터 틀어둠 로비 메인메뉴 레벨 Endless가 각각 다름
 	//아래 갈래마다 따로 틀지 않는 이유 로비와 메인메뉴는 중간에 return으로 빠져나감
 	PlayBGM(GetBaseBGM());
+    if(auto* RewardGI=GetGameInstance<UDreamVeilGameInstance>())RewardGI->GetCampaignRewardMultiplier();
 
 	if (DreamVeilGameInstance->IsInEndless())
 	{
@@ -211,10 +212,20 @@ void AMainGameModeBase::RequestContinuousSpawn()
     TArray<AMonsterSpawnVolume*> Volumes;
     for(TActorIterator<AMonsterSpawnVolume> It(GetWorld());It;++It)if(It->IsContinuousSpawnEnabled())Volumes.Add(*It);
     if(Volumes.IsEmpty())return;
-    Volumes.Sort([](const AMonsterSpawnVolume& A,const AMonsterSpawnVolume& B){return A.GetFName().LexicalLess(B.GetFName());});
     const auto* GI=GetGameInstance<UDreamVeilGameInstance>();
-    if(GI&&GI->GetDifficulty()==EGameDifficulty::SuperEasy&&FMath::FRand()<(GI->GetBalanceProfile()?FMath::Clamp(GI->GetBalanceProfile()->SuperEasySpawnSkipChance,0.f,1.f):.1f))return;
-    Volumes[NextContinuousSpawnVolume++%Volumes.Num()]->SpawnTick();
+    if(SpawnRecoveryAttempts==0&&GI&&GI->GetDifficulty()==EGameDifficulty::SuperEasy&&FMath::FRand()<(GI->GetBalanceProfile()?FMath::Clamp(GI->GetBalanceProfile()->SuperEasySpawnSkipChance,0.f,1.f):.1f))return;
+    // Randomize entrances, avoid immediate repetition, and try up to four alternatives.
+    for(int32 I=Volumes.Num()-1;I>0;--I)Volumes.Swap(I,FMath::RandRange(0,I));
+    if(Volumes.Num()>1&&Volumes[0]==LastPackVolume.Get())Volumes.Swap(0,1);
+    for(int32 I=0;I<FMath::Min(Volumes.Num(),4);++I)
+    {
+        auto* Volume=Volumes[I];if(Volume->IsSpawnPointCoolingDown())continue;
+        if(Volume->SpawnPackNow()>0){LastPackVolume=Volume;SpawnRecoveryAttempts=0;return;}
+    }
+    // A short, bounded retry avoids both permanent empty rooms and infinite recursion/bursts.
+    if(++SpawnRecoveryAttempts<=3)GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle,this,&AMainGameModeBase::RequestContinuousSpawn,.5f,false);
+    else SpawnRecoveryAttempts=0;
+
 }
 
 //다음 스폰 신호를 예약함
@@ -661,6 +672,7 @@ void AMainGameModeBase::PlayGameOverBGM()
 void AMainGameModeBase::PlayBaseBGM()
 {
 	PlayBGM(GetBaseBGM());
+    if(auto* RewardGI=GetGameInstance<UDreamVeilGameInstance>())RewardGI->GetCampaignRewardMultiplier();
 }
 
 //지금 맵에 맞는 기본 배경음
@@ -715,6 +727,7 @@ void AMainGameModeBase::UpdateBGMForBoss()
 	}
 
 	PlayBGM(GetBaseBGM());
+    if(auto* RewardGI=GetGameInstance<UDreamVeilGameInstance>())RewardGI->GetCampaignRewardMultiplier();
 }
 
 //잠식도를 올리기 시작함

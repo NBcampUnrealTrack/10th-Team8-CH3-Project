@@ -32,7 +32,9 @@ void UDreamInteractionPrompt::NativeTick(const FGeometry& Geometry,float DeltaSe
 void UDreamInteractionPrompt::RefreshPrompt()
 {
     auto* Player=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());Target=Player?Player->FindInteractionTarget():nullptr;
-    const bool Show=Target.IsValid();if(Show!=bShowing){bShowing=Show;SetRenderOpacity(Show?1.f:0.f);}
+    const bool Show=Target.IsValid();
+    if(Show&&PromptText)PromptText->SetText(Target->InteractionLabel);
+    if(Show!=bShowing||GetRenderOpacity()!=(Show?1.f:0.f)){bShowing=Show;SetRenderOpacity(Show?1.f:0.f);}
 }
 FText UDreamInteractionPrompt::GetPromptText() const{return bShowing&&PromptText?PromptText->GetText():FText::GetEmpty();}
 AInteractableActorBase* UDreamInteractionPrompt::GetPromptTarget() const{return Target.Get();}

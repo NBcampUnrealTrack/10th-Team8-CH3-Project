@@ -6,6 +6,7 @@
 
 AComputerActor::AComputerActor()
 {
+    InteractionLabel=FText::FromString(TEXT("F 거래소 입장"));
 	// 컴퓨터 Static Mesh 검색
 	static ConstructorHelpers::FObjectFinder<UStaticMesh>
 		ComputerMeshFinder(TEXT("/Game/Maps/Asset/SM_Lobby_Computer.SM_Lobby_Computer"));

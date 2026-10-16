@@ -59,6 +59,7 @@ class DREAMVEIL_API UInventoryComponent : public UActorComponent
 
 public:
 	UInventoryComponent();
+    double CampaignShardRemainder=0;
 
 	// 이벤트 UI가 받을 것
 
@@ -202,8 +203,10 @@ private:
 	UPROPERTY(VisibleInstanceOnly, Category = "Inventory")
 	int32 DreamShards = 0;
 
-	//꿈의 조각을 씀 모자라면 쓰지 않고 false
-	bool SpendDreamShards(int32 Amount);
+public:
+    // Authoritative spending shared by the shop and permanent training.
+    bool SpendDreamShards(int32 Amount);
+private:
 
 	//파츠가 부서지는 소리를 틂
 	//상점 화면은 게임을 멈춘 채로 떠서 그냥 틀면 소리가 멈춘 동안 나지 않음 UI 소리로 표시해야 들림

@@ -2,8 +2,10 @@
 #include "DreamPlayPolish.h"
 #include "DreamRunSummaryWidget.h"
 #include "DreamBossHealthWidget.h"
+#include "DreamLobbyWidgets.h"
 #include "DreamPauseWidget.h"
 #include "DreamInteractionPrompt.h"
+#include "Blueprint/WidgetBlueprintLibrary.h"
 #include "DreamAugmentPanel.h"
 #include "DispatchTableComponent.h"
 #include "InputMappingContext.h"
@@ -351,6 +353,8 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
     //순서가 중요함 UI로 바꾼 뒤에 버리면 이미 캐릭터가 이동 입력을 들고 있어서 늦음
     //멈추지 않는 메뉴(침대 컴퓨터)도 이 줄 덕분에 W를 누른 채 열어도 캐릭터가 서 있음
     ClearHeldInput();
+    TArray<UUserWidget*> Prompts;UWidgetBlueprintLibrary::GetAllWidgetsOfClass(this,Prompts,UDreamInteractionPrompt::StaticClass(),false);
+    for(auto* Prompt:Prompts)Prompt->SetRenderOpacity(0);
 
     //버튼을 마우스로 누를 수 있게 UI 전용 입력으로 바꾸고 커서를 보여줌
     FInputModeUIOnly InputMode;
@@ -361,6 +365,11 @@ UUserWidget* AMainPlayerController::OpenMenuWidget(TSubclassOf<UUserWidget> Menu
     bShowMouseCursor = true;
 
     //위젯 쪽에서 값을 채우거나 이벤트를 연결할 수 있게 돌려줌
+    if(MenuWidgetClass->GetName().Contains(TEXT("WBP_Inventory")))
+    {
+        UDreamInventoryWidget::Install(MenuWidgetInstance);
+        bMenuPaused=true;SetGameSuspended(true);
+    }
     return MenuWidgetInstance;
 }
 
@@ -377,8 +386,7 @@ UUserWidget* AMainPlayerController::OpenMenuWidgetPaused(TSubclassOf<UUserWidget
 
 	//위젯은 기본적으로 멈춘 동안에도 입력을 받으므로 버튼이 그대로 눌림
 	//멈춘 것이 나라고 표시해둠 CloseMenuWidget이 이 표시를 보고 풀어줌
-	bMenuPaused = true;
-	SetGameSuspended(true);
+    if(!bMenuPaused){bMenuPaused = true;SetGameSuspended(true);}
 
 	return MenuWidget;
 }
@@ -386,14 +394,11 @@ UUserWidget* AMainPlayerController::OpenMenuWidgetPaused(TSubclassOf<UUserWidget
 //게임을 멈추거나 푼다
 void AMainPlayerController::ClearHeldInput()
 {
-	//누르고 있던 키를 버림 이걸 해야 키를 뗀 것으로 쳐서 이동 입력이 0이 됨
-	FlushPressedKeys();
-
-	//이미 쌓인 속도를 지움 입력만 끊으면 관성으로 잠깐 더 미끄러짐
-	if (ACharacter* PlayerCharacter = Cast<ACharacter>(GetPawn()))
-	{
-		PlayerCharacter->GetCharacterMovement()->StopMovementImmediately();
-	}
+    auto* ControlledCharacter=Cast<ACharacter>(GetPawn());auto* Movement=ControlledCharacter?ControlledCharacter->GetCharacterMovement():nullptr;
+    const bool Airborne=Movement&&Movement->IsFalling();const FVector Momentum=Movement?Movement->Velocity:FVector::ZeroVector;
+    FlushPressedKeys();
+    // UI clears input, but must not erase an airborne character's trajectory.
+    if(Movement){if(Airborne)Movement->Velocity=Momentum;else Movement->StopMovementImmediately();}
 }
 
 void AMainPlayerController::SetGameSuspended(bool bSuspended)

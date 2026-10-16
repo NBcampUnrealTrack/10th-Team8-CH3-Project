@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "AugmentSkillBase.h"
@@ -15,6 +15,7 @@ class DREAMVEIL_API UAttackUpSkill : public UAugmentSkillBase
 
 public:
 	virtual void Apply() override;
+    virtual void Unapply() override;
 };
 
 //방어력 증가 얻을 때마다 추가 방어력이 더해짐
@@ -25,6 +26,7 @@ class DREAMVEIL_API UDefenceUpSkill : public UAugmentSkillBase
 
 public:
 	virtual void Apply() override;
+    virtual void Unapply() override;
 };
 
 //체력 증가 얻을 때마다 최대 체력이 늘고 늘어난 만큼 회복
@@ -35,6 +37,7 @@ class DREAMVEIL_API UHealthUpSkill : public UAugmentSkillBase
 
 public:
 	virtual void Apply() override;
+    virtual void Unapply() override;
 };
 
 //스태미나 증가 얻을 때마다 최대 스태미나가 늘고 늘어난 만큼 채움
@@ -46,6 +49,7 @@ class DREAMVEIL_API UStaminaUpSkill : public UAugmentSkillBase
 
 public:
 	virtual void Apply() override;
+    virtual void Unapply() override;
 };
 
 //광전사 체력이 일정 비율 이하면 공격력 배율 적용
@@ -56,6 +60,7 @@ class DREAMVEIL_API UBerserkerSkill : public UAugmentSkillBase
 
 public:
 	virtual void Apply() override;
+    virtual void Unapply() override;
 
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;
     virtual void ResetForPool() override { AppliedMultiplier = 1.0f; }
@@ -76,6 +81,7 @@ class DREAMVEIL_API ULastFortressSkill : public UAugmentSkillBase
 
 public:
 	virtual void Apply() override;
+    virtual void Unapply() override;
 
 	virtual void OnHealthChanged(float OldValue, float NewValue) override;
     virtual void ResetForPool() override { bActivated = false; }

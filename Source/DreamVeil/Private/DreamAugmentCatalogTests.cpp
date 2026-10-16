@@ -84,7 +84,7 @@ bool FDreamReadableCopy::RunTest(const FString&)
     TestTrue(TEXT("Health reward states actual recovery"),Health->CardText.Contains(TEXT("체력 20 회복")));
     const auto* Permanent=DreamAugmentCatalog::Find(EAugmentID::LastBreath);
     TestTrue(TEXT("Permanent card states health risk"),Permanent->CardText.Contains(TEXT("20%")));
-    TestTrue(TEXT("Permanent card states irreversibility"),Permanent->CardText.Contains(TEXT("해제 불가")));
+    TestTrue(TEXT("Evolution card explains lost ingredient dependency"),Permanent->CardText.Contains(TEXT("재료 제거")));
     return true;
 }
 

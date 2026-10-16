@@ -2,6 +2,8 @@
 #include "DreamAugmentCatalog.h"
 #include "DreamAugmentRuntime.h"
 #include "DreamAugmentFeedback.h"
+#include "DreamVeilGameInstance.h"
+#include "AugmentSkillBase.h"
 #include "MainPlayerCharacter.h"
 #include "MainPlayerController.h"
 #include "CombatStatsComponent.h"
@@ -81,8 +83,24 @@ FAugmentPool UDispatchTableComponent::GetEligiblePool()const
 }
 bool UDispatchTableComponent::DrawReplacementChoices(const TArray<EAugmentID>& Previous,TArray<EAugmentID>& Out)const
 {
-    FAugmentPool Fresh,Old;for(const auto& D:GetEligiblePool().Augments)(Previous.Contains(D.AugmentID)?Old:Fresh).Augments.Add(D);
-    Fresh.DrawChoices(AUGMENT_CHOICE_COUNT,Out);if(Out.Num()<AUGMENT_CHOICE_COUNT){TArray<EAugmentID> Fallback;Old.DrawChoices(AUGMENT_CHOICE_COUNT-Out.Num(),Fallback);for(auto ID:Fallback)Out.AddUnique(ID);}return !Out.IsEmpty();
+    const auto Eligible=GetEligiblePool();Out.Reset();
+    auto Draw=[&](const FAugmentPool& Pool)->bool
+    {
+        FAugmentPool Fresh,Old;for(const auto& Data:Pool.Augments)if(!Out.Contains(Data.AugmentID))(Previous.Contains(Data.AugmentID)?Old:Fresh).Augments.Add(Data);
+        TArray<EAugmentID> Pick;if(!Fresh.DrawChoices(1,Pick))Old.DrawChoices(1,Pick);
+        if(Pick.IsEmpty())return false;Out.AddUnique(Pick[0]);return true;
+    };
+    if(Cast<AMainPlayerCharacter>(GetOwner()))for(auto Category:{EAugmentCategory::Passive,EAugmentCategory::Active})
+    {
+        FAugmentPool NewSpecies,CategoryPool;
+        for(const auto& Data:Eligible.Augments)if(!IsEvolution(Data.AugmentID)&&GetAugmentCategory(Data.AugmentID)==Category)
+        {CategoryPool.Augments.Add(Data);if(!HasAcquiredAugment(Data.AugmentID))NewSpecies.Augments.Add(Data);}
+        // With a free category slot, guarantee a new species rather than another stat stack.
+        if(!NewSpecies.Augments.IsEmpty())Draw(NewSpecies);else Draw(CategoryPool);
+    }
+    while(Out.Num()<AUGMENT_CHOICE_COUNT)if(!Draw(Eligible))break;
+    for(int32 I=Out.Num()-1;I>0;--I)Out.Swap(I,FMath::RandRange(0,I));
+    return !Out.IsEmpty();
 }
 float UDispatchTableComponent::GetEffectRangeMultiplier()const{return 1+FMath::Min(.6f,GetStackCount(EAugmentID::EffectRange)*.03f);}
 FString UDispatchTableComponent::GetEvolutionStatus(EAugmentID ID)const
@@ -189,7 +207,7 @@ FText UDispatchTableComponent::GetCurrentAugmentDescription(EAugmentID ID) const
         if(ID==EAugmentID::LastFortress) return FText::FromString(FString::Printf(TEXT("방어력 +%.0f 후 방어력 1.5배.\n마지막 한숨 적용 중: 체력·회복 상한 %.0f%%."),LastBreathDefenceBonus,LastBreathHealthRatio*100));
     }
     if(ID==EAugmentID::SuppressionPulse) return FText::FromString(FString::Printf(TEXT("주변 %.2fm 적을 %.2f초 경직시킵니다.\n기본 범위 %.2fm. 엘리트 지속 시간 절반.\n보스 면역·특수 패턴 보호. 피해·무적 없음.\n기본 스태미나 %.0f · 재사용 %.1f초\n사용 후 스태미나 20 이상 필요."),PulseRadius*GetEffectRangeMultiplier()/100,PulseStaggerDuration,PulseRadius/100,PulseStaminaCost,PulseCooldown));
-    if(ID==EAugmentID::LastBreath) return FText::FromString(FString::Printf(TEXT("현재 체력·회복 상한: 최대 체력의 %.0f%%.\n공격력 %.1f배, 체력 10%% 이하 %.1f배.\n방어력 +%.0f 후 최후의 요새 1.5배 적용.\n영구 진화 · 해제 불가. 진화 시 회복하지 않습니다.\n버튼·스태미나·스킬 칸을 사용하지 않습니다."),LastBreathHealthRatio*100,LastBreathAttackMultiplier,LastBreathCriticalMultiplier,LastBreathDefenceBonus));
+    if(ID==EAugmentID::LastBreath) return FText::FromString(FString::Printf(TEXT("현재 체력·회복 상한: 최대 체력의 %.0f%%.\n공격력 %.1f배, 체력 10%% 이하 %.1f배.\n방어력 +%.0f 후 최후의 요새 1.5배 적용.\n진화 재료 제거 시 효과도 해제됩니다. 진화 시 회복하지 않습니다.\n버튼·스태미나·스킬 칸을 사용하지 않습니다."),LastBreathHealthRatio*100,LastBreathAttackMultiplier,LastBreathCriticalMultiplier,LastBreathDefenceBonus));
     const auto* Definition=DreamAugmentCatalog::Find(ID);
     FString Description=Definition?Definition->Description:GetAugmentDescription(ID).ToString();
     if(const auto* Def=DreamAugmentCatalog::Find(ID);Def&&Def->Evolution&&!Def->Permanent)
@@ -198,3 +216,51 @@ FText UDispatchTableComponent::GetCurrentAugmentDescription(EAugmentID ID) const
 }
 
 EAugmentID UDispatchTableComponent::FindAugmentByCode(const FString& Code){return DreamAugmentCatalog::FromCode(Code);}
+
+bool UDispatchTableComponent::CanRemoveAugment(EAugmentID ID)const
+{
+    const auto* Definition=DreamAugmentCatalog::Find(ID);
+    const auto* P=Cast<AMainPlayerCharacter>(GetOwner());const auto* GI=P?P->GetGameInstance<UDreamVeilGameInstance>():nullptr;
+    return P&&GI&&GI->IsInLobby()&&StatsComponent&&!StatsComponent->IsDead()&&!P->HasAugmentChoices()
+        &&Definition&&!Definition->Permanent&&HasAcquiredAugment(ID);
+}
+TArray<EAugmentID> UDispatchTableComponent::GetRemovalConsequences(EAugmentID ID)const
+{
+    TArray<EAugmentID> Removed;if(!HasAcquiredAugment(ID))return Removed;Removed.Add(ID);
+    // Bounded dependency closure also handles future evolutions that depend on other evolutions.
+    bool Changed=true;
+    for(int32 Pass=0;Changed&&Pass<DreamAugmentCatalog::All().Num();++Pass)
+    {
+        Changed=false;
+        for(const auto& D:DreamAugmentCatalog::All())if(D.Evolution&&HasAcquiredAugment(D.ID)&&!Removed.Contains(D.ID))
+            for(auto Ingredient:D.Ingredients)if(Removed.Contains(Ingredient)||!HasAcquiredAugment(Ingredient))
+            {Removed.Add(D.ID);Changed=true;break;}
+    }
+    return Removed;
+}
+bool UDispatchTableComponent::RemoveOwnedAugment(EAugmentID ID)
+{
+    if(!CanRemoveAugment(ID))return false;
+    const auto Removed=GetRemovalConsequences(ID);
+    if(CatalogRuntime)CatalogRuntime->Reset();
+    // Remove recipe dependents first; Last Breath must also relinquish its cap and bonus.
+    for(int32 Index=Removed.Num()-1;Index>=0;--Index)
+    {
+        const auto RemovedID=Removed[Index];const int32 Count=GetStackCount(RemovedID);
+        AugmentHistory.Remove(RemovedID);StackCounts.Remove(RemovedID);SkillOrder.Remove(RemovedID);
+        if(!IsEvolution(RemovedID)){if(GetAugmentCategory(RemovedID)==EAugmentCategory::Passive)--PassiveSpecies;else --ActiveSpecies;}
+        if(RemovedID==EAugmentID::LastBreath&&bLastBreathApplied)
+        {bLastBreathApplied=false;StatsComponent->AddDefencePower(-LastBreathDefenceBonus);StatsComponent->SetHealthCapRatio(1.f);}
+        if(auto* Skill=AcquiredSkills.FindRef(RemovedID).Get())
+        {
+            AcquiredSkills.Remove(RemovedID);GetWorld()->GetTimerManager().ClearAllTimersForObject(Skill);
+            for(int32 I=0;I<Count;++I)Skill->Unapply();
+            Skill->ResetForPool();RecycledSkills.Add(RemovedID,Skill);
+        }
+    }
+    AugmentPool=PoolInitialAugments;for(auto Owned:AugmentHistory)AugmentPool.RemoveIfNotRepeatable(Owned);
+    ++AugmentRevision;
+    const float Health=StatsComponent->GetCurrentHealth();StatsComponent->OnCurrentHealthChanged.Broadcast(Health,Health);
+    if(auto* R=GetRuntime()){R->Start();for(auto Skill:SkillOrder)R->UnlockSkill(Skill);}
+    return true;
+}

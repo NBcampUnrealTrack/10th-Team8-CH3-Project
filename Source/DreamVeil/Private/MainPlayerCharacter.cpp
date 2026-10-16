@@ -1,4 +1,6 @@
 #include "MainPlayerCharacter.h"
+#include "EngineUtils.h"
+#include "DreamTrainingSystem.h"
 #include "HAL/PlatformTime.h"
 #include "MainPlayerController.h"
 #include "InteractableActorBase.h"
@@ -284,6 +286,7 @@ void AMainPlayerCharacter::BeginPlay()
 		//레벨과 경험치도 복원 이게 없으면 맵을 넘길 때마다 레벨이 1로 돌아가서
 		//HUD의 레벨 표시와 정예 몬스터 확률(GetEliteRate)이 매번 초기화됨
 		DreamVeilGameInstance->RestorePlayerLevel(this);
+        if(auto* Training=DreamVeilGameInstance->GetSubsystem<UDreamTrainingSystem>())Training->ApplyToPlayer(this);
 
         // Stage entry starts at the final restored maximum, including level growth.
         // ResetHealth still respects permanent recovery caps such as Last Breath.
@@ -1567,21 +1570,15 @@ AInteractableActorBase* AMainPlayerCharacter::FindInteractionTarget() const
     UWorld* World=GetWorld();
     if(!World||World->IsPaused()||(CombatStats&&CombatStats->IsDead())||HasAugmentChoices())return nullptr;
     if(const auto* PC=Cast<AMainPlayerController>(GetController());PC&&PC->IsMenuWidgetOpen())return nullptr;
-    TArray<FOverlapResult> Results;
-    FCollisionQueryParams Params(SCENE_QUERY_STAT(PlayerInteraction),false,this);
-    World->OverlapMultiByObjectType(Results,GetActorLocation(),FQuat::Identity,
-        FCollisionObjectQueryParams(ECC_WorldDynamic),FCollisionShape::MakeSphere(InteractionRadius),Params);
-    AInteractableActorBase* Closest=nullptr;double Best=TNumericLimits<double>::Max();TSet<AActor*> Visited;
-    for(const auto& Result:Results)
+    AInteractableActorBase* Closest=nullptr;double Best=TNumericLimits<double>::Max();
+    const FVector From=GetActorLocation();const double Reach=FMath::Min(InteractionRadius,120.f);
+    for(TActorIterator<AInteractableActorBase> It(World);It;++It)
     {
-        auto* Candidate=Cast<AInteractableActorBase>(Result.GetActor());
-        if(!IsValid(Candidate)||Visited.Contains(Candidate))continue;Visited.Add(Candidate);
-        const double Distance=FVector::DistSquared(GetActorLocation(),Candidate->GetActorLocation());
-        if(Distance>=Best)continue;
-        // Trace at body height; the furniture itself must not block its own prompt.
-        FVector End=Candidate->GetActorLocation();End.Z=GetActorLocation().Z;
+        auto* Candidate=*It;if(!IsValid(Candidate)||Candidate->IsHidden())continue;
+        const FVector End=Candidate->GetInteractionPoint(From);const double Distance=FVector::DistSquared(From,End);
+        if(Distance>FMath::Square(Reach)||Distance>=Best)continue;
         FCollisionQueryParams Sight(SCENE_QUERY_STAT(InteractionWall),false,this);Sight.AddIgnoredActor(Candidate);
-        if(World->LineTraceTestByObjectType(GetActorLocation(),End,FCollisionObjectQueryParams(ECC_WorldStatic),Sight))continue;
+        if(World->LineTraceTestByObjectType(From,End,FCollisionObjectQueryParams(ECC_WorldStatic),Sight))continue;
         Closest=Candidate;Best=Distance;
     }
     return Closest;

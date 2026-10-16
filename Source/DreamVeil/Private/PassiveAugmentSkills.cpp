@@ -234,3 +234,10 @@ void URegenerationSkill::ProcessRegenerationTick()
     const float Before=Stats->GetCurrentHealth();Stats->Heal(LostHealth * REGENERATION_LOST_HEALTH_RATIO);
     if(Stats->GetCurrentHealth()>Before)UDreamAugmentFeedback::Emit(GetOwnerActor(),EAugmentID::Regeneration,EDreamAugmentCueShape::Aura,GetOwnerActor()->GetActorLocation(),70,.8f,GetOwnerActor());
 }
+
+void UAttackUpSkill::Unapply(){if(auto* S=GetStats())S->AddAttackPower(-ATTACK_POWER_UP_AMOUNT);}
+void UDefenceUpSkill::Unapply(){if(auto* S=GetStats())S->AddDefencePower(-DEFENCE_POWER_UP_AMOUNT);}
+void UHealthUpSkill::Unapply(){if(auto* S=GetStats())S->SetMaxHealth(S->GetMaxHealth()-HEALTH_UP_AMOUNT);}
+void UStaminaUpSkill::Unapply(){if(auto* P=Cast<AMainPlayerCharacter>(GetOwnerActor()))P->IncreaseMaxStamina(-STAMINA_UP_AMOUNT);}
+void UBerserkerSkill::Unapply(){if(auto* S=GetStats())S->MultiplyAttackPower(1.f/AppliedMultiplier);AppliedMultiplier=1.f;}
+void ULastFortressSkill::Unapply(){if(bActivated)if(auto* S=GetStats())S->MultiplyDefencePower(1.f/LAST_FORTRESS_MULTIPLIER);bActivated=false;}

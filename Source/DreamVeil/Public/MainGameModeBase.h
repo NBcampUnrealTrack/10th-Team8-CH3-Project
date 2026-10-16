@@ -36,6 +36,8 @@ public:
     UFUNCTION(BlueprintPure,Category="Endless") float GetEndlessBossInterval() const { return FMath::Max(EndlessBossInterval,1.f); }
 private:
     bool bBossDefeated=false;
+    int32 SpawnRecoveryAttempts=0;
+    TWeakObjectPtr<AMonsterSpawnVolume> LastPackVolume;
     FTimerHandle BossDefeatTimer;
 public:
 

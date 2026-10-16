@@ -9,6 +9,7 @@
 
 ABedActor::ABedActor()
 {
+    InteractionLabel=FText::FromString(TEXT("F 스테이지 입장"));
 	// 침대 메시 검색
 	static ConstructorHelpers::FObjectFinder<UStaticMesh>
 		BedMeshFinder(TEXT("/Game/Maps/Asset/SM_Lobby_Bed.SM_Lobby_Bed"));

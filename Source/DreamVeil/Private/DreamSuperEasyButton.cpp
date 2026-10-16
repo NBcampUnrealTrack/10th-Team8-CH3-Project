@@ -18,10 +18,10 @@ void UDreamSuperEasyButton::Install(UUserWidget* Host)
     auto* Caption=Host->WidgetTree->ConstructWidget<UTextBlock>();
     if(auto* Existing=Cast<UTextBlock>(Easy->GetContent()))
     {
-        auto Font=Existing->GetFont();Font.Size=18;Caption->SetFont(Font);
+        auto Font=Existing->GetFont();Font.Size=20;Caption->SetFont(Font);
         Caption->SetColorAndOpacity(Existing->GetColorAndOpacity());
     }
-    Caption->SetText(NSLOCTEXT("DreamUI","SuperEasyName","슈퍼 겁쟁이 모드"));Caption->SetJustification(ETextJustify::Center);
+    Caption->SetText(NSLOCTEXT("DreamUI","SuperEasyNameShort","슈퍼 겁쟁이"));Caption->SetJustification(ETextJustify::Center);
     Button->SetContent(Caption);Canvas->AddChildToCanvas(Button);
     const TCHAR* Names[]={TEXT("Button_SuperEasy"),TEXT("Button_Easy"),TEXT("Button_Normal"),TEXT("Button_Hard")};
     for(int32 Index=0;Index<4;++Index)
@@ -48,7 +48,15 @@ void UDreamSuperEasyButton::RefreshSelection(EGameDifficulty Difficulty)
 {
     const bool Selected=Difficulty==EGameDifficulty::SuperEasy;
     SetBackgroundColor(Selected?FLinearColor(.9f,.65f,.28f,1):FLinearColor::White);
-    auto* Host=HostWidget.Get();if(!Selected || !Host)return;
+    auto* Host=HostWidget.Get();if(!Host)return;
+    const TCHAR* Names[]={TEXT("Button_StartRun"),TEXT("Button_Back")};
+    for(int32 I=0;I<2;++I)if(auto* Button=Cast<UButton>(Host->GetWidgetFromName(Names[I])))
+        if(auto* Text=Cast<UTextBlock>(Button->GetContent()))
+        {
+            Text->SetText(FText::FromString(Selected?(I==0?TEXT("예"):TEXT("아니요")):(I==0?TEXT("시작하기"):TEXT("돌아가기"))));
+            Text->SetAutoWrapText(false);Text->SetWrapTextAt(0);auto Font=Text->GetFont();Font.Size=20;Text->SetFont(Font);Text->SetJustification(ETextJustify::Center);
+        }
+    if(!Selected)return;
     for(const TCHAR* Name:{TEXT("Button_Easy"),TEXT("Button_Normal"),TEXT("Button_Hard")})
         if(auto* Button=Cast<UButton>(Host->GetWidgetFromName(Name)))Button->SetBackgroundColor(FLinearColor::White);
     if(auto* Info=Cast<UTextBlock>(Host->GetWidgetFromName(TEXT("Text_DiffInfo"))))

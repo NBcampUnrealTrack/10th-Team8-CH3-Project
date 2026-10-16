@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Engine/GameInstance.h"
@@ -41,6 +41,13 @@ UCLASS()
 class DREAMVEIL_API UDreamVeilGameInstance : public UGameInstance
 {
 	GENERATED_BODY()
+    friend class UDreamTrainingSystem;
+public:
+    UFUNCTION(BlueprintPure,Category="Level|Rewards") float GetCampaignRewardMultiplier() const;
+    static float CampaignRewardScale(int32 Level,int32 Cleared,bool Endless);
+private:
+    mutable TWeakObjectPtr<UWorld> RewardWorld;
+    mutable float CampaignRewardMultiplier=1.f;
 
 public:
 	UDreamVeilGameInstance();

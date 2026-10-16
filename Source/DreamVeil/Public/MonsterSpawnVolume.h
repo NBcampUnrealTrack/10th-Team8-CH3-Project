@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -29,7 +29,11 @@ public:
 	//게임모드가 수를 정하지 않는 이유 좁은 방과 넓은 마당에 같은 수를 내면 한쪽은 텅 비고 한쪽은 꽉 막힘
 	//양수인 볼륨은 SpawnGroupMin~Max 크기의 무리를 요청하고, 0인 볼륨은 비활성화합니다.
 	UFUNCTION(BlueprintCallable, Category = "Monster To Spawn")
-	void SpawnTick();
+    void SpawnTick();
+    // One bounded pack request; failed requests never accumulate a backlog.
+    int32 SpawnPackNow();
+    bool IsSpawnPointCoolingDown() const;
+
     UFUNCTION(BlueprintCallable, Category="Monster To Spawn|Diagnostics")
     bool FindSafeSpawnPoint(FVector& Point);
     UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Monster To Spawn|Diagnostics") int32 SpawnLocationFailures=0;
@@ -94,6 +98,9 @@ protected:
 
 private:
     bool bContinuousPack=false;
+    float NextPackRequestTime=0;
+    int32 ConsecutivePositionFailures=0;
+
     bool bInsideSpawnGroup=false;
     int32 CachedGroupEliteCount=INDEX_NONE;
     bool TrySpawnMonster();

@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 
 #include "CoreMinimal.h"
 #include "Components/ActorComponent.h"
@@ -42,6 +42,9 @@ public:
     UFUNCTION(BlueprintPure, Category="Augment") static bool IsEvolution(EAugmentID ID);
     UFUNCTION(BlueprintPure, Category="Augment") int32 GetOwnedCount(EAugmentCategory Category) const;
     UFUNCTION(BlueprintPure, Category="Augment") int32 GetStackCount(EAugmentID ID) const;
+    UFUNCTION(BlueprintPure,Category="Augment") bool CanRemoveAugment(EAugmentID ID) const;
+    UFUNCTION(BlueprintPure,Category="Augment") TArray<EAugmentID> GetRemovalConsequences(EAugmentID ID) const;
+    bool RemoveOwnedAugment(EAugmentID ID);
     int32 GetAugmentRevision() const { return AugmentRevision; }
     UFUNCTION(BlueprintPure, Category="Augment") int32 GetSkillCount() const;
     UFUNCTION(BlueprintPure, Category="Augment") bool CanAcquireAugment(EAugmentID ID) const;

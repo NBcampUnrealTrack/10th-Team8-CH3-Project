@@ -20,7 +20,10 @@ private:
 	UPROPERTY(VisibleAnywhere, BlueprintReadOnly, Category = "Interaction", meta = (AllowPrivateAccess = "true"))
 	TObjectPtr<UStaticMeshComponent> ObjectMesh;
 public:
-	AInteractableActorBase();
+    AInteractableActorBase();
+    UPROPERTY(EditAnywhere,BlueprintReadWrite,Category="Interaction") FText InteractionLabel;
+    FVector GetInteractionPoint(const FVector& From) const;
+
 	// 외형 메시 컴포넌트 반환
 	UFUNCTION(BlueprintPure, Category = "Interaction")
 	UStaticMeshComponent* GetObjectMesh() const;

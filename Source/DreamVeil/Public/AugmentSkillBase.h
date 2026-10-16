@@ -18,6 +18,7 @@ class DREAMVEIL_API UAugmentSkillBase : public UObject
 	GENERATED_BODY()
 
 public:
+    virtual void Unapply() {}
 	//증강을 얻을 때마다 불림 반복 획득 증강은 여러 번 불림
 	virtual void Apply();
 
