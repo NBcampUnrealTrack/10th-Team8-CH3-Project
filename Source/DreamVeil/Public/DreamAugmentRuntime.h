@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "CoreMinimal.h"
 #include "UObject/Object.h"
 #include "Components/ActorComponent.h"
@@ -46,6 +46,7 @@ public:
     // 0 slow zone, 1 trap, 2 decoy, 3 projectile barrier.
     void Configure(APawn* Source,int32 Kind,float Radius,float Duration,float Strength);
     static APawn* FindDecoyFor(const AMonsterBase* Monster,APawn* Fallback);
+    static void RefreshDecoyTargets(UWorld* World);
     virtual void PrepareForPoolReuse() override;
     virtual void OnPoolAcquired() override;
     virtual void OnPoolReturned() override;

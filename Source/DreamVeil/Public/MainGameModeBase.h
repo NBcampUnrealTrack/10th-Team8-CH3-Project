@@ -30,7 +30,14 @@ public:
     void RegisterReusedMonster(AMonsterBase* Monster) { RegisterMonster(Monster); }
 	AMainGameModeBase();
 
-	bool CanSpawnRegularMonster() const;
+    bool CanSpawnRegularMonster() const;
+    void NotifyBossDefeated(AMonsterBase* Boss);
+    UFUNCTION(BlueprintPure,Category="Level") bool IsBossDefeatPresentation() const { return bBossDefeated; }
+    UFUNCTION(BlueprintPure,Category="Endless") float GetEndlessBossInterval() const { return FMath::Max(EndlessBossInterval,1.f); }
+private:
+    bool bBossDefeated=false;
+    FTimerHandle BossDefeatTimer;
+public:
 
 	//스포너가 이번 레벨에 낼 몬스터를 다 냈을 때 부를 것
 	//이 뒤로 살아있는 몬스터가 0이 되면 클리어 부르지 않으면 다 잡아도 클리어되지 않고 시간이 넘어가서 실패함
@@ -141,7 +148,7 @@ protected:
 	//무한 모드에서 보스가 나오는 주기 초
 	//레벨과 달리 끝이 없어서 웨이브가 아니라 시간으로 보스를 냄
 	UPROPERTY(EditAnywhere, BlueprintReadOnly, Category = "Level|Boss")
-	float EndlessBossInterval = 30.0f;
+	float EndlessBossInterval = 60.0f;
 
 	//보스로 쓸 몬스터 웨이브가 다 지난 시각에 이걸 냄 레벨마다 다른 보스를 쓰려면 블루프린트에서 바꿀 것
 	//기본값은 생성자에서 BP_BossMonster를 꽂아둠 비워두면 보스 없이 잡몹만 다 잡으면 클리어되는 예전 방식으로 돌아감

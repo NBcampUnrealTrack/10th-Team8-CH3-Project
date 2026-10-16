@@ -1,4 +1,4 @@
-﻿#include "MainGameModeBase.h"
+#include "MainGameModeBase.h"
 #include "DreamPlayPolish.h"
 #include "DreamRunSummaryWidget.h"
 #include "DreamObjectPoolSubsystem.h"
@@ -10,6 +10,9 @@
 #include "DispatchTableComponent.h"
 #include "DreamVeilGameInstance.h"
 #include "DreamBalanceProfile.h"
+#include "MonsterProgressionLibrary.h"
+#include "MonsterProjectile.h"
+#include "BlackHoleZone.h"
 #include "EngineUtils.h"
 #include "GameFramework/Pawn.h"
 #include "Kismet/GameplayStatics.h"
@@ -187,11 +190,12 @@ void AMainGameModeBase::StartNextWave()
 //맵에 있는 스폰 볼륨 전부에게 이번 웨이브 몬스터를 내라고 시킴
 bool AMainGameModeBase::CanSpawnRegularMonster() const
 {
-	return AliveMonsterCount < GetMaxAliveMonsters();
+	return !bBossDefeated && AliveMonsterCount < GetMaxAliveMonsters();
 }
 
 void AMainGameModeBase::RequestContinuousSpawn()
 {
+    if(bBossDefeated)return;
 	//다음 신호부터 먼저 예약함 아래에서 중간에 돌아가도 스폰이 끊기지 않게
 	//Endless는 시간이 갈수록 주기가 줄어들어서 신호마다 새로 계산해 걸어야 함
 	ScheduleContinuousSpawn();
@@ -218,6 +222,7 @@ void AMainGameModeBase::RequestContinuousSpawn()
 //반복 타이머는 걸 때 정한 주기를 끝까지 쓰기 때문에 Endless가 처음 주기 그대로 돌아버림
 void AMainGameModeBase::ScheduleContinuousSpawn()
 {
+    if(bBossDefeated)return;
 	GetWorldTimerManager().SetTimer(ContinuousSpawnTimerHandle, this, &AMainGameModeBase::RequestContinuousSpawn, GetContinuousSpawnInterval()*(GetWorld()->GetSubsystem<UDreamEncounterDirector>()?GetWorld()->GetSubsystem<UDreamEncounterDirector>()->SpawnMultiplier(AliveMonsterCount,GetMaxAliveMonsters()):1.f), false);
 }
 
@@ -264,12 +269,12 @@ float AMainGameModeBase::GetContinuousSpawnInterval() const
 
 		return FMath::Max(
 			StartInterval - Decay * ElapsedMinutes,
-			Minimum);
+			Minimum)/UMonsterProgressionLibrary::GetSpawnRateMultiplier(this);
 	}
 
     const auto* Profile=DreamVeilGameInstance?DreamVeilGameInstance->GetBalanceProfile():nullptr;
-    if(Profile && Profile->StageSpawnIntervals.IsValidIndex(GetStageIndex()))return FMath::Max(.1f,Profile->StageSpawnIntervals[GetStageIndex()]);
-	return SPAWN_INTERVAL_BY_STAGE[GetStageIndex()];
+    if(Profile && Profile->StageSpawnIntervals.IsValidIndex(GetStageIndex()))return FMath::Max(.1f,Profile->StageSpawnIntervals[GetStageIndex()])/UMonsterProgressionLibrary::GetSpawnRateMultiplier(this);
+	return SPAWN_INTERVAL_BY_STAGE[GetStageIndex()]/UMonsterProgressionLibrary::GetSpawnRateMultiplier(this);
 }
 
 //무한 모드 제한 시간도 웨이브도 없음
@@ -289,7 +294,7 @@ void AMainGameModeBase::StartEndlessMode()
 	ScheduleContinuousSpawn();
 
 	//첫 보스도 주기만큼 기다렸다 나옴 들어가자마자 보스와 마주치지 않게
-	GetWorldTimerManager().SetTimer(EndlessBossTimerHandle, this, &AMainGameModeBase::SpawnEndlessBoss, FMath::Max(EndlessBossInterval, 1.0f), true);
+	GetWorldTimerManager().SetTimer(EndlessBossTimerHandle, this, &AMainGameModeBase::SpawnEndlessBoss, GetEndlessBossInterval(), true);
 
 	//잠식도는 레벨과 같은 규칙으로 돎 Endless라는 이유로 다르게 굴지 않음
 	StartCorruption();
@@ -452,8 +457,35 @@ void AMainGameModeBase::HandleMonsterDead()
 }
 
 //보스가 죽었을 때
+void AMainGameModeBase::NotifyBossDefeated(AMonsterBase* Boss)
+{
+    const auto* GI=GetGameInstance<UDreamVeilGameInstance>();
+    if(bBossDefeated||!IsValid(Boss)||!IsBossMonster(Boss)||!GI||!GI->IsInLevelMap()||GI->IsInEndless()||IsPlayerDead())return;
+    bBossDefeated=true;
+    GetWorldTimerManager().PauseTimer(LevelTimerHandle);
+    GetWorldTimerManager().ClearTimer(WaveTimerHandle);
+    GetWorldTimerManager().ClearTimer(ContinuousSpawnTimerHandle);
+    GetWorldTimerManager().ClearTimer(CorruptionTimerHandle);
+    // Snapshot before death callbacks modify registrations or return actors to the pool.
+    TArray<AMonsterBase*> Remaining;
+    for(TActorIterator<AMonsterBase> It(GetWorld());It;++It)
+        if(!It->IsHidden()&&It->MonsterCombatStats&&!It->MonsterCombatStats->IsDead())Remaining.Add(*It);
+    for(auto* Monster:Remaining)if(IsValid(Monster))Monster->MonsterCombatStats->SetCurrentHealth(0);
+    TArray<AMonsterProjectile*> Shots;
+    for(TActorIterator<AMonsterProjectile> It(GetWorld());It;++It)if(!It->IsHidden())Shots.Add(*It);
+    for(auto* Shot:Shots)UDreamObjectPoolSubsystem::ReleaseOrDestroy(Shot);
+    // Cast zones outlive their caster; remove enemy hazards during the victory banner too.
+    TArray<ABlackHoleZone*> Hazards;
+    for(TActorIterator<ABlackHoleZone> It(GetWorld());It;++It)
+        if(!It->IsHidden()&&(Cast<AMonsterBase>(It->GetOwner())||Cast<AMonsterBase>(It->GetInstigator())))Hazards.Add(*It);
+    for(auto* Hazard:Hazards)UDreamObjectPoolSubsystem::ReleaseOrDestroy(Hazard);
+    UpdateBGMForBoss();
+    GetWorldTimerManager().SetTimer(BossDefeatTimer,this,&AMainGameModeBase::ClearLevel,2.f,false);
+}
+
 void AMainGameModeBase::HandleBossDead()
 {
+    if(bBossDefeated)return;
 	//살아 있는 보스가 더 없으면 원래 곡으로 돌아감
 	//Endless는 보스가 쌓이므로 한 마리 죽었다고 바로 돌리면 안 됨
 	UpdateBGMForBoss();
@@ -465,7 +497,7 @@ void AMainGameModeBase::HandleBossDead()
 void AMainGameModeBase::TryClearLevel()
 {
 	//아직 더 나올 몬스터가 있으면 0마리여도 클리어가 아님 스폰 사이 빈틈에 레벨이 끝나버리는 걸 막음
-	if (!bAllMonstersSpawned || AliveMonsterCount > 0)
+	if (bBossDefeated || !bAllMonstersSpawned || AliveMonsterCount > 0)
 	{
 		return;
 	}
@@ -846,6 +878,7 @@ float AMainGameModeBase::GetLevelTimeProgress() const
 
 void AMainGameModeBase::EndPlay(const EEndPlayReason::Type Reason)
 {
+    GetWorldTimerManager().ClearTimer(BossDefeatTimer);
     if (IsValid(BGMAudio)) { BGMAudio->Stop(); BGMAudio->DestroyComponent(); BGMAudio = nullptr; }
     Super::EndPlay(Reason);
 }

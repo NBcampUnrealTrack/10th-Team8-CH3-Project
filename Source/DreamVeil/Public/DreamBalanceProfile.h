@@ -10,7 +10,14 @@ class DREAMVEIL_API UDreamBalanceProfile : public UDataAsset
     GENERATED_BODY()
 public:
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Difficulty")
-    TArray<float> DifficultyStatScales = {1.0f,1.3f,1.5f,.85f};
+    TArray<float> DifficultyStatScales = {.5f,1.0f,2.5f,.25f};
+    // Common reduction applies once to every difficulty, grade and combat map.
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Difficulty", meta=(ClampMin="0.01"))
+    float MonsterHealthMultiplier=.7f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Difficulty", meta=(ClampMin="0.01"))
+    float MonsterDamageMultiplier=.7f;
+    UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Difficulty", meta=(ClampMin="0.01",ClampMax="1"))
+    float MonsterSpawnRateMultiplier=.7f;
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Difficulty")
     TArray<float> EliteCurveScales = {1.6f,1.0f,.5f,2.0f};
     UPROPERTY(EditAnywhere, BlueprintReadOnly, Category="Stage")

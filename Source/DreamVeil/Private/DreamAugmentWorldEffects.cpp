@@ -1,10 +1,13 @@
-﻿#include "DreamAugmentRuntime.h"
+#include "DreamAugmentRuntime.h"
 #include "DreamAugmentFeedback.h"
 #include "DreamObjectPoolSubsystem.h"
 #include "MonsterBase.h"
 #include "BossMonster.h"
 #include "EliteMonster.h"
 #include "MonsterSkill.h"
+#include "AIController.h"
+#include "BehaviorTree/BlackboardComponent.h"
+#include "EngineUtils.h"
 #include "CombatStatsComponent.h"
 #include "AugmentDamageLibrary.h"
 #include "GameFramework/CharacterMovementComponent.h"
@@ -86,7 +89,7 @@ void ADreamAugmentField::Configure(APawn* OwnerPawn,int32 InKind,float InRadius,
     Warning->SetVisibility(false);
     const auto ID=Kind==0?EAugmentID::SkillSuppress:Kind==1?EAugmentID::SkillTrap:Kind==2?EAugmentID::SkillDecoy:EAugmentID::SkillBarrier;
     UDreamAugmentFeedback::Emit(OwnerPawn,ID,Kind==3?EDreamAugmentCueShape::Barrier:Kind==2?EDreamAugmentCueShape::Decoy:EDreamAugmentCueShape::Field,GetActorLocation(),Kind>=2?85:Radius,Seconds,this);
-    if(Kind==2)ActiveDecoys.AddUnique(this);
+    if(Kind==2){ActiveDecoys.AddUnique(this);RefreshDecoyTargets(GetWorld());}
     GetWorldTimerManager().SetTimer(Timer,this,&ADreamAugmentField::Update,.15f,true);Update();
 }
 void ADreamAugmentField::Update()
@@ -101,17 +104,47 @@ void ADreamAugmentField::Update()
     }
     if(Trigger){UDreamAugmentFeedback::Emit(Source.Get(),EAugmentID::SkillTrap,EDreamAugmentCueShape::Ring,GetActorLocation(),Radius,.45f);Expire();}
 }
-void ADreamAugmentField::Expire(){UDreamObjectPoolSubsystem::ReleaseOrDestroy(this);}
+void ADreamAugmentField::Expire()
+{
+    if(Kind==2)
+    {
+        Health=0;
+        ActiveDecoys.RemoveAll([this](const auto& D){return !D.IsValid()||D.Get()==this;});
+        RefreshDecoyTargets(GetWorld());
+    }
+    UDreamObjectPoolSubsystem::ReleaseOrDestroy(this);
+}
 void ADreamAugmentField::PrepareForPoolReuse(){Health=20;Source.Reset();}
 void ADreamAugmentField::OnPoolAcquired(){}
-void ADreamAugmentField::OnPoolReturned(){GetWorldTimerManager().ClearTimer(Timer);Sphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);Barrier->SetCollisionEnabled(ECollisionEnabled::NoCollision);Warning->SetVisibility(false);Visual->SetVisibility(false);Source.Reset();ActiveDecoys.RemoveAll([this](const auto& D){return !D.IsValid()||D.Get()==this;});}
+void ADreamAugmentField::OnPoolReturned(){GetWorldTimerManager().ClearTimer(Timer);Sphere->SetCollisionEnabled(ECollisionEnabled::NoCollision);Barrier->SetCollisionEnabled(ECollisionEnabled::NoCollision);Warning->SetVisibility(false);Visual->SetVisibility(false);Source.Reset();ActiveDecoys.RemoveAll([this](const auto& D){return !D.IsValid()||D.Get()==this;});if(Kind==2)RefreshDecoyTargets(GetWorld());}
 float ADreamAugmentField::TakeDamage(float Damage,const FDamageEvent&,AController*,AActor*){if(Kind!=2)return 0;const float Applied=FMath::Min(Health,FMath::Max(0.f,Damage));Health-=Applied;if(Health<=0)Expire();return Applied;}
 APawn* ADreamAugmentField::FindDecoyFor(const AMonsterBase* M,APawn* Fallback)
 {
-    if(!M || Cast<ABossMonster>(M)||Cast<AEliteMonster>(M))return Fallback;
+    if(!IsValid(M)||!M->GetWorld())return Fallback;
     ADreamAugmentField* Best=nullptr;float Distance=FMath::Square(1000.f);
     ActiveDecoys.RemoveAll([](const auto& D){return !D.IsValid();});
-    for(const auto& D:ActiveDecoys)if(D.IsValid()&&D->GetWorld()==M->GetWorld()&&D->GetWorld()->GetTimeSeconds()<D->Until)
-    {const float V=FVector::DistSquared(D->GetActorLocation(),M->GetActorLocation());if(V<Distance){Distance=V;Best=D.Get();}}
+    for(const auto& D:ActiveDecoys)
+    {
+        if(!D.IsValid()||D->IsHidden()||D->Kind!=2||D->Health<=0||!D->Source.IsValid()||D->GetWorld()!=M->GetWorld()||M->GetWorld()->GetTimeSeconds()>=D->Until)continue;
+        const float V=FVector::DistSquared(D->GetActorLocation(),M->GetActorLocation());if(V>=Distance)continue;
+        FCollisionQueryParams Q(SCENE_QUERY_STAT(DecoySight),false,M);Q.AddIgnoredActor(D.Get());Q.AddIgnoredActor(D->Source.Get());
+        if(M->GetWorld()->LineTraceTestByObjectType(M->GetActorLocation(),D->GetActorLocation(),FCollisionObjectQueryParams(ECC_WorldStatic),Q))continue;
+        Distance=V;Best=D.Get();
+    }
     return Best?Best:Fallback;
+}
+void ADreamAugmentField::RefreshDecoyTargets(UWorld* World)
+{
+    if(!World)return;
+    APawn* Player=UGameplayStatics::GetPlayerPawn(World,0);
+    for(TActorIterator<AMonsterBase> It(World);It;++It)
+    {
+        auto* M=*It;auto* AI=Cast<AAIController>(M->GetController());auto* BB=AI?AI->GetBlackboardComponent():nullptr;
+        if(!AI||!BB||M->IsHidden()||!M->MonsterCombatStats||M->MonsterCombatStats->IsDead())continue;
+        APawn* Target=FindDecoyFor(M,Player);if(!Target||BB->GetValueAsObject(TEXT("PlayerActor"))==Target)continue;
+        // Retarget an attack already winding up as soon as a decoy appears or disappears.
+        M->CancelAttack();AI->StopMovement();AI->SetFocus(Target);
+        BB->SetValueAsObject(TEXT("PlayerActor"),Target);BB->SetValueAsVector(TEXT("PlayerVec"),Target->GetActorLocation());
+        BB->SetValueAsBool(TEXT("IsAttackAble"),false);
+    }
 }

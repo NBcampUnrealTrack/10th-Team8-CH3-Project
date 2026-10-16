@@ -1,4 +1,4 @@
-﻿#include "MonsterProgressionLibrary.h"
+#include "MonsterProgressionLibrary.h"
 
 #include "DreamVeilGameInstance.h"
 #include "DreamBalanceProfile.h"
@@ -107,6 +107,33 @@ float UMonsterProgressionLibrary::GetMonsterStatScale(const UObject* WorldContex
 	return GetDifficultyStatScale(WorldContextObject)
 		* GetStageStatScale(WorldContextObject)
 		* GetGradeStatScale(Grade);
+}
+
+namespace
+{
+const UDreamBalanceProfile* BalanceFor(const UObject* Context)
+{
+    const auto* World=GEngine?GEngine->GetWorldFromContextObject(Context,EGetWorldErrorMode::ReturnNull):nullptr;
+    const auto* GI=World?World->GetGameInstance<UDreamVeilGameInstance>():nullptr;
+    return GI?GI->GetBalanceProfile():nullptr;
+}
+}
+float UMonsterProgressionLibrary::GetMonsterHealthScale(const UObject* Context,EMonsterGrade Grade)
+{
+    const auto* Profile=BalanceFor(Context);
+    return GetMonsterStatScale(Context,Grade)*FMath::Max(.01f,Profile?Profile->MonsterHealthMultiplier:.7f);
+}
+float UMonsterProgressionLibrary::GetMonsterDamageScale(const UObject* Context,EMonsterGrade Grade)
+{
+    const auto* Profile=BalanceFor(Context);
+    // Difficulty ratios remain literal; only stage and grade growth are softened.
+    return GetDifficultyStatScale(Context)*FMath::Sqrt(GetStageStatScale(Context)*GetGradeStatScale(Grade))
+        *FMath::Max(.01f,Profile?Profile->MonsterDamageMultiplier:.7f);
+}
+float UMonsterProgressionLibrary::GetSpawnRateMultiplier(const UObject* Context)
+{
+    const auto* Profile=BalanceFor(Context);
+    return FMath::Clamp(Profile?Profile->MonsterSpawnRateMultiplier:.7f,.01f,1.f);
 }
 
 float UMonsterProgressionLibrary::GetExperienceReward(const UObject* WorldContextObject, EMonsterGrade Grade)

@@ -540,7 +540,7 @@ void AMainPlayerController::OpenAugmentGuide()
 {
     if(auto* Panel=Cast<UDreamAugmentPanel>(MenuWidgetInstance)) { Panel->HandleAction(0);return; }
     const auto* GI=GetGameInstance<UDreamVeilGameInstance>();auto* P=Cast<AMainPlayerCharacter>(GetPawn());
-    if(!IsLocalController()||!P||!GI||(!GI->IsInLevelMap()&&!GI->IsInEndless())||bGameOverOpen||bEndingOpen||bDeathPresentationActive||IsMenuWidgetOpen()||P->HasAugmentChoices()||!P->CombatStats||P->CombatStats->IsDead())return;
+    if(!IsLocalController()||!P||!GI||(!GI->IsInLevelMap()&&!GI->IsInEndless()&&!GI->IsInLobby())||bGameOverOpen||bEndingOpen||bDeathPresentationActive||IsMenuWidgetOpen()||P->HasAugmentChoices()||!P->CombatStats||P->CombatStats->IsDead())return;
     UDreamAugmentPanel::OpenGuide(this);
 }
 void AMainPlayerController::OpenOwnedAugments()

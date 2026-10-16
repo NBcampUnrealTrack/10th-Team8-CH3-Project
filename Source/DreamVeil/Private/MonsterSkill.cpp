@@ -1,4 +1,4 @@
-﻿#include "MonsterSkill.h"
+#include "MonsterSkill.h"
 #include "DreamPlayPolish.h"
 #include "DreamAugmentRuntime.h"
 #include "DreamObjectPoolSubsystem.h"
@@ -99,6 +99,7 @@ bool UMonsterSkill::CanUseSkill(EMonsterSkillType Skill) const
     const FMonsterSkillSettings* Settings = FindSettings(Skill);
     return GetWorld() && IsValid(Monster) && Settings
         && !bIsUsingSkill && !Monster->IsAttacking() && !Monster->IsRagdoll()
+        && !Cast<ADreamAugmentField>(ADreamAugmentField::FindDecoyFor(Monster,nullptr))
         && !(Monster->FindComponentByClass<UDreamAugmentStatus>()&&Monster->FindComponentByClass<UDreamAugmentStatus>()->IsSealed())
         && Monster->MonsterCombatStats && !Monster->MonsterCombatStats->IsDead()
         //맵 진행 방식에서는 체력 페이즈와 관계없이 해당 레벨에 열린 스킬을 사용할 수 있음

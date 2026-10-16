@@ -1,4 +1,4 @@
-﻿// Fill out your copyright notice in the Description page of Project Settings.
+// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "MonsterBase.h"
@@ -189,7 +189,7 @@ float AMonsterBase::GetAttackPowerScale() const
 		return 1.0f;
 	}
 
-	// MonsterInit에서 공격력 = MonsterDamage x sqrt(난이도 x 레벨 x 등급)으로 잡히고 이후 증강으로 더 오를 수 있음
+	// MonsterInit에서 난이도 배율과 공통 하향을 적용하고 레벨·등급 성장만 제곱근으로 완화함
 	// 지금 공격력을 기본값으로 나누면 그 모든 배율이 한 숫자로 나옴
 	return MonsterCombatStats->GetAttackPower() / MonsterDamage;
 }
@@ -298,21 +298,15 @@ void AMonsterBase::MonsterInit()
 	// 최대체력인디.. 범위 변수는 블루프린트에서 ㄱㄱ
 	this->MaxHealth = FMath::RandRange(MinHealthRadius, MaxHealthRadius);
 
-	//난이도와 레벨이 거는 배율 쉬움 보통 하드코어 x L1~L4(Endless는 버틴 시간) x 등급
-	//여기 한 번만 곱하면 체력과 공격력이 같이 올라감 몬스터 블루프린트의 기본 수치는 L1 쉬움 기준으로 잡으면 됨
+	//체력과 공격력 모두 난이도 비율과 공통 30% 하향을 적용함. 공격력의 레벨·등급 성장만 완화함.
 	//스폰 볼륨이 아니라 몬스터가 스스로 거는 이유 레벨에 미리 놓아둔 보스나 테스트용 몬스터도 같은 배율을 받아야 함
-	const float StatScale = UMonsterProgressionLibrary::GetMonsterStatScale(
-		this,
-		UMonsterProgressionLibrary::GetMonsterGrade(this));
-
-	MaxHealth *= StatScale;
+    const auto Grade=UMonsterProgressionLibrary::GetMonsterGrade(this);
+    MaxHealth *= UMonsterProgressionLibrary::GetMonsterHealthScale(this,Grade);
 
 	if (IsValid(MonsterCombatStats))
 	{
-		//데미지는 체력만큼 올리지 않음 제곱근을 써서 L4 하드코어가 3.6배가 아니라 1.9배만 오름
-		//체력과 똑같이 올리면 등급 배율 6인 보스가 L1 쉬움에서도 60을 때려서 두 대에 죽음
-		//페이즈를 4개 만들어놔도 배울 기회가 없어지므로 데미지만 따로 완만하게 올림
-		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage * FMath::Sqrt(StatScale));
+		//난이도는 지정 비율 그대로, 스테이지·등급은 제곱근 성장으로 계산함.
+		MonsterCombatStats->InitStats(MaxHealth, 1.0f, MonsterDamage * UMonsterProgressionLibrary::GetMonsterDamageScale(this,Grade));
 	}
 	//// 어택타입 보기
 	//switch (GetAttackType())
@@ -430,6 +424,7 @@ float AMonsterBase::GetMonsterAttackRange() const
 // 이 함수에 변수명이 겹칠 사항들이 많이 보여서 구분을 위해 겹칠만한 변수명 앞에 다 Temp붙여뒀음.
 bool AMonsterBase::StartAttack(AActor* Target)
 {
+    if(auto* Pawn=Cast<APawn>(Target))Target=ADreamAugmentField::FindDecoyFor(this,Pawn);
 	// 레그돌 중이거나 일어나는 중에는 공격 금지
 	if (bIsRagdoll) return false;
 	if (MonsterSkill && MonsterSkill->IsUsingSkill()) return false;
@@ -915,6 +910,7 @@ void AMonsterBase::OnDeath()
 		//보스 액터는 1초 뒤 사라지므로 this에 묶으면 5초 뒤 신호를 보낼 수 없음
 		//수신 목록만 복사해서 월드 타이머가 전달함. AddUObject로 등록한 수신자는 약한 참조라 파괴되면 호출하지 않음
 		//맵을 떠나 기존 게임모드가 파괴되면 복사한 수신 목록에서도 호출이 생략되어 새 게임모드에는 전달되지 않음
+        if(auto* Mode=GetWorld()->GetAuthGameMode<AMainGameModeBase>())Mode->NotifyBossDefeated(this);
 		FTimerHandle DeathReportTimer;
 		GetWorldTimerManager().SetTimer(DeathReportTimer, FTimerDelegate::CreateLambda([DeathReport = OnDeathReported]()
 		{

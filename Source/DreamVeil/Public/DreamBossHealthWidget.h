@@ -24,7 +24,7 @@ protected:
 private:
     void RefreshBoss();
     UPROPERTY() TObjectPtr<UProgressBar> Health;
-    UPROPERTY() TObjectPtr<UTextBlock> Caption;
+    UPROPERTY() TObjectPtr<UTextBlock> Announcement;
     UPROPERTY() TObjectPtr<UBorder> Panel;
     UPROPERTY() TObjectPtr<UFont> Font;
     UPROPERTY() TObjectPtr<UTexture2D> Frame;
