@@ -290,7 +290,9 @@ void UDreamAugmentPanel::RefreshChoice()
             const auto* Def=DreamAugmentCatalog::Find(ID);FString Description=Def?Def->CardText:D->GetCurrentAugmentDescription(ID).ToString();
             if(Passive)Description+=FString::Printf(TEXT("\n보유 %d중첩 → +1"),D->GetStackCount(ID));
             T->SetText(FText::FromString(Description));T->SetToolTipText(D->GetCurrentAugmentDescription(ID));
-            auto Style=T->GetFont();Style.Size=Description.Len()>140?12:14;T->SetFont(Style);
+            auto Style=T->GetFont();Style.Size=16;T->SetFont(Style);
+            T->SetAutoWrapText(true);T->SetLineHeightPercentage(1.1f);
+            T->SetColorAndOpacity(FLinearColor(.96f,.95f,.99f));
             if(auto* TextSlot=Cast<UCanvasPanelSlot>(T->Slot))TextSlot->SetSize(FVector2D(TextSlot->GetSize().X,162));
         }
         if(auto* Card=Cast<UButton>(Host->GetWidgetFromName(*FString::Printf(TEXT("Button_Choice%d"),I+1))))Card->SetBackgroundColor(Accent);
@@ -350,7 +352,10 @@ void UDreamAugmentPanel::RefreshDetail()
         DetailBody->AddChildToVerticalBox(Size)->SetHorizontalAlignment(HAlign_Center);
     }
     DetailBody->AddChildToVerticalBox(Label(Def->Name,25))->SetPadding(FMargin(0,12));
-    DetailBody->AddChildToVerticalBox(Label(D->GetCurrentAugmentDescription(ID).ToString(),17))->SetPadding(FMargin(0,0,0,16));
+    auto* Description=Label(D->GetCurrentAugmentDescription(ID).ToString(),18);
+    Description->SetColorAndOpacity(FLinearColor(.96f,.95f,.99f));
+    Description->SetLineHeightPercentage(1.1f);
+    DetailBody->AddChildToVerticalBox(Description)->SetPadding(FMargin(0,0,0,16));
     if(Def->Evolution)
     {
         DetailBody->AddChildToVerticalBox(Label(D->GetEvolutionStatus(ID),18));

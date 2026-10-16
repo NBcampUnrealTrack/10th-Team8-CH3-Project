@@ -30,6 +30,10 @@ class DREAMVEIL_API ABossMonster : public AMonsterBase
 public:
     virtual void OnPoolAcquired() override;
 	ABossMonster();
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Monster|Boss|Balance",meta=(ClampMin="0.1",ClampMax="1.0"))
+    float BossHealthMultiplier=.8f;
+    UPROPERTY(EditAnywhere, BlueprintReadWrite, Category="Monster|Boss|Balance",meta=(ClampMin="0.1",ClampMax="1.0"))
+    float BossDamageMultiplier=.85f;
 
 	//평타를 시작하기 전에 준비된 스킬부터 시도하고, 발동할 스킬이 없을 때만 부모 평타를 실행함
 	virtual bool StartAttack(AActor* Target) override;

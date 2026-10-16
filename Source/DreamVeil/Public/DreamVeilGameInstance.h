@@ -14,6 +14,7 @@ class USoundBase;
 class USoundClass;
 class USoundMix;
 class UDreamBalanceProfile;
+class UUserWidget;
 
 //난이도 죽거나 시간 초과로 실패했을 때 증강 파츠 꿈의 조각 소총을 얼마나 잃는지
 //팀에서 상의해서 안 쓸 난이도는 빼도 됨 규칙은 FailCurrentLevel ContinueAfterDeath에만 있음
@@ -43,6 +44,16 @@ class DREAMVEIL_API UDreamVeilGameInstance : public UGameInstance
 
 public:
 	UDreamVeilGameInstance();
+    virtual void Init() override;
+    virtual void Shutdown() override;
+    UFUNCTION(BlueprintPure,Category="Loading") bool IsEndlessTransitionPending() const { return bEndlessTransitionPending; }
+private:
+    void HandlePreLoadMap(const FWorldContext& Context,const FString& MapName);
+    void HandlePostLoadMap(UWorld* LoadedWorld);
+    void PrepareEndlessMovie();
+    UPROPERTY() TObjectPtr<UUserWidget> EndlessTransitionWidget;
+    bool bEndlessTransitionPending=false;
+public:
     UPROPERTY(BlueprintAssignable, Category="Difficulty")
     FOnDifficultyChanged OnDifficultyChanged;
     UFUNCTION(BlueprintPure, Category="Balance")

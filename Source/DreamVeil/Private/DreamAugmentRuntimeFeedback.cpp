@@ -29,7 +29,7 @@ void UDreamAugmentRuntime::SetActive(EAugmentID ID,float Until)
 }
 void UDreamAugmentRuntime::CueImpact(EAugmentID ID,AActor* Target,float Radius)
 {
-    if(Target)UDreamAugmentFeedback::Emit(Player(),ID,EDreamAugmentCueShape::Impact,Target->GetActorLocation(),Radius,.35f);
+    if(Target)UDreamAugmentFeedback::Emit(Player(),ID,EDreamAugmentCueShape::Impact,Target->GetActorLocation(),FMath::Max(Radius,72.f),.55f);
 }
 void UDreamAugmentRuntime::CueUse(EAugmentID ID)
 {

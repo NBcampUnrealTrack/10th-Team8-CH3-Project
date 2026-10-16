@@ -1,4 +1,4 @@
-﻿#include "DispatchTableComponent.h"
+#include "DispatchTableComponent.h"
 #include "DreamAugmentFeedback.h"
 #include "DreamObjectPoolSubsystem.h"
 
@@ -210,7 +210,8 @@ static FText FormatPercentText(float Ratio)
 //증강 설명 수치는 AugmentTypes.h 값을 넣어서 밸런스를 바꾸면 설명도 같이 바뀜
 FText UDispatchTableComponent::GetAugmentDescription(EAugmentID AugmentID)
 {
-    if(const auto* Def=DreamAugmentCatalog::Find(AugmentID);Def && static_cast<uint8>(AugmentID)>=12)return FText::FromString(Def->Description);
+    // Legacy Blueprint choice cards use this getter; detailed views use GetCurrentAugmentDescription.
+    if(const auto* Def=DreamAugmentCatalog::Find(AugmentID);Def)return FText::FromString(Def->CardText);
     switch (AugmentID)
     {
     case EAugmentID::EffectRange: return FText::FromString(TEXT("폭발탄·진압파의 반경 +3%p. 중첩 가능, 최대 +60%. 경직 시간과 피해량은 늘지 않습니다."));

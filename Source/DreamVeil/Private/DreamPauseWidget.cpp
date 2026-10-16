@@ -119,7 +119,7 @@ void UDreamPauseWidget::NativeConstruct()
     if(AugmentScroll)
     {
         AugmentScroll->ClearChildren();auto* Note=WidgetTree->ConstructWidget<UTextBlock>();
-        Note->SetFont(FSlateFontInfo(MenuFont.Get(),18));Note->SetAutoWrapText(true);
+        Note->SetFont(FSlateFontInfo(MenuFont.Get(),18));Note->SetAutoWrapText(true);Note->SetWrapTextAt(376.f);
         Note->SetText(FText::FromString(TEXT("증강 도감: Q\n보유 중인 증강: E\n스킬: 1 ~ 6\n\n도움말은 메인 메뉴 Help → 조작에서 확인하세요.")));AugmentScroll->AddChild(Note);
     }
     if(AugmentScroll)
@@ -130,7 +130,7 @@ void UDreamPauseWidget::NativeConstruct()
             auto* Button=WidgetTree->ConstructWidget<UButton>(UButton::StaticClass(),TEXT("SimplifiedEffectsToggle"));
             FButtonStyle Style;FSlateBrush Brush;Brush.SetResourceObject(NormalTexture);Brush.DrawAs=ESlateBrushDrawType::Box;Brush.Margin=FMargin(.12f);Style.Normal=Style.Hovered=Style.Pressed=Brush;Button->SetStyle(Style);
             EffectModeLabel=WidgetTree->ConstructWidget<UTextBlock>();EffectModeLabel->SetFont(FSlateFontInfo(MenuFont.Get(),20));EffectModeLabel->SetText(FText::FromString(Pref->IsSimplifiedEffects()?TEXT("증강 연출 · 간소화"):TEXT("증강 연출 · 기본")));EffectModeLabel->SetJustification(ETextJustify::Center);EffectModeLabel->SetAutoWrapText(false);Button->SetToolTipText(FText::FromString(TEXT("클릭하여 기본 / 간소화 전환")));Button->SetContent(EffectModeLabel);auto* ActionSize=WidgetTree->ConstructWidget<USizeBox>();ActionSize->SetHeightOverride(48);ActionSize->SetContent(Button);Button->OnClicked.AddUniqueDynamic(this,&UDreamPauseWidget::ToggleEffectMode);AugmentScroll->AddChild(ActionSize);
-            auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* Details=WidgetTree->ConstructWidget<UTextBlock>();Details->SetFont(FSlateFontInfo(MenuFont.Get(),16));Details->SetAutoWrapText(true);Details->SetColorAndOpacity(FLinearColor(.88f,.8f,.96f));
+            auto* P=Cast<AMainPlayerCharacter>(GetOwningPlayerPawn());auto* Details=WidgetTree->ConstructWidget<UTextBlock>();Details->SetFont(FSlateFontInfo(MenuFont.Get(),16));Details->SetAutoWrapText(true);Details->SetWrapTextAt(376.f);Details->SetColorAndOpacity(FLinearColor(.88f,.8f,.96f));
             Details->SetText(FText::FromString(TEXT("\n간소화에서도 장판·방어벽·적 공격 경고는 유지됩니다.\n\n")+Pref->GetGoalText(P?P->DispatchTable.Get():nullptr)+TEXT("\n\n최근 전투\n")+Pref->GetLastReportText()));AugmentScroll->AddChild(Details);
         }
     }

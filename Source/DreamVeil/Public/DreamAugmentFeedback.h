@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 #include "CoreMinimal.h"
 #include "Subsystems/WorldSubsystem.h"
 #include "GameFramework/Actor.h"
@@ -6,6 +6,7 @@
 #include "DreamPoolable.h"
 #include "DreamAugmentFeedback.generated.h"
 class UStaticMeshComponent;
+class UPoseableMeshComponent;
 class UInstancedStaticMeshComponent;
 class UMaterialInterface;
 class UMaterialInstanceDynamic;
@@ -15,7 +16,7 @@ class USoundConcurrency;
 class ADreamAugmentCue;
 
 UENUM(BlueprintType)
-enum class EDreamAugmentCueShape : uint8 { Impact, Ring, Beam, Aura, Mark, Field, Barrier, Decoy, Acquire };
+enum class EDreamAugmentCueShape : uint8 { Impact, Ring, Beam, Aura, Mark, Field, Barrier, Decoy, Acquire, Siphon };
 
 // Cosmetic only. No damage, movement, collision, navigation or gameplay timers are owned here.
 UCLASS()
@@ -42,7 +43,8 @@ private:
     UPROPERTY() TObjectPtr<USoundAttenuation> Attenuation;
     UPROPERTY() TObjectPtr<USoundConcurrency> Concurrency;
     TArray<TWeakObjectPtr<ADreamAugmentCue>> Cues;
-    TMap<EAugmentID,float> SoundReady,ProcReady,Failures;
+    TMap<EAugmentID,float> SoundReady,Failures;
+    TMap<uint16,float> ProcReady;
     float Window=-1,NoticeUntil=0;
     int32 WindowCount=0;
     FString NoticeText;
@@ -84,5 +86,14 @@ private:
     FVector Location,Destination;
     float Started=0,Until=0,Radius=65,Strength=.7f;
     bool bPlaying=false,bTrackState=false;
+    UPROPERTY() TObjectPtr<UInstancedStaticMeshComponent> Motifs;
+    UPROPERTY() TObjectPtr<UPoseableMeshComponent> Ghost;
+    UPROPERTY() TObjectPtr<UMaterialInterface> SignatureMaterial;
+    UPROPERTY() TObjectPtr<UMaterialInterface> GhostMaterial;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> SignatureMID;
+    UPROPERTY() TObjectPtr<UMaterialInstanceDynamic> GhostMID;
+    int32 SignatureStyle=0;
+    void ConfigureSignatureVisuals();
+    bool UpdateSignatureVisuals(float Time,float T,float Fade,const FVector& Point);
     void UpdateVisual();
 };

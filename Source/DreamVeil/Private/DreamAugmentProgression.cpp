@@ -1,4 +1,4 @@
-﻿#include "DispatchTableComponent.h"
+#include "DispatchTableComponent.h"
 #include "DreamAugmentCatalog.h"
 #include "DreamAugmentRuntime.h"
 #include "DreamAugmentFeedback.h"
@@ -185,14 +185,16 @@ FText UDispatchTableComponent::GetCurrentAugmentDescription(EAugmentID ID) const
 {
     if(HasAcquiredAugment(EAugmentID::LastBreath))
     {
-        if(ID==EAugmentID::Berserker) return FText::FromString(FString::Printf(TEXT("마지막 한숨 적용: 체력 %.0f%% 이하에서 공격력 %.1f배, 10%% 이하에서 %.1f배입니다. 두 배율은 중첩되지 않습니다."),LastBreathHealthRatio*100,LastBreathAttackMultiplier,LastBreathCriticalMultiplier));
-        if(ID==EAugmentID::LastFortress) return FText::FromString(FString::Printf(TEXT("마지막 한숨 적용: 고정 방어력 +%.0f 후 최후의 요새 1.5배가 적용됩니다. 실제 최대 체력은 유지하고 회복 상한은 %.0f%%입니다."),LastBreathDefenceBonus,LastBreathHealthRatio*100));
-        if(ID==EAugmentID::HealthUp || ID==EAugmentID::Vampire || ID==EAugmentID::Regeneration)
-            return FText::FromString(GetAugmentDescription(ID).ToString()+FString::Printf(TEXT(" 마지막 한숨의 %.0f%% 회복 상한을 넘지 않습니다."),LastBreathHealthRatio*100));
+        if(ID==EAugmentID::Berserker) return FText::FromString(FString::Printf(TEXT("체력 %.0f%% 이하: 공격력 %.1f배.\n체력 10%% 이하: 공격력 %.1f배.\n마지막 한숨 적용 중. 높은 배율만 적용됩니다."),LastBreathHealthRatio*100,LastBreathAttackMultiplier,LastBreathCriticalMultiplier));
+        if(ID==EAugmentID::LastFortress) return FText::FromString(FString::Printf(TEXT("방어력 +%.0f 후 방어력 1.5배.\n마지막 한숨 적용 중: 체력·회복 상한 %.0f%%."),LastBreathDefenceBonus,LastBreathHealthRatio*100));
     }
-    if(ID==EAugmentID::SuppressionPulse) return FText::FromString(FString::Printf(TEXT("경직탄 + 방어력 증가 1중첩 + 효과 범위 증가 1중첩. 재료와 기본 경직탄을 유지합니다. 기본 %.2fm (현재 %.2fm) 안의 일반 적을 %.2f초 경직. 엘리트 절반·보스 면역·특수 패턴 보호. 피해·무적 없음. 스태미나 %.0f + 잔여 20 필요, 재사용 %.1f초."),PulseRadius/100,PulseRadius*GetEffectRangeMultiplier()/100,PulseStaggerDuration,PulseStaminaCost,PulseCooldown));
-    if(ID==EAugmentID::LastBreath) return FText::FromString(FString::Printf(TEXT("광전사 + 최후의 요새. 실제 최대 체력 유지, 현재 체력·모든 회복 상한 %.0f%%. 진화 시 회복하지 않습니다. 공격력 %.1f배 (체력 10%% 이하 %.1f배), 고정 방어력 +%.0f 후 요새 1.5배. 영구 효과이며 버튼·스태미나 소모·스킬 슬롯 사용이 없습니다."),LastBreathHealthRatio*100,LastBreathAttackMultiplier,LastBreathCriticalMultiplier,LastBreathDefenceBonus));
-    return GetAugmentDescription(ID);
+    if(ID==EAugmentID::SuppressionPulse) return FText::FromString(FString::Printf(TEXT("주변 %.2fm 적을 %.2f초 경직시킵니다.\n기본 범위 %.2fm. 엘리트 지속 시간 절반.\n보스 면역·특수 패턴 보호. 피해·무적 없음.\n기본 스태미나 %.0f · 재사용 %.1f초\n사용 후 스태미나 20 이상 필요."),PulseRadius*GetEffectRangeMultiplier()/100,PulseStaggerDuration,PulseRadius/100,PulseStaminaCost,PulseCooldown));
+    if(ID==EAugmentID::LastBreath) return FText::FromString(FString::Printf(TEXT("현재 체력·회복 상한: 최대 체력의 %.0f%%.\n공격력 %.1f배, 체력 10%% 이하 %.1f배.\n방어력 +%.0f 후 최후의 요새 1.5배 적용.\n영구 진화 · 해제 불가. 진화 시 회복하지 않습니다.\n버튼·스태미나·스킬 칸을 사용하지 않습니다."),LastBreathHealthRatio*100,LastBreathAttackMultiplier,LastBreathCriticalMultiplier,LastBreathDefenceBonus));
+    const auto* Definition=DreamAugmentCatalog::Find(ID);
+    FString Description=Definition?Definition->Description:GetAugmentDescription(ID).ToString();
+    if(const auto* Def=DreamAugmentCatalog::Find(ID);Def&&Def->Evolution&&!Def->Permanent)
+        Description+=TEXT("\n사용 후 스태미나 20 이상 필요.");
+    return FText::FromString(Description);
 }
 
 EAugmentID UDispatchTableComponent::FindAugmentByCode(const FString& Code){return DreamAugmentCatalog::FromCode(Code);}

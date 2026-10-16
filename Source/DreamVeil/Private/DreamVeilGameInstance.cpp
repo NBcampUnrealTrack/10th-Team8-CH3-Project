@@ -4,6 +4,10 @@
 #include "DreamVeilGameInstance.h"
 #include "DreamPlayPolish.h"
 #include "DreamBalanceProfile.h"
+#include "DreamEndlessLoadingWidget.h"
+#include "Engine/World.h"
+#include "Misc/Paths.h"
+#include "HAL/FileManager.h"
 #include "MoviePlayer.h"
 #include "Widgets/Layout/SBorder.h"
 #include "Widgets/Text/STextBlock.h"
@@ -427,6 +431,7 @@ APawn* UDreamVeilGameInstance::FindCurrentPlayerPawn() const
 //아직 안 열렸으면 아무것도 하지 않고 false라서 UI가 버튼을 막지 못해도 안전함
 bool UDreamVeilGameInstance::OpenEndless()
 {
+    if(bEndlessTransitionPending)return false;
     if (!IsEndlessUnlocked())
     {
         return false;
@@ -435,21 +440,54 @@ bool UDreamVeilGameInstance::OpenEndless()
     // Capture purchases, currency and level progress made in the lobby before travel.
     SaveCurrentPlayerProgress();
     bHardRunEnded = false;
+    bEndlessTransitionPending=true;
+    if(GetWorld()&&GetWorld()->WorldType==EWorldType::PIE)
+    {
+        if(auto* PC=UGameplayStatics::GetPlayerController(this,0))
+        {
+            EndlessTransitionWidget=CreateWidget<UDreamEndlessLoadingWidget>(PC);
+            if(EndlessTransitionWidget){EndlessTransitionWidget->AddToViewport(1000);return true;}
+        }
+    }
+    PrepareEndlessMovie();
+    UGameplayStatics::OpenLevel(this, ENDLESS_MAP_PATH);
+    return true;
+}
+void UDreamVeilGameInstance::PrepareEndlessMovie()
+{
     if(IsMoviePlayerEnabled()&&GetMoviePlayer()&&GetWorld()&&GetWorld()->WorldType!=EWorldType::PIE)
     {
         FLoadingScreenAttributes Loading;
-        Loading.MinimumLoadingScreenDisplayTime=3.f;Loading.bAutoCompleteWhenLoadingCompletes=true;
+        Loading.MinimumLoadingScreenDisplayTime=4.f;Loading.bAutoCompleteWhenLoadingCompletes=true;
         Loading.bMoviesAreSkippable=false;Loading.PlaybackType=MT_Looped;
-        Loading.MoviePaths.Add(TEXT("EndlessTransition"));
+        if(IFileManager::Get().FileExists(*(FPaths::ProjectContentDir()/TEXT("Movies/EndlessTransition.mp4"))))Loading.MoviePaths.Add(TEXT("EndlessTransition"));
         Loading.WidgetLoadingScreen=SNew(SOverlay)
             +SOverlay::Slot().HAlign(HAlign_Center).VAlign(VAlign_Bottom).Padding(0,0,0,50)
             [SNew(SBorder).BorderBackgroundColor(FLinearColor(.035f,.015f,.06f,.9f)).Padding(FMargin(28,12))
                 [SNew(STextBlock).Text(FText::FromString(TEXT("ENDLESS  ·  악몽의 도시로 이동 중…"))).ColorAndOpacity(FLinearColor(.85f,.7f,1.f))]];
         GetMoviePlayer()->SetupLoadingScreen(Loading);
+        UE_LOG(LogTemp,Display,TEXT("EndlessTransition MoviePlayer prepared: %d movie(s), minimum 4 seconds"),Loading.MoviePaths.Num());
     }
-    UGameplayStatics::OpenLevel(this, ENDLESS_MAP_PATH);
-
-    return true;
+}
+void UDreamVeilGameInstance::Init()
+{
+    Super::Init();FCoreUObjectDelegates::PreLoadMapWithContext.AddUObject(this,&UDreamVeilGameInstance::HandlePreLoadMap);
+    FCoreUObjectDelegates::PostLoadMapWithWorld.AddUObject(this,&UDreamVeilGameInstance::HandlePostLoadMap);
+}
+void UDreamVeilGameInstance::Shutdown()
+{
+    FCoreUObjectDelegates::PreLoadMapWithContext.RemoveAll(this);FCoreUObjectDelegates::PostLoadMapWithWorld.RemoveAll(this);
+    if(EndlessTransitionWidget)EndlessTransitionWidget->RemoveFromParent();EndlessTransitionWidget=nullptr;bEndlessTransitionPending=false;Super::Shutdown();
+}
+void UDreamVeilGameInstance::HandlePreLoadMap(const FWorldContext& Context,const FString& MapName)
+{
+    if(Context.OwningGameInstance!=this)return;
+    if(FPackageName::GetShortName(MapName)==TEXT("Endless"))PrepareEndlessMovie();
+}
+void UDreamVeilGameInstance::HandlePostLoadMap(UWorld* LoadedWorld)
+{
+    if(!LoadedWorld||LoadedWorld->GetGameInstance()!=this)return;
+    if(EndlessTransitionWidget)EndlessTransitionWidget->RemoveFromParent();EndlessTransitionWidget=nullptr;bEndlessTransitionPending=false;
 }
 
 //지금 맵이 무한 모드인지

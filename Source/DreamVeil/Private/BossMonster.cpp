@@ -89,12 +89,17 @@ void ABossMonster::BeginPlay()
 void ABossMonster::MonsterInit()
 {
 	Super::MonsterInit();
-    // The final campaign encounter alone is softened. Endless bosses retain their scaling.
+    // Preserve the earlier final-stage tuning, then reduce all bosses relative to that baseline.
     const auto* GI=GetGameInstance<UDreamVeilGameInstance>();
     if(GI&&GI->IsInLevelMap()&&GI->GetCurrentLevelNumber()==GI->GetLevelCount()&&MonsterCombatStats)
     {
         MaxHealth*=.85f;
         MonsterCombatStats->InitStats(MaxHealth,MonsterCombatStats->GetDefencePower(),MonsterCombatStats->GetAttackPower()*.9f);
+    }
+    if(MonsterCombatStats)
+    {
+        MaxHealth*=FMath::Clamp(BossHealthMultiplier,.1f,1.f);
+        MonsterCombatStats->InitStats(MaxHealth,MonsterCombatStats->GetDefencePower(),MonsterCombatStats->GetAttackPower()*FMath::Clamp(BossDamageMultiplier,.1f,1.f));
     }
 
 	MonsterAttackRange = 1500.0f;

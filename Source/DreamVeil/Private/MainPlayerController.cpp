@@ -1,6 +1,7 @@
-﻿#include "MainPlayerController.h"
+#include "MainPlayerController.h"
 #include "DreamPlayPolish.h"
 #include "DreamRunSummaryWidget.h"
+#include "DreamBossHealthWidget.h"
 #include "DreamPauseWidget.h"
 #include "DreamInteractionPrompt.h"
 #include "DreamAugmentPanel.h"
@@ -90,6 +91,8 @@ void AMainPlayerController::BeginPlay()
     {
         if (auto* Warning = CreateWidget<UDreamTimeWarningWidget>(this)) Warning->AddToViewport(5);
         UDreamAugmentPanel::InstallSkillHUD(this);
+        if(IsLocalController()&&!DreamVeilGameInstance->IsInEndless())
+            if(auto* BossBar=CreateWidget<UDreamBossHealthWidget>(this))BossBar->AddToViewport(4);
     }
 
     if(IsLocalController()&&DreamVeilGameInstance&&!DreamVeilGameInstance->IsInMainMenu())
@@ -537,7 +540,7 @@ void AMainPlayerController::OpenAugmentGuide()
 {
     if(auto* Panel=Cast<UDreamAugmentPanel>(MenuWidgetInstance)) { Panel->HandleAction(0);return; }
     const auto* GI=GetGameInstance<UDreamVeilGameInstance>();auto* P=Cast<AMainPlayerCharacter>(GetPawn());
-    if(!IsLocalController()||!P||!GI||!GI->IsInLevelMap()||bGameOverOpen||bEndingOpen||bDeathPresentationActive||IsMenuWidgetOpen()||P->HasAugmentChoices()||!P->CombatStats||P->CombatStats->IsDead())return;
+    if(!IsLocalController()||!P||!GI||(!GI->IsInLevelMap()&&!GI->IsInEndless())||bGameOverOpen||bEndingOpen||bDeathPresentationActive||IsMenuWidgetOpen()||P->HasAugmentChoices()||!P->CombatStats||P->CombatStats->IsDead())return;
     UDreamAugmentPanel::OpenGuide(this);
 }
 void AMainPlayerController::OpenOwnedAugments()

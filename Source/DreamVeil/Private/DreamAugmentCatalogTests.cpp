@@ -43,4 +43,49 @@ bool FDreamCatalogDefense::RunTest(const FString&){DreamCatalogTests::FWorld W;a
 
 CAT_TEST(FDreamCatalogEffects,"FocusFireBurnTimingAndNoProcRecursion")
 bool FDreamCatalogEffects::RunTest(const FString&){DreamCatalogTests::FWorld W;auto* P=W.Player();auto* D=P->DispatchTable.Get();D->ApplyAugment(EAugmentID::FocusFire);auto* R=D->GetRuntime();auto* M=W.W->SpawnActor<AMonsterBase>(FVector(500,0,0),FRotator::ZeroRotator);M->MonsterCombatStats->InitStats(1000,0,1);FHitResult H;H.ImpactPoint=M->GetActorLocation();for(int32 I=0;I<3;++I){TestEqual(TEXT("First three hits unchanged"),R->ModifyDirectDamage(M,100,false),100.f);R->AfterDirectHit(M,100,false,H);}TestEqual(TEXT("Fourth focus hit"),R->ModifyDirectDamage(M,100,false),125.f);R->AfterDirectHit(M,100,false,H);TestEqual(TEXT("Cycle resets"),R->ModifyDirectDamage(M,100,false),100.f);W.Advance(.03f);AddInfo(FString::Printf(TEXT("Burn fixture: damaged %d player dead %d"),M->CanBeDamaged(),P->CombatStats->IsDead()));R->Burn(M,100,3);W.Advance(1.2f);AddInfo(FString::Printf(TEXT("Burn after 1.2: time %f HP %f fire %d"),R->Now(),M->MonsterCombatStats->GetCurrentHealth(),M->MonsterCombatStats->IsOnFire()));W.Advance(2.f);TestEqual(TEXT("Three burn ticks even with off-grid start"),M->MonsterCombatStats->GetCurrentHealth(),970.f);TestFalse(TEXT("Burn visual expires"),M->MonsterCombatStats->IsOnFire());const int32 Shots=R->ShotNumber;UGameplayStatics::ApplyDamage(M,10,P->GetController(),P,UAugmentSecondaryDamageType::StaticClass());TestEqual(TEXT("Secondary damage does not count as another shot"),R->ShotNumber,Shots);TestEqual(TEXT("Secondary damage does not advance focus hits"),R->ModifyDirectDamage(M,100,false),100.f);return true;}
+
+CAT_TEST(FDreamHighHealthAugment,"HealthAugmentAbove100AndPermanentRecoveryCap")
+bool FDreamHighHealthAugment::RunTest(const FString&)
+{
+    DreamCatalogTests::FWorld W;auto* P=W.Player();auto* D=P->DispatchTable.Get();auto* S=P->CombatStats.Get();
+    P->RestoreLevelProgress(11,0);S->ResetHealth();
+    TestEqual(TEXT("Level growth maximum exceeds 100"),S->GetMaxHealth(),120.f);
+    TestTrue(TEXT("First health reward"),D->ApplyAugment(EAugmentID::HealthUp));
+    TestEqual(TEXT("Augment grows restored maximum"),S->GetMaxHealth(),140.f);
+    TestEqual(TEXT("Augment heals above 100"),S->GetCurrentHealth(),140.f);
+    S->SetCurrentHealth(90);D->ApplyAugment(EAugmentID::HealthUp);
+    TestEqual(TEXT("Injured reward grows maximum"),S->GetMaxHealth(),160.f);
+    TestEqual(TEXT("Injured reward heals 20, not full refill"),S->GetCurrentHealth(),110.f);
+    for(auto ID:{EAugmentID::Berserker,EAugmentID::LastFortress})D->ApplyAugment(ID);
+    DreamCatalogTests::Choices(P,{EAugmentID::LastBreath});P->SelectAugmentChoice(EAugmentID::LastBreath);
+    TestEqual(TEXT("Permanent cap is 20 percent"),S->GetCurrentHealth(),32.f);
+    D->ApplyAugment(EAugmentID::HealthUp);
+    TestEqual(TEXT("Permanent evolution keeps growing maximum"),S->GetMaxHealth(),180.f);
+    TestEqual(TEXT("Health augment respects new recovery cap"),S->GetCurrentHealth(),36.f);
+    S->SetCurrentHealth(5);S->ResetHealth();
+    TestEqual(TEXT("Stage refill respects permanent recovery cap"),S->GetCurrentHealth(),36.f);
+    return true;
+}
+CAT_TEST(FDreamReadableCopy,"ReadableCardsAndLegacyDescriptionRouting")
+bool FDreamReadableCopy::RunTest(const FString&)
+{
+    for(const auto& Def:DreamAugmentCatalog::All())
+    {
+        TestFalse(*FString::Printf(TEXT("%s has concise card copy"),*Def.Code),Def.CardText.IsEmpty());
+        TestTrue(*FString::Printf(TEXT("%s fits card copy budget"),*Def.Code),Def.CardText.Len()<=120);
+        TestEqual(*FString::Printf(TEXT("%s uses same description across legacy and new entries"),*Def.Code),UDispatchTableComponent::GetAugmentDescription(Def.ID).ToString(),Def.CardText);
+        if(Def.Evolution&&!Def.Permanent)
+        {
+            TestTrue(TEXT("Skill card shows stamina cost"),Def.CardText.Contains(TEXT("스태미나")));
+            TestTrue(TEXT("Skill card shows cooldown"),Def.CardText.Contains(TEXT("재사용")));
+        }
+    }
+    const auto* Health=DreamAugmentCatalog::Find(EAugmentID::HealthUp);
+    TestTrue(TEXT("Health reward states actual recovery"),Health->CardText.Contains(TEXT("체력 20 회복")));
+    const auto* Permanent=DreamAugmentCatalog::Find(EAugmentID::LastBreath);
+    TestTrue(TEXT("Permanent card states health risk"),Permanent->CardText.Contains(TEXT("20%")));
+    TestTrue(TEXT("Permanent card states irreversibility"),Permanent->CardText.Contains(TEXT("해제 불가")));
+    return true;
+}
+
 #endif

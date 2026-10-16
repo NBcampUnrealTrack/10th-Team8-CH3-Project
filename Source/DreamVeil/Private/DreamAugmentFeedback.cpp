@@ -1,4 +1,4 @@
-﻿#include "DreamAugmentFeedback.h"
+#include "DreamAugmentFeedback.h"
 #include "DreamPlayPolish.h"
 #include "MonsterBase.h"
 #include "DreamAugmentRuntime.h"
@@ -12,6 +12,7 @@
 #include "Components/InstancedStaticMeshComponent.h"
 #include "Components/CapsuleComponent.h"
 #include "Components/SceneComponent.h"
+#include "Components/PoseableMeshComponent.h"
 #include "Materials/MaterialInstanceDynamic.h"
 #include "Engine/StaticMesh.h"
 #include "Engine/World.h"
@@ -19,6 +20,7 @@
 #include "Sound/SoundAttenuation.h"
 #include "Sound/SoundConcurrency.h"
 #include "Kismet/GameplayStatics.h"
+#include "Camera/PlayerCameraManager.h"
 #include "UObject/ConstructorHelpers.h"
 
 UDreamAugmentFeedback::UDreamAugmentFeedback()
@@ -41,12 +43,17 @@ FLinearColor UDreamAugmentFeedback::Color(EAugmentID ID)
     switch(ID)
     {
     case EAugmentID::ContinuousAttack:case EAugmentID::AreaAttack:case EAugmentID::SkillFlame:case EAugmentID::SkillExplosion:return FLinearColor(1,.055f,.003f);
-    case EAugmentID::ChillingRounds:case EAugmentID::SkillChill:case EAugmentID::SkillTimeLock:return FLinearColor(.004f,.3f,1);
+    case EAugmentID::ChillingRounds:case EAugmentID::SkillChill:case EAugmentID::SkillTimeLock:return FLinearColor(.16f,.65f,1);
     case EAugmentID::Vampire:case EAugmentID::SkillVampire:case EAugmentID::Berserker:case EAugmentID::Rampage:case EAugmentID::LastBreath:case EAugmentID::SkillExecute:return FLinearColor(.95f,.003f,.045f);
     case EAugmentID::Regeneration:case EAugmentID::SkillRegenerate:case EAugmentID::AutoCleanse:case EAugmentID::SkillCleanse:return FLinearColor(.003f,.85f,.12f);
     case EAugmentID::AutoShield:case EAugmentID::LastFortress:case EAugmentID::SkillFortress:case EAugmentID::SkillShield:case EAugmentID::SkillGuard:case EAugmentID::SkillCounter:case EAugmentID::ProjectileGuard:case EAugmentID::Resolve:return FLinearColor(1,.28f,.008f);
     case EAugmentID::ChainRounds:case EAugmentID::SkillChain:case EAugmentID::Knockback:case EAugmentID::SuppressionPulse:return FLinearColor(.015f,.08f,1);
-    default:return FLinearColor(.38f,.006f,1);
+    case EAugmentID::PiercingRounds:case EAugmentID::SkillPiercing:return FLinearColor(.04f,.85f,1.f);
+    case EAugmentID::FocusFire:case EAugmentID::SkillOvercharge:return FLinearColor(1.f,.65f,.12f);
+    case EAugmentID::FragmentRounds:case EAugmentID::SkillScatter:return FLinearColor(1.f,.3f,.6f);
+    case EAugmentID::RiftRounds:case EAugmentID::GravityMark:case EAugmentID::SealRounds:case EAugmentID::SkillRift:case EAugmentID::SkillSeal:case EAugmentID::SkillGravity:return FLinearColor(.65f,.15f,1.f);
+    case EAugmentID::CrisisEscape:case EAugmentID::SprintBoost:case EAugmentID::RetreatTactics:case EAugmentID::MobileSupport:case EAugmentID::SkillSprint:case EAugmentID::SkillMobileFire:return FLinearColor(.03f,1.f,.6f);
+    default:return FLinearColor(.65f,.12f,1);
     }
 }
 int32 UDreamAugmentFeedback::GetActiveCueCount() const
@@ -56,6 +63,8 @@ int32 UDreamAugmentFeedback::GetActiveCueCount() const
 ADreamAugmentCue* UDreamAugmentFeedback::Emit(AActor* Source,EAugmentID ID,EDreamAugmentCueShape Shape,const FVector& Point,float Radius,float Seconds,AActor* Follow,const FVector& End,bool TrackState)
 {
     if(!IsValid(Source)||!Source->GetWorld()||!Source->GetWorld()->IsGameWorld()||Source->GetNetMode()==NM_DedicatedServer||Seconds<=0||Point.ContainsNaN()||End.ContainsNaN())return nullptr;
+    if(Cast<AMainPlayerCharacter>(Source)&&Shape!=EDreamAugmentCueShape::Acquire&&Shape!=EDreamAugmentCueShape::Field&&Shape!=EDreamAugmentCueShape::Barrier&&Shape!=EDreamAugmentCueShape::Decoy)
+    {if(Shape==EDreamAugmentCueShape::Impact||Shape==EDreamAugmentCueShape::Ring||Shape==EDreamAugmentCueShape::Beam)Seconds=FMath::Max(Seconds,.55f);}
     auto* World=Source->GetWorld();auto* System=World->GetSubsystem<UDreamAugmentFeedback>();
     const auto* D=Source->FindComponentByClass<UDispatchTableComponent>();
     if(!System||(D&&!D->bAugmentFeedbackEnabled))return nullptr;
@@ -67,6 +76,8 @@ ADreamAugmentCue* UDreamAugmentFeedback::Emit(AActor* Source,EAugmentID ID,EDrea
     const bool Maintained=Shape==EDreamAugmentCueShape::Aura||Shape==EDreamAugmentCueShape::Mark||Shape==EDreamAugmentCueShape::Field||Shape==EDreamAugmentCueShape::Barrier||Shape==EDreamAugmentCueShape::Decoy;
     if(Maintained)for(const auto& Cue:System->Cues)if(Cue->Matches(Source,ID,Shape,Follow)){Cue->Refresh(Seconds);return Cue.Get();}
     const auto* Def=DreamAugmentCatalog::Find(ID);const bool Priority=Def&&Def->Evolution;
+    const uint16 ProcKey=(static_cast<uint16>(ID)<<4)|static_cast<uint16>(Shape);
+    const bool FragmentLinks=ID==EAugmentID::FragmentRounds&&Shape==EDreamAugmentCueShape::Beam;
     if(Time-System->Window>=.1f||Time<System->Window){System->Window=Time;System->WindowCount=0;}
     const bool Essential=Shape==EDreamAugmentCueShape::Field||Shape==EDreamAugmentCueShape::Barrier||Shape==EDreamAugmentCueShape::Decoy||Cast<AMonsterBase>(Source)!=nullptr;
     if(Essential&&System->GetActiveCueCount()>=32)
@@ -75,12 +86,12 @@ ADreamAugmentCue* UDreamAugmentFeedback::Emit(AActor* Source,EAugmentID ID,EDrea
         System->Cues.RemoveAll([](const auto& Old){return !Old.IsValid()||!Old->IsPlaying();});
     }
     if(System->GetActiveCueCount()>=(Priority||Essential?32:(Simple?12:24))||(!Essential&&System->WindowCount>=(Priority?10:Simple?3:6)))return nullptr;
-    if(Simple&&!Priority&&!Essential&&System->ProcReady.FindRef(ID)>Time)return nullptr;
-    if(!Priority&&!Maintained&&System->ProcReady.FindRef(ID)>Time)return nullptr;
+    if(Simple&&!Priority&&!Essential&&!FragmentLinks&&System->ProcReady.FindRef(ProcKey)>Time)return nullptr;
+    if(!Priority&&!Maintained&&!FragmentLinks&&System->ProcReady.FindRef(ProcKey)>Time)return nullptr;
     auto* Cue=Cast<ADreamAugmentCue>(UDreamObjectPoolSubsystem::Spawn(World,ADreamAugmentCue::StaticClass(),FTransform(Point),Source));
     if(!Cue)return nullptr;
     System->Cues.Add(Cue);++System->WindowCount;
-    if(!Priority&&!Maintained)System->ProcReady.Add(ID,Time+(Simple?.3f:.12f));
+    if(!Priority&&!Maintained)System->ProcReady.Add(ProcKey,Time+(Simple?.3f:.12f));
     const bool ThreatNearby=System->Cues.ContainsByPredicate([](const auto& C){return C.IsValid()&&C->bThreat&&C->IsPlaying();});
     Cue->Configure(Source,ID,Shape,Point,End,Radius,Seconds,Follow,TrackState,System->RingMaterial,System->EnergyMaterial,(D?D->AugmentEffectOpacity:.85f)*(Simple&&!Essential?.65f:1.f)*(ThreatNearby&&!Essential?.55f:1.f));
     // Fields and markers are silent; only their original cast/impact has a sound.
@@ -132,6 +143,10 @@ ADreamAugmentCue::ADreamAugmentCue()
     RingA->SetStaticMesh(Plane.Object);RingB->SetStaticMesh(Plane.Object);Sparks->SetStaticMesh(Cube.Object);
     for(UStaticMeshComponent* Mesh:{RingA.Get(),RingB.Get(),static_cast<UStaticMeshComponent*>(Sparks.Get())})
     {Mesh->SetupAttachment(RootComponent);Mesh->SetCollisionEnabled(ECollisionEnabled::NoCollision);Mesh->SetCastShadow(false);Mesh->SetCanEverAffectNavigation(false);Mesh->bReceivesDecals=false;Mesh->SetCullDistance(5000);}
+    Motifs=CreateDefaultSubobject<UInstancedStaticMeshComponent>(TEXT("SignatureMotes"));Motifs->SetupAttachment(RootComponent);Motifs->SetStaticMesh(Plane.Object);
+    Motifs->SetCollisionEnabled(ECollisionEnabled::NoCollision);Motifs->SetCastShadow(false);Motifs->SetCanEverAffectNavigation(false);Motifs->bReceivesDecals=false;Motifs->SetCullDistance(5000);
+    Ghost=CreateDefaultSubobject<UPoseableMeshComponent>(TEXT("DecoySilhouette"));Ghost->SetupAttachment(RootComponent);Ghost->SetCollisionEnabled(ECollisionEnabled::NoCollision);Ghost->SetCastShadow(false);Ghost->SetCanEverAffectNavigation(false);Ghost->SetCullDistance(5000);Ghost->bReceivesDecals=false;Ghost->SetComponentTickEnabled(false);Ghost->SetVisibility(false);
+    static ConstructorHelpers::FObjectFinderOptional<UMaterialInterface> Glyph(TEXT("/Game/Effects/Augments/Feedback/M_AugmentSignature")),Echo(TEXT("/Game/Effects/Augments/Feedback/M_AugmentGhost"));SignatureMaterial=Glyph.Get();GhostMaterial=Echo.Get();
     SetActorEnableCollision(false);
 }
 void ADreamAugmentCue::Configure(AActor* Source,EAugmentID InID,EDreamAugmentCueShape InShape,const FVector& Point,const FVector& End,float InRadius,float Seconds,AActor* Follow,bool TrackState,UMaterialInterface* Ring,UMaterialInterface* Energy,float Opacity)
@@ -142,12 +157,21 @@ void ADreamAugmentCue::Configure(AActor* Source,EAugmentID InID,EDreamAugmentCue
     SetActorEnableCollision(false);SetActorHiddenInGame(false);SetActorTickEnabled(true);SetActorLocation(Point);SetActorRotation(Shape==EDreamAugmentCueShape::Barrier?FRotator(0,Source->GetActorRotation().Yaw,0):FRotator::ZeroRotator);Sparks->ClearInstances();
     if(!RingMID&&Ring){RingMID=UMaterialInstanceDynamic::Create(Ring,this);RingA->SetMaterial(0,RingMID);RingB->SetMaterial(0,RingMID);}
     if(!EnergyMID&&Energy){EnergyMID=UMaterialInstanceDynamic::Create(Energy,this);Sparks->SetMaterial(0,EnergyMID);}
+    RingA->SetMaterial(0,RingMID);RingB->SetMaterial(0,RingMID);
+    bThreat=Cast<AMonsterBase>(Source)!=nullptr;
     const FLinearColor Tint=UDreamAugmentFeedback::Color(ID);if(RingMID)RingMID->SetVectorParameterValue(TEXT("Tint"),Tint*1.25f);if(EnergyMID)EnergyMID->SetVectorParameterValue(TEXT("Tint"),Tint*1.25f);
-    RingA->SetVisibility(Shape!=EDreamAugmentCueShape::Beam);RingB->SetVisibility(Shape==EDreamAugmentCueShape::Impact||Shape==EDreamAugmentCueShape::Mark||Shape==EDreamAugmentCueShape::Acquire||Shape==EDreamAugmentCueShape::Barrier||(Shape==EDreamAugmentCueShape::Aura&&(ID==EAugmentID::SkillShield||ID==EAugmentID::SkillGuard||ID==EAugmentID::SkillCounter||ID==EAugmentID::SkillFortress||ID==EAugmentID::AutoShield)));
+    RingA->SetVisibility(Shape!=EDreamAugmentCueShape::Beam);RingB->SetVisibility(Shape==EDreamAugmentCueShape::Impact||Shape==EDreamAugmentCueShape::Mark||Shape==EDreamAugmentCueShape::Acquire||Shape==EDreamAugmentCueShape::Barrier||(Shape==EDreamAugmentCueShape::Aura&&(ID==EAugmentID::SkillShield||ID==EAugmentID::SkillGuard||ID==EAugmentID::SkillCounter||ID==EAugmentID::SkillFortress||ID==EAugmentID::AutoShield||ID==EAugmentID::ProjectileGuard||ID==EAugmentID::Resolve||ID==EAugmentID::LastFortress)));
     if(Shape==EDreamAugmentCueShape::Beam)
     {
-        const FVector Delta=End-Point;const FVector Side=FVector::CrossProduct(Delta.GetSafeNormal(),FVector::UpVector).GetSafeNormal()*12;
-        for(int32 I=0;I<3;++I){const FVector A=FMath::Lerp(FVector::ZeroVector,Delta,I/3.f)+(I==1?Side:I==2?-Side:FVector::ZeroVector);const FVector B=FMath::Lerp(FVector::ZeroVector,Delta,(I+1)/3.f)+(I==0?Side:I==1?-Side:FVector::ZeroVector);const FVector V=B-A;Sparks->AddInstance(FTransform(V.Rotation(),(A+B)*.5f,FVector(V.Size()/100,.04f,.04f)));}
+        const FVector Delta=End-Point;
+        const bool Chain=ID==EAugmentID::ChainRounds||ID==EAugmentID::SkillChain||ID==EAugmentID::GravityMark;
+        const int32 Count=Chain?7:1;const FVector Side=FVector::CrossProduct(Delta.GetSafeNormal(),FVector::UpVector).GetSafeNormal()*35;
+        FVector A=FVector::ZeroVector;
+        for(int32 I=0;I<Count;++I)
+        {
+            const FVector B=FMath::Lerp(FVector::ZeroVector,Delta,(I+1.f)/Count)+(I==Count-1?FVector::ZeroVector:Side*(I%2?1.f:-1.f));
+            const FVector V=B-A;Sparks->AddInstance(FTransform(V.Rotation(),(A+B)*.5f,FVector(V.Size()/100,.10f,.10f)));A=B;
+        }
     }
     else if(Shape==EDreamAugmentCueShape::Barrier)
     {
@@ -155,8 +179,8 @@ void ADreamAugmentCue::Configure(AActor* Source,EAugmentID InID,EDreamAugmentCue
         for(float Z:{-100.f,100.f})Sparks->AddInstance(FTransform(FRotator(0,90,0),FVector(0,0,Z),FVector(3,.018f,.018f)));
         for(float Y:{-150.f,150.f})Sparks->AddInstance(FTransform(FRotator(90,0,0),FVector(0,Y,0),FVector(2,.018f,.018f)));
     }
-    else if(Shape==EDreamAugmentCueShape::Impact||Shape==EDreamAugmentCueShape::Acquire)for(int32 I=0;I<6;++I)Sparks->AddInstance(FTransform::Identity);
-    UpdateVisual();
+    else if(Shape==EDreamAugmentCueShape::Impact||Shape==EDreamAugmentCueShape::Acquire||(!bThreat&&(Shape==EDreamAugmentCueShape::Aura||Shape==EDreamAugmentCueShape::Mark)))for(int32 I=0;I<6;++I)Sparks->AddInstance(FTransform::Identity);
+    ConfigureSignatureVisuals();UpdateVisual();
 }
 void ADreamAugmentCue::Refresh(float Seconds){Until=FMath::Max(Until,GetWorld()->GetTimeSeconds()+FMath::Clamp(Seconds,.05f,30.f));}
 bool ADreamAugmentCue::Matches(AActor* Source,EAugmentID InID,EDreamAugmentCueShape InShape,AActor* Follow)const
@@ -174,7 +198,7 @@ void ADreamAugmentCue::UpdateVisual()
 {
     const float Time=GetWorld()->GetTimeSeconds(),Life=FMath::Max(.05f,Until-Started),T=FMath::Clamp((Time-Started)/Life,0.f,1.f);
     const bool Persistent=Shape==EDreamAugmentCueShape::Aura||Shape==EDreamAugmentCueShape::Field||Shape==EDreamAugmentCueShape::Mark||Shape==EDreamAugmentCueShape::Barrier||Shape==EDreamAugmentCueShape::Decoy;
-    const float Fade=Persistent?FMath::Min(1.f,(Until-Time)/.2f)*(.72f+.12f*FMath::Sin(Time*4)):FMath::Square(1-T);
+    const float Fade=Persistent?FMath::Min(1.f,(Until-Time)/.2f)*(.72f+.12f*FMath::Sin(Time*4)):FMath::Pow(1-T,.7f);
     if(RingMID)RingMID->SetScalarParameterValue(TEXT("Alpha"),Strength*Fade);if(EnergyMID)EnergyMID->SetScalarParameterValue(TEXT("Alpha"),Strength*Fade);
     FVector Point=Location;
     if(auto* Follow=Attachment.Get())
@@ -188,22 +212,63 @@ void ADreamAugmentCue::UpdateVisual()
     RingA->SetRelativeLocation(FVector::ZeroVector);RingA->SetRelativeRotation(FRotator::ZeroRotator);RingA->SetRelativeScale3D(FVector(Size));
     RingB->SetRelativeLocation(FVector(0,0,3));RingB->SetRelativeRotation(FRotator(0,Time*24,0));RingB->SetRelativeScale3D(FVector(Size*.65f));
     if(Shape==EDreamAugmentCueShape::Aura||Shape==EDreamAugmentCueShape::Field)RingA->SetRelativeRotation(FRotator(0,Time*18,0));
+    if(UpdateSignatureVisuals(Time,T,Fade,Point))return;
     if(Shape==EDreamAugmentCueShape::Aura&&RingB->IsVisible())
     {RingB->SetRelativeLocation(FVector(0,0,75));RingB->SetRelativeRotation(FRotator(90,Origin.IsValid()?Origin->GetActorRotation().Yaw:0,0));RingB->SetRelativeScale3D(FVector(1.6f,1.2f,1));}
     if(Shape==EDreamAugmentCueShape::Impact||Shape==EDreamAugmentCueShape::Mark)
-    {RingA->SetRelativeRotation(FRotator(90,0,0));RingB->SetRelativeRotation(FRotator(0,0,90));}
+    {
+        if(bThreat){RingA->SetRelativeRotation(FRotator(90,0,0));RingB->SetRelativeRotation(FRotator(0,0,90));}
+        else if(auto* Camera=UGameplayStatics::GetPlayerCameraManager(this,0))
+        {
+            const FRotator Facing=FRotationMatrix::MakeFromZ(Camera->GetCameraLocation()-Point).Rotator();
+            RingA->SetRelativeRotation(Facing);RingB->SetRelativeRotation(Facing+FRotator(0,0,45));
+            RingB->SetRelativeLocation((Camera->GetCameraLocation()-Point).GetSafeNormal()*3);
+        }
+    }
     if(Shape==EDreamAugmentCueShape::Barrier||Shape==EDreamAugmentCueShape::Decoy)
     {RingA->SetRelativeRotation(FRotator(90,0,0));RingB->SetRelativeRotation(FRotator(0,0,90));
         if(Shape==EDreamAugmentCueShape::Barrier){RingA->SetRelativeScale3D(FVector(2,3,1));RingB->SetRelativeScale3D(FVector(.7f));}}
     if(Shape==EDreamAugmentCueShape::Impact||Shape==EDreamAugmentCueShape::Acquire)
     for(int32 I=0;I<6;++I)
-    {const float A=I*UE_TWO_PI/6;const FVector Dir(FMath::Cos(A),FMath::Sin(A),Shape==EDreamAugmentCueShape::Acquire?.4f:.2f);Sparks->UpdateInstanceTransform(I,FTransform(Dir.Rotation(),Dir*Radius*(.3f+T),FVector(.12f,.018f,.018f)*(1-T)),false,false);}
-    if(Sparks->GetInstanceCount()>0&&(Shape==EDreamAugmentCueShape::Impact||Shape==EDreamAugmentCueShape::Acquire))Sparks->MarkRenderStateDirty();
+    {const float A=I*UE_TWO_PI/6;const FVector Dir(FMath::Cos(A),FMath::Sin(A),Shape==EDreamAugmentCueShape::Acquire?.4f:.2f);Sparks->UpdateInstanceTransform(I,FTransform(Dir.Rotation(),Dir*Radius*(.3f+T),FVector(.30f,.055f,.055f)*(1-T)),false,false);}
+    if(!bThreat&&(Shape==EDreamAugmentCueShape::Aura||Shape==EDreamAugmentCueShape::Mark))
+    {
+        const bool Moving=ID==EAugmentID::CrisisEscape||ID==EAugmentID::SprintBoost||ID==EAugmentID::RetreatTactics||ID==EAugmentID::MobileSupport||ID==EAugmentID::SkillSprint||ID==EAugmentID::SkillMobileFire;
+        const bool Healing=ID==EAugmentID::Vampire||ID==EAugmentID::Regeneration||ID==EAugmentID::AutoCleanse||ID==EAugmentID::SkillRegenerate;
+        const float Orbit=Shape==EDreamAugmentCueShape::Mark?Radius*.8f:Radius;
+        for(int32 I=0;I<6;++I)
+        {
+            const float Angle=I*UE_TWO_PI/6+Time*(Moving?4.f:1.1f);
+            FVector At(FMath::Cos(Angle)*Orbit,FMath::Sin(Angle)*Orbit,Shape==EDreamAugmentCueShape::Aura?35+FMath::Fmod(Time*45+I*20,100.f):FMath::Sin(Angle*2)*30);
+            FVector Scale(.10f,.10f,.30f);FRotator Rotation(0,Time*40,0);
+            if(Healing){Scale=I%2?FVector(.08f,.08f,.28f):FVector(.28f,.08f,.08f);At.Z=30+FMath::Fmod(Time*70+I*17,95.f);}
+            if(Moving){Scale=FVector(.38f,.06f,.06f);Rotation=FRotator(0,Origin.IsValid()?Origin->GetActorRotation().Yaw:0,0);}
+            Sparks->UpdateInstanceTransform(I,FTransform(Rotation,At,Scale),false,false);
+        }
+        if(Shape==EDreamAugmentCueShape::Mark)
+        {
+            auto* Camera=UGameplayStatics::GetPlayerCameraManager(this,0);
+            const FQuat Facing=FRotationMatrix::MakeFromZ(Camera?Camera->GetCameraLocation()-Point:FVector::UpVector).ToQuat();
+            for(int32 I=0;I<6;++I)
+            {
+                FVector A,B;
+                if(ID==EAugmentID::ChillingRounds||ID==EAugmentID::SkillChill)
+                {const float Angle=I*UE_TWO_PI/6;const FVector D(FMath::Cos(Angle),FMath::Sin(Angle),0);A=D*Radius*.24f;B=D*Radius*.8f;}
+                else if(ID==EAugmentID::SealRounds||ID==EAugmentID::SkillSeal||ID==EAugmentID::StopMark)
+                {if(I<2){A=FVector((I?1.f:-1.f)*Radius*.45f,-Radius*.7f,0);B=A+FVector(0,Radius*1.4f,0);}else{A=FVector(-Radius*.65f,Radius*(-.6f+(I-2)*.4f),0);B=A+FVector(Radius*1.3f,0,0);}}
+                else
+                {const float Angle=I*UE_TWO_PI/6;A=FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*Radius*.8f;B=FVector(FMath::Cos(Angle+UE_TWO_PI/6),FMath::Sin(Angle+UE_TWO_PI/6),0)*Radius*.8f;}
+                A=Facing.RotateVector(A);B=Facing.RotateVector(B);const FVector Delta=B-A;
+                Sparks->UpdateInstanceTransform(I,FTransform(Delta.Rotation(),(A+B)*.5f,FVector(Delta.Size()/100,.05f,.05f)),false,false);
+            }
+        }
+    }
+    if(Sparks->GetInstanceCount()>0&&Shape!=EDreamAugmentCueShape::Beam&&Shape!=EDreamAugmentCueShape::Barrier)Sparks->MarkRenderStateDirty();
 }
 void ADreamAugmentCue::PrepareForPoolReuse(){OnPoolReturned();}
 void ADreamAugmentCue::OnPoolAcquired(){SetActorEnableCollision(false);}
 void ADreamAugmentCue::OnPoolReturned()
-{bPlaying=false;bTrackState=false;bThreat=false;Origin.Reset();Attachment.Reset();Sparks->ClearInstances();RingA->SetVisibility(false);RingB->SetVisibility(false);SetActorTickEnabled(false);SetActorEnableCollision(false);}
+{bPlaying=false;bTrackState=false;bThreat=false;Origin.Reset();Attachment.Reset();Sparks->ClearInstances();Motifs->ClearInstances();Ghost->SetVisibility(false);Ghost->SetSkinnedAssetAndUpdate(nullptr);Ghost->EmptyOverrideMaterials();SignatureStyle=0;RingA->SetVisibility(false);RingB->SetVisibility(false);SetActorTickEnabled(false);SetActorEnableCollision(false);}
 
 void ADreamAugmentCue::ThreatTint(const FLinearColor& Color)
 {bThreat=true;if(RingMID)RingMID->SetVectorParameterValue(TEXT("Tint"),Color);if(EnergyMID)EnergyMID->SetVectorParameterValue(TEXT("Tint"),Color);}

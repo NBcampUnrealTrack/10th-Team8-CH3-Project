@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 
 #include "MonsterSpawnVolume.h"
@@ -16,6 +16,7 @@
 #include "NavigationSystem.h"
 #include "NavigationPath.h"
 #include "NavigationData.h"
+#include "NavMesh/NavMeshBoundsVolume.h"
 #include "GameFramework/PlayerController.h"
 #include "Components/CapsuleComponent.h"
 #include "GameFramework/Character.h"
@@ -142,84 +143,126 @@ TArray<TSubclassOf<AMonsterBase>> AMonsterSpawnVolume::GetEliteMonstersForCurren
 	return TArray<TSubclassOf<AMonsterBase>>(EliteMonsters.GetData(), AllowedCount);
 }
 
-//낼 자리를 찾음
+bool AMonsterSpawnVolume::FindSafeSpawnPoint(FVector& Point)
+{
+    bHasGroupOrigin=false;const bool Found=FindSpawnLocation(Point);bHasGroupOrigin=false;return Found;
+}
 bool AMonsterSpawnVolume::FindSpawnLocation(FVector& OutLocation)
 {
-    AMainPlayerCharacter* PawnCharacter = GetPlayerCharacter();
-    const auto* GI = GetGameInstance<UDreamVeilGameInstance>();
-    const bool bCombatMap = GI && (GI->IsInLevelMap() || GI->IsInEndless());
-    UNavigationSystemV1* Nav = FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
-    if (PawnCharacter && bCombatMap && Nav)
+    auto* PawnCharacter=GetPlayerCharacter();const auto* GI=GetGameInstance<UDreamVeilGameInstance>();
+    auto* Nav=FNavigationSystem::GetCurrent<UNavigationSystemV1>(GetWorld());
+    const bool Endless=GI&&GI->IsInEndless();
+    if(PawnCharacter&&GI&&(GI->IsInLevelMap()||Endless))
     {
-        // One existing spawn budget can cover several approach directions without
-        // multiplying the number of spawners/monsters or creating per-frame queries.
-        const float Inner = FMath::Max(MinPlayerDistance, GI->IsInEndless() ? 1800.0f : 800.0f);
-        const float Outer = GI->IsInEndless() ? FMath::Max(Inner + 400.0f, 4000.0f) : FMath::Max(Inner + 200.0f, 2000.0f);
-        const FVector PlayerNav = PawnCharacter->GetNavAgentLocation();
-        const ANavigationData* NavData = Nav->GetNavDataForProps(PawnCharacter->GetNavAgentPropertiesRef(), PlayerNav);
-        APlayerController* PC = Cast<APlayerController>(PawnCharacter->GetController());
-        auto SafePoint = [&](const FVector& Candidate, FVector& Result)
+        if(!Nav){++SpawnLocationFailures;return false;}
+        const FVector PlayerFeet=PawnCharacter->GetNavAgentLocation();
+        auto* NavData=Nav->GetNavDataForProps(PawnCharacter->GetNavAgentPropertiesRef(),PlayerFeet);
+        FNavLocation PlayerPoint;
+        if(!NavData||!Nav->ProjectPointToNavigation(PlayerFeet,PlayerPoint,FVector(300,300,350),NavData)){++SpawnLocationFailures;return false;}
+        const float Inner=FMath::Max(MinPlayerDistance,Endless?1800.f:800.f);
+        auto* PC=Cast<APlayerController>(PawnCharacter->GetController());FVector Eye;FRotator View;int32 Width=0,Height=0;
+        if(PC){PC->GetPlayerViewPoint(Eye,View);PC->GetViewportSize(Width,Height);}
+        int32 PathQueries=0;
+        auto SafePoint=[&](const FVector& Candidate,FVector& Result,const FVector& Extent)
         {
-            FNavLocation Point;
-            if (!NavData || !Nav->ProjectPointToNavigation(Candidate,Point,FVector(150,150,300),NavData)) return false;
-            if (FVector::DistSquared2D(Point.Location,PlayerNav)<FMath::Square(Inner)) return false;
-            if (PC)
+            FNavLocation Point;if(!Nav->ProjectPointToNavigation(Candidate,Point,Extent,NavData))return false;
+            const double Distance=FVector::DistSquared2D(Point.Location,PlayerFeet);
+            if(Distance<FMath::Square(Inner))return false;
+            if(Endless&&PerimeterBounds.IsValid)
             {
-                FVector Eye;FRotator View;PC->GetPlayerViewPoint(Eye,View);
-                FVector2D Screen;int32 Width=0,Height=0;PC->GetViewportSize(Width,Height);
-                const FVector BodyPoint=Point.Location+FVector(0,0,80);
-                if(PC->ProjectWorldLocationToScreen(BodyPoint,Screen,true)&&Width>0&&Height>0
-                    &&Screen.X>=0&&Screen.Y>=0&&Screen.X<=Width&&Screen.Y<=Height)
+                // Keep even fallback projections in the outer 40 m, inside the playable boundary.
+                const auto& B=PerimeterBounds;
+                const double Edge=FMath::Min(FMath::Min(Point.Location.X-B.Min.X,B.Max.X-Point.Location.X),FMath::Min(Point.Location.Y-B.Min.Y,B.Max.Y-Point.Location.Y));
+                if(Edge<150||Edge>4000)return false;
+            }
+            FCollisionQueryParams Q(SCENE_QUERY_STAT(SafeMonsterSpawn),false,PawnCharacter);
+            const FVector Body=Point.Location+FVector(0,0,105);
+            if(GetWorld()->OverlapBlockingTestByChannel(Body,FQuat::Identity,ECC_Pawn,FCollisionShape::MakeCapsule(50,95),Q))return false;
+            // Distant edge packs may be seen approaching. Nearby spawns must remain occluded.
+            if(PC&&Width>0&&Height>0&&Distance<FMath::Square(Endless?6000.f:3500.f))
+            {
+                FVector2D Screen;
+                if(PC->ProjectWorldLocationToScreen(Body,Screen,true)&&Screen.X>=-80&&Screen.Y>=-80&&Screen.X<=Width+80&&Screen.Y<=Height+80)
                 {
-                    FHitResult Hit;FCollisionQueryParams Params(SCENE_QUERY_STAT(SpawnVisibility),false,PawnCharacter);
-                    if(!GetWorld()->LineTraceSingleByChannel(Hit,Eye,BodyPoint,ECC_Visibility,Params)) return false;
+                    FHitResult Hit;if(!GetWorld()->LineTraceSingleByChannel(Hit,Eye,Body,ECC_Visibility,Q))return false;
                 }
             }
-            if(!Nav->TestPathSync(FPathFindingQuery(PawnCharacter,*NavData,Point.Location,PlayerNav))) return false;
+            if(++PathQueries>12)return false;
+            FPathFindingQuery Path(PawnCharacter,*NavData,Point.Location,PlayerPoint.Location);Path.SetAllowPartialPaths(false);
+            if(!Nav->TestPathSync(Path))return false;
             Result=Point.Location;return true;
         };
-        // Keep a pack together. Do not silently scatter a failed member elsewhere.
         if(bHasGroupOrigin)
         {
-            for(int32 I=0;I<8;++I)
+            for(int32 I=0;I<12;++I)
             {
-                const float Angle=FMath::FRandRange(0,2*PI);
-                const FVector Candidate=GroupOrigin+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*FMath::FRandRange(180.f,450.f);
-                if(SafePoint(Candidate,OutLocation)&&FVector::DistSquared2D(OutLocation,GroupOrigin)<=FMath::Square(500.f)) return true;
+                const float A=I*UE_TWO_PI/12+FMath::FRandRange(-.15f,.15f);
+                if(SafePoint(GroupOrigin+FVector(FMath::Cos(A),FMath::Sin(A),0)*FMath::FRandRange(160.f,400.f),OutLocation,FVector(140,140,200))&&FVector::DistSquared2D(OutLocation,GroupOrigin)<=FMath::Square(500.f))return true;
             }
-            return false;
+            ++SpawnLocationFailures;return false;
         }
-        const int32 FirstSector=SpawnSectorSequence++ + int32(GetUniqueID()%6);
-        // Prefer less occupied approach directions. This query runs per pack, never per frame.
-        TArray<FVector> Occupied;
-        for(TActorIterator<AMonsterBase> It(GetWorld());It;++It)
-            if(!It->IsHidden()&&It->MonsterCombatStats&&!It->MonsterCombatStats->IsDead()) Occupied.Add(It->GetActorLocation());
-        float BestScore=TNumericLimits<float>::Max();bool Found=false;
-        for(int32 Attempt=0;Attempt<6;++Attempt)
+        const int32 Sequence=SpawnSectorSequence++;
+        if(Endless)
         {
-            const float Angle=FMath::DegreesToRadians(float((FirstSector+Attempt)%6)*60.f+FMath::FRandRange(-20.f,20.f));
-            FVector Point;
-            if(!SafePoint(PlayerNav+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*FMath::FRandRange(Inner,Outer),Point))continue;
-            const FVector Direction=(Point-PlayerNav).GetSafeNormal2D();float Score=0;
-            for(const FVector& Other:Occupied)
-                if(FVector::DotProduct((Other-PlayerNav).GetSafeNormal2D(),Direction)>.7f)Score+=1.f;
-            if(!Found||Score<BestScore){BestScore=Score;OutLocation=Point;Found=true;}
-            // Zero occupied approaches is the optimal score; later path queries cannot improve it.
-            if(BestScore==0.f)break;
+            const float Now=GetWorld()->GetTimeSeconds();
+            if(!PerimeterBounds.IsValid||Now>=NextBoundsRefresh)
+            {
+                PerimeterBounds.Init();NextBoundsRefresh=Now+15;
+                for(TActorIterator<ANavMeshBoundsVolume> It(GetWorld());It;++It)
+                {
+                    const FBox B=It->GetComponentsBoundingBox(true);
+                    if(B.IsInsideXY(PlayerFeet)&&(!PerimeterBounds.IsValid||B.GetExtent().X*B.GetExtent().Y>PerimeterBounds.GetExtent().X*PerimeterBounds.GetExtent().Y))PerimeterBounds=B;
+                }
+            }
+            if(!PerimeterBounds.IsValid){++SpawnLocationFailures;return false;}
+            // Interleave sides; scan several inset strips where streets reach the perimeter.
+            // No player-centered ring fallback in Endless.
+            const FVector Entry=GetActorLocation()-PerimeterBounds.GetCenter();
+            const int32 EntrySide=FMath::Abs(Entry.X)>=FMath::Abs(Entry.Y)?(Entry.X>0?1:0):(Entry.Y>0?3:2);
+            const float EntryAlong=EntrySide<2?(GetActorLocation().Y-PerimeterBounds.Min.Y)/PerimeterBounds.GetSize().Y:(GetActorLocation().X-PerimeterBounds.Min.X)/PerimeterBounds.GetSize().X;
+            const int32 BaseEntry=FMath::Clamp(FMath::FloorToInt(EntryAlong*12),0,11)*4+EntrySide;
+            for(int32 I=0;I<48;++I)
+            {
+                // The map's eight placed entrances seed distinct sides without relying on UObject ID strides.
+                const int32 Index=(Sequence*13+BaseEntry+I)%48;
+                const int32 Side=Index%4;const float Along=((Index/4)+.5f)/12;
+                const float Inset=600.f+((I/16)%3)*1000.f;
+                const FVector Low=PerimeterBounds.Min+FVector(Inset,Inset,0),High=PerimeterBounds.Max-FVector(Inset,Inset,0);
+                FVector Candidate(0,0,PlayerPoint.Location.Z);
+                if(Side<2){Candidate.X=Side==0?Low.X:High.X;Candidate.Y=FMath::Lerp(Low.Y,High.Y,Along);}
+                else{Candidate.X=FMath::Lerp(Low.X,High.X,Along);Candidate.Y=Side==2?Low.Y:High.Y;}
+                if(SafePoint(Candidate,OutLocation,FVector(500,500,500))){GroupOrigin=LastGroupOrigin=OutLocation;bHasGroupOrigin=true;return true;}
+                if(PathQueries>=12)break;
+            }
         }
-        if(Found){GroupOrigin=OutLocation;bHasGroupOrigin=true;return true;}
-        // No safe, reachable point: retry later, never fall back to a visible pop-in.
-        return false;
+        else
+        {
+            // Corners leave only a small navigable arc: explore 360 degrees at multiple distances.
+            // Reachable sampling is the final fallback for irregular rooms and corridors.
+            for(int32 I=0;I<36;++I)
+            {
+                const float Angle=FMath::DegreesToRadians((Sequence*137+I*137)%360);
+                const float Radius=I<12?FMath::FRandRange(Inner,2000.f):FMath::FRandRange(FMath::Max(Inner,2000.f),4500.f);
+                const FVector Candidate=PlayerFeet+FVector(FMath::Cos(Angle),FMath::Sin(Angle),0)*Radius;
+                if(SafePoint(Candidate,OutLocation,FVector(240,240,400))){GroupOrigin=LastGroupOrigin=OutLocation;bHasGroupOrigin=true;return true;}
+                if(PathQueries>=12)break;
+            }
+            for(int32 I=0;I<12&&PathQueries<12;++I)
+            {
+                FNavLocation Random;
+                if(Nav->GetRandomReachablePointInRadius(PlayerPoint.Location,4500,Random,NavData)&&SafePoint(Random.Location,OutLocation,FVector(100,100,200)))
+                {GroupOrigin=LastGroupOrigin=OutLocation;bHasGroupOrigin=true;return true;}
+            }
+        }
+        ++SpawnLocationFailures;return false;
     }
-    // Editor/test worlds and deliberately placed noncombat spawners keep volume placement.
-    for (int32 Attempt = 0; Attempt < SPAWN_LOCATION_TRY_COUNT; ++Attempt)
+    for(int32 I=0;I<SPAWN_LOCATION_TRY_COUNT;++I)
     {
-        FVector Point;
-        if (!TryGetRandomNavLocation(Point)) continue;
-        if (PawnCharacter && FVector::DistSquared(Point, PawnCharacter->GetActorLocation()) < FMath::Square(double(MinPlayerDistance))) continue;
-        OutLocation = Point; return true;
+        FVector Point;if(!TryGetRandomNavLocation(Point))continue;
+        if(PawnCharacter&&FVector::DistSquared(Point,PawnCharacter->GetActorLocation())<FMath::Square(double(MinPlayerDistance)))continue;
+        OutLocation=Point;return true;
     }
-    return false;
+    ++SpawnLocationFailures;return false;
 }
 
 AMonsterBase* AMonsterSpawnVolume::SpawnOneMonster(const TArray<TSubclassOf<AMonsterBase>>& MonsterClasses, const FVector& SpawnLocation)
@@ -428,7 +471,7 @@ void AMonsterSpawnVolume::SpawnOneFromWave()
     {
         if(const auto* Mode=GetWorld()->GetAuthGameMode<AMainGameModeBase>();Mode&&!Mode->CanSpawnRegularMonster())break;
         bPreferRangedMember=Corner&&LastSpawnedGroupCount==0;
-        if(!TrySpawnMonster())break;
+        if(!TrySpawnMonster())continue;
         --PendingSpawnCount;++LastSpawnedGroupCount;
     }
     if(LastSpawnedGroupCount>0)if(auto* Flow=GetWorld()->GetSubsystem<UDreamEncounterDirector>())Flow->PackSpawned();

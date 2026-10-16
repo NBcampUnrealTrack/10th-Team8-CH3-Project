@@ -1,4 +1,4 @@
-﻿#include "MainPlayerCharacter.h"
+#include "MainPlayerCharacter.h"
 #include "HAL/PlatformTime.h"
 #include "MainPlayerController.h"
 #include "InteractableActorBase.h"
@@ -284,6 +284,13 @@ void AMainPlayerCharacter::BeginPlay()
 		//레벨과 경험치도 복원 이게 없으면 맵을 넘길 때마다 레벨이 1로 돌아가서
 		//HUD의 레벨 표시와 정예 몬스터 확률(GetEliteRate)이 매번 초기화됨
 		DreamVeilGameInstance->RestorePlayerLevel(this);
+
+        // Stage entry starts at the final restored maximum, including level growth.
+        // ResetHealth still respects permanent recovery caps such as Last Breath.
+        if (CombatStats && (DreamVeilGameInstance->IsInLevelMap() || DreamVeilGameInstance->IsInEndless()))
+        {
+            CombatStats->ResetHealth();
+        }
 	}
 }
 

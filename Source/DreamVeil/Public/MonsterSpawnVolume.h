@@ -1,4 +1,4 @@
-// Fill out your copyright notice in the Description page of Project Settings.
+﻿// Fill out your copyright notice in the Description page of Project Settings.
 
 #pragma once
 
@@ -30,6 +30,10 @@ public:
 	//양수인 볼륨은 SpawnGroupMin~Max 크기의 무리를 요청하고, 0인 볼륨은 비활성화합니다.
 	UFUNCTION(BlueprintCallable, Category = "Monster To Spawn")
 	void SpawnTick();
+    UFUNCTION(BlueprintCallable, Category="Monster To Spawn|Diagnostics")
+    bool FindSafeSpawnPoint(FVector& Point);
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Monster To Spawn|Diagnostics") int32 SpawnLocationFailures=0;
+    UPROPERTY(VisibleInstanceOnly, BlueprintReadOnly, Category="Monster To Spawn|Diagnostics") FVector LastGroupOrigin=FVector::ZeroVector;
     bool IsContinuousSpawnEnabled() const { return MonstersPerSpawnTick>0; }
 
 protected:
@@ -96,6 +100,8 @@ private:
     bool bHasGroupOrigin = false;
     bool bPreferRangedMember = false;
     FVector GroupOrigin = FVector::ZeroVector;
+    FBox PerimeterBounds=FBox(ForceInit);
+    float NextBoundsRefresh=0;
 	int32 SpawnSectorSequence = 0;
 
 	//아직 내보내지 못하고 남은 몬스터 수 웨이브 타이머가 하나씩 줄임

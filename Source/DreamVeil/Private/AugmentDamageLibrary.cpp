@@ -1,4 +1,4 @@
-﻿    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴 독 데미지는 방어력을 무시함
+    //방어력 차감 후 체력 적용 이미 죽었거나 데미지가 없으면 0이 돌아옴 독 데미지는 방어력을 무시함
     //독이나 가시 갑옷 반사로 죽어도 보상이 나가야 해서 아래 조기 반환들보다 먼저 확인
     //독 데미지는 틱마다 흡혈이나 가시 갑옷 반사가 걸리지 않게 여기서 끝냄
 //지속 공격 독 데미지를 보냄 독 표식이 붙어서 흡혈과 가시 갑옷 반사가 일어나지 않음
@@ -22,6 +22,7 @@
 #include "Kismet/KismetSystemLibrary.h"
 #include "MonsterBase.h"
 #include "DreamAugmentRuntime.h"
+#include "DreamAugmentFeedback.h"
 #include "MonsterProjectile.h"
 #include "Engine/Engine.h"
 #include "Engine/World.h"
@@ -165,7 +166,12 @@ float UAugmentDamageLibrary::ProcessIncomingDamage(AActor* DamagedActor, float D
 
     if (AttackerTable)
     {
+        auto* AttackerStats=Attacker->FindComponentByClass<UCombatStatsComponent>();
+        const float BeforeHealing=AttackerStats?AttackerStats->GetCurrentHealth():0.f;
         AttackerTable->ProcessOnDamageDealt(FMath::Min(FinalDamage,FMath::Max(0.0f,HealthBeforeHit)));
+        // Show the transfer only when this hit really restored health. No new healing is applied here.
+        if(AttackerStats&&AttackerStats->GetCurrentHealth()>BeforeHealing&&AttackerTable->HasAcquiredAugment(EAugmentID::Vampire))
+            UDreamAugmentFeedback::Emit(Attacker,EAugmentID::Vampire,EDreamAugmentCueShape::Siphon,DamagedActor->GetActorLocation(),35,.65f,nullptr,Attacker->GetActorLocation());
     }
 
     //가시 갑옷 반사 가시 갑옷이 없거나 방어력이 0이면 0이라 ApplyThornReflectDamage 안에서 걸러짐

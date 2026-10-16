@@ -1,4 +1,4 @@
-﻿#include "PassiveAugmentSkills.h"
+#include "PassiveAugmentSkills.h"
 
 #include "AugmentTypes.h"
 #include "CombatStatsComponent.h"
@@ -45,8 +45,7 @@ void UHealthUpSkill::Apply()
         return;
     }
 
-    //SetMaxHealth는 현재 체력 변화 이벤트를 보내지 않아서 체력 비율이 바뀌어도 광전사 최후의 요새가 다시 판정하지 않음
-    //바로 뒤 Heal이 현재 체력을 바꾸면서 이벤트를 보내 다시 판정하게 됨 Heal을 빼거나 순서를 바꾸지 말 것
+    // Grow the maximum first so the +20 heal uses the new limit, including Last Breath.
     Stats->SetMaxHealth(Stats->GetMaxHealth() + HEALTH_UP_AMOUNT);
     Stats->Heal(HEALTH_UP_AMOUNT);
 }
@@ -179,7 +178,7 @@ void UVampireSkill::OnDamageDealt(float FinalDamage)
     const float Before=Stats->GetCurrentHealth();
     Stats->Heal(Amount);
     WindowHealing+=FMath::Max(0.0f,Stats->GetCurrentHealth()-Before);
-    if(Stats->GetCurrentHealth()>Before)UDreamAugmentFeedback::Emit(GetOwnerActor(),EAugmentID::Vampire,EDreamAugmentCueShape::Ring,GetOwnerActor()->GetActorLocation()-FVector(0,0,80),65,.35f);
+    if(Stats->GetCurrentHealth()>Before)UDreamAugmentFeedback::Emit(GetOwnerActor(),EAugmentID::Vampire,EDreamAugmentCueShape::Aura,GetOwnerActor()->GetActorLocation(),65,.65f,GetOwnerActor());
 }
 
 //재생력 회복 타이머 시작 이미 돌고 있으면 무시
@@ -233,5 +232,5 @@ void URegenerationSkill::ProcessRegenerationTick()
     const float LostHealth = Stats->GetMaxHealth() - Stats->GetCurrentHealth();
 
     const float Before=Stats->GetCurrentHealth();Stats->Heal(LostHealth * REGENERATION_LOST_HEALTH_RATIO);
-    if(Stats->GetCurrentHealth()>Before)UDreamAugmentFeedback::Emit(GetOwnerActor(),EAugmentID::Regeneration,EDreamAugmentCueShape::Ring,GetOwnerActor()->GetActorLocation()-FVector(0,0,80),70,.5f);
+    if(Stats->GetCurrentHealth()>Before)UDreamAugmentFeedback::Emit(GetOwnerActor(),EAugmentID::Regeneration,EDreamAugmentCueShape::Aura,GetOwnerActor()->GetActorLocation(),70,.8f,GetOwnerActor());
 }
